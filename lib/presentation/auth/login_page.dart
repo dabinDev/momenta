@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../app/constants.dart';
+import '../../app/theme.dart';
+import '../../shared/widgets/app_backdrop.dart';
 import '../../shared/widgets/large_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
-import '../../shared/widgets/section_card.dart';
 import 'login_controller.dart';
 
 class LoginPage extends GetView<LoginController> {
@@ -13,18 +14,11 @@ class LoginPage extends GetView<LoginController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: <Color>[
-              Color(0xFFF5EFE6),
-              Color(0xFFF9F6EF),
-              Color(0xFFEAF1EC),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+      backgroundColor: Colors.transparent,
+      body: AppBackdrop(
+        primaryTint: AppTheme.primary,
+        secondaryTint: AppTheme.sky,
+        tertiaryTint: AppTheme.jade,
         child: SafeArea(
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
@@ -34,6 +28,7 @@ class LoginPage extends GetView<LoginController> {
               final Widget form = _LoginForm(controller: controller);
 
               return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                 child: Center(
                   child: ConstrainedBox(
@@ -44,8 +39,8 @@ class LoginPage extends GetView<LoginController> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: <Widget>[
                                 Expanded(child: hero),
-                                const SizedBox(width: 20),
-                                SizedBox(width: 410, child: form),
+                                const SizedBox(width: 22),
+                                SizedBox(width: 400, child: form),
                               ],
                             ),
                           )
@@ -78,51 +73,44 @@ class _LoginHero extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(26, 26, 26, 26),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-        gradient: const LinearGradient(
-          colors: <Color>[
-            Color(0xFFFFFAF4),
-            Color(0xFFF2F6F1),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(30),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Container(
-            width: 64,
-            height: 64,
+            width: 58,
+            height: 6,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
               gradient: const LinearGradient(
                 colors: <Color>[
-                  Color(0xFFF6E9D1),
-                  Color(0xFFE8F3EE),
+                  AppTheme.primary,
+                  AppTheme.amber,
+                  AppTheme.jade,
                 ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
               ),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              color: theme.colorScheme.primary,
-              size: 30,
+              borderRadius: BorderRadius.circular(999),
             ),
           ),
           const SizedBox(height: 24),
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: AppTheme.primary,
+              size: 34,
+            ),
+          ),
+          const SizedBox(height: 22),
           Text(
             AppConstants.appTitle,
             style: theme.textTheme.headlineLarge?.copyWith(
@@ -131,67 +119,67 @@ class _LoginHero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '为长辈准备的简洁视频创作流程。',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.92),
-            ),
+            '专为长辈准备的简洁视频创作流程。',
+            style: theme.textTheme.bodyLarge,
           ),
-          const SizedBox(height: 10),
-          Text(
-            '登录后即可进入创作、历史记录和个人中心。',
-            style: theme.textTheme.bodyMedium,
+          const SizedBox(height: 22),
+          const _HeroLine(
+            icon: Icons.favorite_border_rounded,
+            label: '一句话就能生成温暖视频',
+            tint: AppTheme.coral,
+          ),
+          const SizedBox(height: 12),
+          const _HeroLine(
+            icon: Icons.graphic_eq_rounded,
+            label: '支持语音输入和文案润色',
+            tint: AppTheme.sky,
+          ),
+          const SizedBox(height: 12),
+          const _HeroLine(
+            icon: Icons.history_rounded,
+            label: '历史记录与个人中心一目了然',
+            tint: AppTheme.jade,
           ),
           if (wideLayout) const Spacer(),
-          if (!wideLayout) const SizedBox(height: 24),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: const <Widget>[
-              _HeroTag(icon: Icons.verified_user_outlined, label: '账号登录'),
-              _HeroTag(icon: Icons.history_rounded, label: '历史记录'),
-              _HeroTag(icon: Icons.person_outline_rounded, label: '个人中心'),
-            ],
-          ),
         ],
       ),
     );
   }
 }
 
-class _HeroTag extends StatelessWidget {
-  const _HeroTag({
+class _HeroLine extends StatelessWidget {
+  const _HeroLine({
     required this.icon,
     required this.label,
+    required this.tint,
   });
 
   final IconData icon;
   final String label;
+  final Color tint;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: 18, color: theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: tint.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
           ),
-        ],
-      ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 20, color: tint),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -204,14 +192,26 @@ class _LoginForm extends GetView<LoginController> {
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      title: '账号登录',
-      subtitle: '输入用户名和密码后继续。',
-      icon: Icons.person_outline_rounded,
-      accentColor: Theme.of(context).colorScheme.primary,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(30),
+      ),
       child: AutofillGroup(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            Text(
+              '账号登录',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '输入用户名和密码后继续。',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 20),
             LargeTextField(
               controller: controller.usernameController,
               label: '用户名',

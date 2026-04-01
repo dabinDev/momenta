@@ -147,6 +147,27 @@ async def init_menus():
             "icon": "material-symbols:graphic-eq-rounded",
             "component": "/system/voice-log",
         },
+        {
+            "name": "App Releases",
+            "path": "app-release",
+            "order": 9,
+            "icon": "material-symbols:system-update-alt-rounded",
+            "component": "/system/app-release",
+        },
+        {
+            "name": "App Config",
+            "path": "app-config",
+            "order": 10,
+            "icon": "material-symbols:tune-rounded",
+            "component": "/system/app-config",
+        },
+        {
+            "name": "AI Debug",
+            "path": "ai-debug",
+            "order": 11,
+            "icon": "material-symbols:experiment-outline-rounded",
+            "component": "/system/ai-debug",
+        },
     ]
 
     for item in desired_children:
@@ -199,18 +220,30 @@ async def init_db():
 
 
 async def init_roles():
-    roles = await Role.exists()
-    if not roles:
+    admin_role = await Role.filter(name="Admin").first()
+    if not admin_role:
         admin_role = await Role.create(name="Admin", desc="Administrator")
+
+    user_role = await Role.filter(name="User").first()
+    if not user_role:
         user_role = await Role.create(name="User", desc="Regular user")
 
-        all_apis = await Api.all()
-        await admin_role.apis.add(*all_apis)
+    all_apis = await Api.all()
+    admin_api_ids = set(await admin_role.apis.all().values_list("id", flat=True))
+    missing_admin_apis = [api for api in all_apis if api.id not in admin_api_ids]
+    if missing_admin_apis:
+        await admin_role.apis.add(*missing_admin_apis)
 
-        all_menus = await Menu.all()
-        await admin_role.menus.add(*all_menus)
+    all_menus = await Menu.all()
+    admin_menu_ids = set(await admin_role.menus.all().values_list("id", flat=True))
+    missing_admin_menus = [menu for menu in all_menus if menu.id not in admin_menu_ids]
+    if missing_admin_menus:
+        await admin_role.menus.add(*missing_admin_menus)
+
+    if not await user_role.menus.all().exists():
         await user_role.menus.add(*all_menus)
 
+    if not await user_role.apis.all().exists():
         basic_apis = await Api.filter(Q(method__in=["GET"]) | Q(tags__icontains="base"))
         if basic_apis:
             await user_role.apis.add(*basic_apis)

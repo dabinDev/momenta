@@ -21,15 +21,37 @@ defineProps({
 
 <style scoped>
 .app-page {
+  position: relative;
   height: 100%;
-  padding: 20px;
+  padding: 14px 16px 20px;
+}
+
+.app-page::before {
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 110px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 162, 77, 0.08) 0%, transparent 72%);
+  pointer-events: none;
+  content: '';
+}
+
+.app-page::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 14%);
+  pointer-events: none;
+  content: '';
 }
 
 .app-page__body {
+  position: relative;
   display: flex;
   min-height: 100%;
   flex-direction: column;
-  gap: 20px;
+  gap: 22px;
 }
 
 .app-page__footer {
@@ -38,11 +60,11 @@ defineProps({
 
 @media (max-width: 768px) {
   .app-page {
-    padding: 16px;
+    padding: 12px;
   }
 
   .app-page__body {
-    gap: 16px;
+    gap: 18px;
   }
 }
 </style>

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../app/constants.dart';
+import '../../app/theme.dart';
+import '../../shared/widgets/app_page_scaffold.dart';
 import '../../shared/widgets/large_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/section_card.dart';
@@ -12,122 +14,135 @@ class AppSettingsPage extends GetView<AppSettingsController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('应用设置')),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: controller.refreshConfig,
-          child: Obx(() {
-            if (controller.isLoading.value) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(top: 120),
-                children: const <Widget>[
-                  Center(child: CircularProgressIndicator()),
-                ],
-              );
-            }
-
+    return AppPageScaffold(
+      title: '应用设置',
+      subtitle: '管理文案服务和视频服务配置',
+      accentColor: AppTheme.primary,
+      child: RefreshIndicator(
+        onRefresh: controller.refreshConfig,
+        child: Obx(() {
+          if (controller.isLoading.value) {
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-              children: <Widget>[
-                SectionCard(
-                  title: '配置面板',
-                  subtitle: '选择要调整的服务',
-                  icon: Icons.tune_rounded,
-                  accentColor: const Color(0xFF5A816A),
-                  child: Column(
-                    children: <Widget>[
-                      Obx(
-                        () => Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: _SectionChip(
-                                label: '文案服务',
-                                icon: Icons.auto_awesome_outlined,
-                                selected:
-                                    controller.selectedSectionIndex.value == 0,
-                                onTap: () => controller.switchSection(0),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _SectionChip(
-                                label: '视频服务',
-                                icon: Icons.movie_creation_outlined,
-                                selected:
-                                    controller.selectedSectionIndex.value == 1,
-                                onTap: () => controller.switchSection(1),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Obx(
-                        () => AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          child: controller.selectedSectionIndex.value == 0
-                              ? const _LlmSettingsForm(
-                                  key: ValueKey<String>('llm'))
-                              : const _VideoSettingsForm(
-                                  key: ValueKey<String>('video')),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SectionCard(
-                  title: '设置操作',
-                  subtitle: '保存后立即生效',
-                  icon: Icons.tune_rounded,
-                  accentColor: const Color(0xFF5A816A),
-                  child: Column(
-                    children: <Widget>[
-                      Obx(
-                        () => PrimaryButton(
-                          label: controller.isSaving.value ? '保存中...' : '保存设置',
-                          icon: Icons.save_outlined,
-                          onPressed: controller.isSaving.value
-                              ? null
-                              : controller.save,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
+              padding: const EdgeInsets.only(top: 120),
+              children: const <Widget>[
+                Center(child: CircularProgressIndicator()),
+              ],
+            );
+          }
+
+          return ListView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: <Widget>[
+              SectionCard(
+                title: '服务配置',
+                subtitle: '切换文案服务或视频服务，并直接保存到当前账号',
+                icon: Icons.tune_rounded,
+                accentColor: AppTheme.primary,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Obx(
+                      () => Row(
                         children: <Widget>[
                           Expanded(
-                            child: Obx(
-                              () => PrimaryButton.outline(
-                                label: controller.isSyncing.value
-                                    ? '同步中...'
-                                    : '同步配置',
-                                icon: Icons.sync_rounded,
-                                onPressed: controller.isSyncing.value
-                                    ? null
-                                    : controller.refreshConfig,
-                              ),
+                            child: _SectionChip(
+                              label: '文案服务',
+                              icon: Icons.auto_awesome_outlined,
+                              selected: controller.selectedSectionIndex.value == 0,
+                              onTap: () => controller.switchSection(0),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
                           Expanded(
-                            child: PrimaryButton.outline(
-                              label: '恢复默认',
-                              icon: Icons.restart_alt_rounded,
-                              onPressed: controller.restoreDefaults,
+                            child: _SectionChip(
+                              label: '视频服务',
+                              icon: Icons.movie_creation_outlined,
+                              selected: controller.selectedSectionIndex.value == 1,
+                              onTap: () => controller.switchSection(1),
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 18),
+                    Obx(
+                      () => AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        child: controller.selectedSectionIndex.value == 0
+                            ? const _LlmSettingsForm(key: ValueKey<String>('llm'))
+                            : const _VideoSettingsForm(
+                                key: ValueKey<String>('video'),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    LayoutBuilder(
+                      builder: (BuildContext context, BoxConstraints constraints) {
+                        final List<Widget> buttons = <Widget>[
+                          Obx(
+                            () => PrimaryButton(
+                              label: controller.isSaving.value ? '保存中...' : '保存设置',
+                              icon: Icons.save_outlined,
+                              onPressed: controller.isSaving.value
+                                  ? null
+                                  : controller.save,
+                            ),
+                          ),
+                          Obx(
+                            () => PrimaryButton.outline(
+                              label: controller.isSyncing.value ? '同步中...' : '同步配置',
+                              icon: Icons.sync_rounded,
+                              onPressed: controller.isSyncing.value
+                                  ? null
+                                  : controller.refreshConfig,
+                            ),
+                          ),
+                          PrimaryButton.outline(
+                            label: '恢复默认',
+                            icon: Icons.restart_alt_rounded,
+                            onPressed: controller.restoreDefaults,
+                          ),
+                        ];
+
+                        if (constraints.maxWidth < 360) {
+                          return Column(
+                            children: buttons
+                                .expand<Widget>(
+                                  (Widget child) => <Widget>[
+                                    child,
+                                    const SizedBox(height: 10),
+                                  ],
+                                )
+                                .toList()
+                              ..removeLast(),
+                          );
+                        }
+
+                        return Column(
+                          children: <Widget>[
+                            buttons.first,
+                            const SizedBox(height: 10),
+                            Row(
+                              children: <Widget>[
+                                Expanded(child: buttons[1]),
+                                const SizedBox(width: 10),
+                                Expanded(child: buttons[2]),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            );
-          }),
-        ),
+              ),
+            ],
+          );
+        }),
       ),
     );
   }
@@ -159,28 +174,21 @@ class _SectionChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             color: selected
-                ? theme.colorScheme.primary.withValues(alpha: 0.10)
-                : Colors.white,
+                ? AppTheme.primary.withValues(alpha: 0.14)
+                : Colors.white.withValues(alpha: 0.74),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: selected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant,
-            ),
           ),
           child: Column(
             children: <Widget>[
               Icon(
                 icon,
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
+                color: selected ? AppTheme.primary : theme.colorScheme.onSurface,
               ),
               const SizedBox(height: 8),
               Text(
                 label,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: selected ? theme.colorScheme.primary : null,
+                  color: selected ? AppTheme.primary : null,
                 ),
               ),
             ],

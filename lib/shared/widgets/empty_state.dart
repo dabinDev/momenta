@@ -21,17 +21,17 @@ class EmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Container(
-              width: 92,
-              height: 92,
+              width: 84,
+              height: 84,
               decoration: BoxDecoration(
-                color: const Color(0xFFE8E2D8),
-                borderRadius: BorderRadius.circular(28),
+                color: Colors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(26),
               ),
               alignment: Alignment.center,
               child: const Icon(
                 Icons.hourglass_empty_rounded,
-                size: 46,
-                color: Color(0xFF6E7E78),
+                size: 40,
+                color: Color(0xFF8A7A6D),
               ),
             ),
             const SizedBox(height: 20),

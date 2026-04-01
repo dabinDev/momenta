@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../app/theme.dart';
+import '../../shared/widgets/app_backdrop.dart';
 import '../create/create_page.dart';
 import '../history/history_page.dart';
 import '../settings/settings_page.dart';
@@ -17,22 +19,22 @@ class MainShellPage extends GetView<MainShellController> {
 
   final List<_ShellTabMeta> _tabs = const <_ShellTabMeta>[
     _ShellTabMeta(
-      title: '创作视频',
-      subtitle: '文案、提示词与任务提交',
+      title: '创建视频',
       icon: Icons.auto_awesome_rounded,
-      tint: Color(0xFF2F746A),
+      tint: AppTheme.coral,
+      supportTint: AppTheme.amber,
     ),
     _ShellTabMeta(
       title: '历史记录',
-      subtitle: '查看状态、结果与下载',
       icon: Icons.history_toggle_off_rounded,
-      tint: Color(0xFF4D80C9),
+      tint: AppTheme.sky,
+      supportTint: AppTheme.jade,
     ),
     _ShellTabMeta(
       title: '个人中心',
-      subtitle: '账号信息与版本管理',
       icon: Icons.account_circle_outlined,
-      tint: Color(0xFFD79B47),
+      tint: AppTheme.primary,
+      supportTint: AppTheme.amber,
     ),
   ];
 
@@ -45,90 +47,73 @@ class MainShellPage extends GetView<MainShellController> {
       final _ShellTabMeta tab = _tabs[index];
 
       return Scaffold(
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: <Color>[
-                        Colors.white.withValues(alpha: 0.74),
-                        tab.tint.withValues(alpha: 0.08),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(26),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 22,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
+        backgroundColor: Colors.transparent,
+        body: AppBackdrop(
+          primaryTint: tab.tint,
+          secondaryTint: tab.supportTint,
+          tertiaryTint: AppTheme.jade,
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
                   child: Row(
                     children: <Widget>[
-                      Container(
-                        width: 44,
-                        height: 44,
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        width: 7,
+                        height: 30,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          color: tab.tint.withValues(alpha: 0.14),
+                          gradient: LinearGradient(
+                            colors: <Color>[tab.tint, tab.supportTint],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
                         ),
-                        alignment: Alignment.center,
-                        child: Icon(tab.icon, color: tab.tint, size: 24),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              tab.title,
-                              style: theme.textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              tab.subtitle,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ],
+                        child: Text(
+                          tab.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontSize: 28,
+                          ),
                         ),
+                      ),
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(tab.icon, color: tab.tint, size: 20),
                       ),
                     ],
                   ),
                 ),
-              ),
-              Expanded(
-                child: IndexedStack(
-                  index: index,
-                  children: _pages,
+                Expanded(
+                  child: IndexedStack(
+                    index: index,
+                    children: _pages,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         bottomNavigationBar: SafeArea(
           top: false,
-          minimum: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-          child: Container(
+          minimum: const EdgeInsets.fromLTRB(14, 6, 14, 12),
+          child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
+              color: Colors.white.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(24),
             ),
             child: NavigationBar(
               selectedIndex: index,
@@ -161,13 +146,13 @@ class MainShellPage extends GetView<MainShellController> {
 class _ShellTabMeta {
   const _ShellTabMeta({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.tint,
+    required this.supportTint,
   });
 
   final String title;
-  final String subtitle;
   final IconData icon;
   final Color tint;
+  final Color supportTint;
 }

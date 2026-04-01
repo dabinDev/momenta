@@ -24,24 +24,38 @@ class StatusChip extends StatelessWidget {
         foreground = const Color(0xFF9F4238);
         label = '失败';
       default:
-        background = const Color(0xFFF4E8D3);
+        background = const Color(0xFFFCE9D7);
         foreground = const Color(0xFF91653B);
         label = '处理中';
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: foreground,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: foreground,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: foreground,
+            ),
+          ),
+        ],
       ),
     );
   }

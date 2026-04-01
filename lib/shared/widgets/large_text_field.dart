@@ -55,50 +55,64 @@ class _LargeTextFieldState extends State<LargeTextField> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    return TextField(
-      controller: widget.controller,
-      minLines: widget.minLines,
-      maxLines: widget.maxLines,
-      obscureText: _obscured,
-      enabled: widget.enabled,
-      keyboardType: widget.keyboardType,
-      textInputAction: widget.textInputAction,
-      onSubmitted: widget.onSubmitted,
-      autofillHints: widget.autofillHints,
-      cursorColor: theme.colorScheme.primary,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        color: theme.colorScheme.onSurface,
-        fontWeight: FontWeight.w600,
-      ),
-      decoration: InputDecoration(
-        labelText: widget.label,
-        hintText: widget.hintText,
-        alignLabelWithHint: widget.maxLines > 1,
-        prefixIcon: widget.prefixIcon == null
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Icon(widget.prefixIcon, size: 20),
-              ),
-        prefixIconConstraints: const BoxConstraints(
-          minWidth: 48,
-          minHeight: 0,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            widget.label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-        suffixIcon: widget.obscureText
-            ? IconButton(
-                onPressed: () {
-                  setState(() {
-                    _obscured = !_obscured;
-                  });
-                },
-                icon: Icon(
-                  _obscured
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                ),
-              )
-            : null,
-      ),
+        TextField(
+          controller: widget.controller,
+          minLines: widget.minLines,
+          maxLines: widget.maxLines,
+          obscureText: _obscured,
+          enabled: widget.enabled,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          onSubmitted: widget.onSubmitted,
+          autofillHints: widget.autofillHints,
+          cursorColor: theme.colorScheme.primary,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            alignLabelWithHint: widget.maxLines > 1,
+            prefixIcon: widget.prefixIcon == null
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(widget.prefixIcon, size: 20),
+                  ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 48,
+              minHeight: 0,
+            ),
+            suffixIcon: widget.obscureText
+                ? IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _obscured = !_obscured;
+                      });
+                    },
+                    icon: Icon(
+                      _obscured
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+      ],
     );
   }
 }

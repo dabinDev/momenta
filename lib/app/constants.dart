@@ -4,6 +4,8 @@ class AppConstants {
   static const String appTitle = '银龄视频助手';
   static const String appVersion = '1.0.0';
   static const String appBuildNumber = '1';
+  static const String releasePlatform = 'android';
+  static const String releaseChannelCode = 'lan';
   static const String updateChannel = '局域网安装包';
   static const String updateHint = '如有新版本，重新安装新的 APK 即可覆盖更新。';
   static const String authServerBaseUrl = 'http://192.168.12.197:9999';

@@ -10,6 +10,7 @@ import 'package:record/record.dart';
 
 import '../../app/constants.dart';
 import '../../app/routes.dart';
+import '../../app/theme.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/file_utils.dart';
 import '../../core/utils/snackbar_helper.dart';
@@ -495,87 +496,80 @@ class _SpeechRecordingDialog extends StatelessWidget {
               .toDouble();
 
           return Container(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
+              color: Colors.white.withValues(alpha: 0.94),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 28,
-                  offset: const Offset(0, 18),
-                ),
-              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Container(
-                  width: 94,
-                  height: 94,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: <Color>[Color(0xFFF28B5B), Color(0xFFF2BF52)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.mic_rounded,
+                        size: 32,
+                        color: AppTheme.primary,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.mic_rounded,
-                    size: 42,
-                    color: Colors.white,
-                  ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '正在录音',
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '说完后点“说完了”即可识别',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '正在录音',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
                   '${controller.formattedRecordingTime} / 01:00',
                   style: theme.textTheme.titleLarge?.copyWith(
-                    color: theme.colorScheme.primary,
+                    color: AppTheme.primary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '说完后点“说完了”',
-                  style: theme.textTheme.bodyLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(99),
                   child: LinearProgressIndicator(
-                    minHeight: 10,
+                    minHeight: 8,
                     value: progress,
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,
                   ),
                 ),
                 const SizedBox(height: 18),
-                Row(
+                Column(
                   children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: controller.cancelSpeechRecognition,
-                        icon: const Icon(Icons.close_rounded),
-                        label: const Text('取消'),
-                      ),
+                    ElevatedButton.icon(
+                      onPressed: controller.finishSpeechRecognition,
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('说完了'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: controller.finishSpeechRecognition,
-                        icon: const Icon(Icons.check_rounded),
-                        label: const Text('说完了'),
-                      ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: controller.cancelSpeechRecognition,
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('取消'),
                     ),
                   ],
                 ),

@@ -3,8 +3,8 @@
     <n-layout-sider
       class="app-shell__sider"
       collapse-mode="width"
-      :collapsed-width="74"
-      :width="248"
+      :collapsed-width="76"
+      :width="264"
       :native-scrollbar="false"
       :collapsed="appStore.collapsed"
     >
@@ -67,14 +67,32 @@ watchEffect(() => {
 
 <style scoped>
 .app-shell {
+  gap: 10px;
+  padding: 10px;
   background: transparent;
 }
 
 .app-shell__sider {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--shell-border);
+  border-radius: 22px;
   background: var(--shell-sidebar-bg);
-  backdrop-filter: blur(20px);
-  border-right: 1px solid var(--shell-border);
-  box-shadow: var(--soft-shadow);
+  box-shadow: var(--panel-shadow);
+}
+
+.app-shell__sider::before {
+  display: none;
+}
+
+.app-shell__sider::after {
+  position: absolute;
+  top: 16px;
+  right: 0;
+  bottom: 16px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--shell-divider), transparent);
+  content: '';
 }
 
 .app-shell__main {
@@ -82,29 +100,48 @@ watchEffect(() => {
   min-width: 0;
   flex: 1;
   flex-direction: column;
+  gap: 10px;
+  padding-left: 2px;
 }
 
 .app-shell__header {
   display: flex;
   align-items: center;
-  padding: 0 24px 0 18px;
-  background: var(--shell-header-bg);
+  padding: 0;
+  background: transparent;
 }
 
 .app-shell__content {
+  position: relative;
   min-height: 0;
   flex: 1;
-  padding: 0 20px 20px 12px;
+  padding: 0;
 }
 
 .app-shell__workspace {
+  position: relative;
   height: 100%;
   overflow: hidden;
-  border: 1px solid var(--shell-border);
-  border-radius: 32px;
+  border-radius: 24px;
   background: var(--shell-workspace-bg);
   box-shadow: var(--panel-shadow);
-  backdrop-filter: blur(18px);
+}
+
+.app-shell__workspace::before {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--shell-border);
+  border-radius: inherit;
+  pointer-events: none;
+  content: '';
+}
+
+.app-shell__workspace::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 18%);
+  pointer-events: none;
+  content: '';
 }
 
 :deep(.n-layout-sider-scroll-container) {
@@ -113,16 +150,13 @@ watchEffect(() => {
 }
 
 @media (max-width: 768px) {
-  .app-shell__header {
-    padding: 0 14px 0 12px;
-  }
-
-  .app-shell__content {
-    padding: 0 14px 14px;
+  .app-shell {
+    gap: 8px;
+    padding: 8px;
   }
 
   .app-shell__workspace {
-    border-radius: 24px;
+    border-radius: 18px;
   }
 }
 </style>

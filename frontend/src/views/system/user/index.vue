@@ -706,7 +706,7 @@ function findDeptNameById(nodes = [], targetId) {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.16em;
-  color: #7d7465;
+  color: var(--brand-primary);
   text-transform: uppercase;
 }
 
@@ -715,7 +715,7 @@ function findDeptNameById(nodes = [], targetId) {
 .dept-panel__header h3,
 .user-table-panel__header h3 {
   margin: 0;
-  color: #1f2f2b;
+  color: var(--app-text);
 }
 
 .user-page__header-copy h2 {
@@ -727,7 +727,7 @@ function findDeptNameById(nodes = [], targetId) {
 .user-overview__intro p,
 .user-table-panel__header p {
   margin: 10px 0 0;
-  color: #5d675f;
+  color: var(--app-muted);
   line-height: 1.6;
 }
 
@@ -741,40 +741,51 @@ function findDeptNameById(nodes = [], targetId) {
   display: grid;
   gap: 4px;
   min-width: 150px;
-  padding: 10px 14px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(255, 243, 220, 0.92), rgba(237, 248, 244, 0.92));
-  color: #42514c;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 105, 0, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--app-text);
+  box-shadow: var(--soft-shadow);
+  backdrop-filter: blur(16px);
 }
 
 .user-page__scope span,
 .user-stat span,
 .dept-panel__summary span {
   font-size: 12px;
-  color: #7a857c;
+  color: var(--app-muted);
 }
 
 .user-page__scope strong,
 .dept-panel__summary strong {
   font-size: 15px;
   font-weight: 700;
-  color: #1f2f2b;
+  color: var(--app-text);
 }
 
 .user-overview {
-  padding: 24px 26px;
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at top right, rgba(230, 157, 72, 0.18), transparent 30%),
-    linear-gradient(135deg, #f7fbf8 0%, #eef7f1 46%, #fff7ec 100%);
-  border: 1px solid rgba(53, 86, 72, 0.08);
+  position: relative;
+  overflow: hidden;
+  padding: 20px 22px;
+  border: 1px solid var(--shell-border);
+  border-radius: 18px;
+  background: rgba(255, 251, 248, 0.66);
+  box-shadow: var(--soft-shadow);
+  backdrop-filter: blur(20px);
+}
+
+.user-overview::before {
+  display: none;
 }
 
 .user-overview__intro {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
+  z-index: 1;
 }
 
 .user-overview__filters {
@@ -796,19 +807,23 @@ function findDeptNameById(nodes = [], targetId) {
 .user-stat {
   display: grid;
   gap: 6px;
-  padding: 16px 0 10px;
-  border-top: 1px solid rgba(53, 86, 72, 0.08);
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 105, 0, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
 }
 
 .user-stat strong {
   font-size: 28px;
   line-height: 1;
-  color: #173028;
+  color: var(--app-text);
 }
 
 .user-stat small,
 .dept-panel__summary small {
-  color: #7a857c;
+  color: var(--app-muted);
   line-height: 1.4;
 }
 
@@ -821,17 +836,19 @@ function findDeptNameById(nodes = [], targetId) {
 .dept-panel,
 .user-table-panel {
   min-width: 0;
-  padding: 22px;
-  border-radius: 24px;
-  border: 1px solid rgba(53, 86, 72, 0.08);
-  background: #fff;
+  padding: 18px;
+  border: 1px solid var(--shell-border);
+  border-radius: 18px;
+  background: rgba(255, 251, 248, 0.7);
+  box-shadow: var(--soft-shadow);
+  backdrop-filter: blur(18px);
 }
 
 .dept-panel {
   display: grid;
   align-content: start;
   gap: 16px;
-  background: linear-gradient(180deg, #fbfdfb 0%, #ffffff 100%);
+  background: rgba(255, 248, 244, 0.62);
 }
 
 .dept-panel__header {
@@ -845,8 +862,8 @@ function findDeptNameById(nodes = [], targetId) {
   display: grid;
   gap: 4px;
   padding: 14px 16px;
-  border-radius: 18px;
-  background: #f5f8f6;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .dept-panel__tree {
@@ -871,14 +888,14 @@ function findDeptNameById(nodes = [], targetId) {
 }
 
 .user-name-cell__title {
-  color: #1c2a26;
+  color: var(--app-text);
   font-size: 14px;
 }
 
 .user-name-cell__meta,
 .user-role-empty {
   font-size: 12px;
-  color: #7a857c;
+  color: var(--app-muted);
 }
 
 .user-role-tags {
@@ -907,11 +924,11 @@ function findDeptNameById(nodes = [], targetId) {
 }
 
 :deep(.n-tree-node--selected > .n-tree-node-content) {
-  background: rgba(35, 111, 84, 0.12);
+  background: rgba(255, 105, 0, 0.12);
 }
 
 :deep(.n-data-table-th) {
-  background: #f8fbf8;
+  background: #fff5ee;
 }
 
 :deep(.n-data-table-td) {

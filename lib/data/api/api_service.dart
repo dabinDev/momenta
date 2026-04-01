@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../../app/constants.dart';
 import '../../core/services/secure_storage_service.dart';
 import '../models/app_config_model.dart';
+import '../models/app_update_info_model.dart';
 import '../models/paginated_history_model.dart';
 import '../models/uploaded_file_model.dart';
 import '../models/video_task_model.dart';
@@ -265,6 +266,19 @@ class ApiService {
       options: await _authOptions(),
     );
     return _readEnvelopeMap(response.data);
+  }
+
+  Future<AppUpdateInfoModel> checkAppUpdate() async {
+    final Response<dynamic> response = await _authDio.get(
+      '/api/app/releases/latest',
+      queryParameters: <String, dynamic>{
+        'platform': AppConstants.releasePlatform,
+        'channel': AppConstants.releaseChannelCode,
+        'current_version': AppConstants.appVersion,
+        'current_build_number': AppConstants.appBuildNumber,
+      },
+    );
+    return AppUpdateInfoModel.fromJson(_readEnvelopeMap(response.data));
   }
 
   Future<Options> _authOptions({String? token}) async {

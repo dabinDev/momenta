@@ -44,4 +44,26 @@ export default {
   getTaskList: (params = {}) => request.get('/task/list', { params }),
   syncTask: (params = {}) => request.post('/task/sync', null, { params }),
   getVoiceLogList: (params = {}) => request.get('/voice_log/list', { params }),
+  // user app config
+  getUserAppConfigList: (params = {}) => request.get('/app_config/list', { params }),
+  getUserAppConfigDetail: (params = {}) => request.get('/app_config/get', { params }),
+  updateUserAppConfig: (data = {}) => request.post('/app_config/update', data),
+  resetUserAppConfig: (data = {}) => request.post('/app_config/reset', data),
+  // ai debug
+  debugUploadImages: (data) =>
+    request.post('/ai_debug/upload_images', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  debugPolishText: (data = {}) => request.post('/ai_debug/polish_text', data),
+  debugGeneratePrompt: (data = {}) => request.post('/ai_debug/generate_prompt', data),
+  debugCreateTask: (data = {}) => request.post('/ai_debug/create_task', data),
+  debugTranscribe: (data) =>
+    request.post('/ai_debug/transcribe', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  // app release
+  getAppReleaseList: (params = {}) => request.get('/app_release/list', { params }),
+  createAppRelease: (data = {}) => request.post('/app_release/create', data),
+  updateAppRelease: (data = {}) => request.post('/app_release/update', data),
+  deleteAppRelease: (params = {}) => request.delete('/app_release/delete', { params }),
 }

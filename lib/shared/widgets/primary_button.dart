@@ -23,26 +23,13 @@ class PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color iconColor =
-        _outlined ? theme.colorScheme.primary : Colors.white;
-    final Color iconBackground = _outlined
-        ? theme.colorScheme.primary.withValues(alpha: 0.1)
-        : Colors.white.withValues(alpha: 0.16);
-
+    final Color foreground =
+        _outlined ? theme.colorScheme.onSurface : Colors.white;
     final Widget child = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: iconBackground,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          alignment: Alignment.center,
-          child: Icon(icon, size: 18, color: iconColor),
-        ),
-        const SizedBox(width: 10),
+        Icon(icon, size: 19, color: foreground),
+        const SizedBox(width: 8),
         Flexible(
           child: Text(
             label,

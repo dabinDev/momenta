@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../app/theme.dart';
 import '../../data/models/history_item_model.dart';
+import '../../shared/widgets/app_page_scaffold.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/section_card.dart';
@@ -26,35 +28,98 @@ class HistoryPage extends GetView<HistoryController> {
       return RefreshIndicator(
         onRefresh: controller.refreshList,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 22),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: <Widget>[
-            _HistoryOverviewCard(controller: controller),
-            const SizedBox(height: 12),
-            _HistoryFilterBar(controller: controller),
-            const SizedBox(height: 12),
-            if (controller.items.isEmpty)
-              const EmptyState(
-                title: '还没有历史记录',
-                subtitle: '生成完成后，视频任务会按当前账号保存在这里。',
-              )
-            else
-              ...controller.items.map(
-                (HistoryItemModel item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _HistoryItemCard(
-                    item: item,
-                    onPlay: item.isCompleted
-                        ? () => controller.playItem(item)
-                        : null,
-                    onDownload: item.isCompleted
-                        ? () => controller.downloadItem(item)
-                        : null,
-                    onDelete: () => controller.deleteItem(item.id),
+            SectionCard(
+              title: '历史记录',
+              subtitle: controller.isRefreshingProcessing.value
+                  ? '正在刷新处理中任务'
+                  : '生成结果会自动按当前账号保存',
+              icon: Icons.inventory_2_outlined,
+              accentColor: AppTheme.sky,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: <Widget>[
+                      _SummaryTag(
+                        label: '全部',
+                        value: controller.totalCount.value.toString(),
+                        tint: AppTheme.primary,
+                      ),
+                      _SummaryTag(
+                        label: '完成',
+                        value: controller.completedCount.value.toString(),
+                        tint: AppTheme.jade,
+                      ),
+                      _SummaryTag(
+                        label: '处理中',
+                        value: controller.processingCount.value.toString(),
+                        tint: AppTheme.amber,
+                      ),
+                      _SummaryTag(
+                        label: '失败',
+                        value: controller.failedCount.value.toString(),
+                        tint: AppTheme.coral,
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  _HistoryFilterBar(controller: controller),
+                  const SizedBox(height: 16),
+                  _AdaptiveOverviewActions(controller: controller),
+                ],
               ),
-            if (controller.items.isNotEmpty)
-              _LoadMoreArea(controller: controller),
+            ),
+            const SizedBox(height: 14),
+            SectionCard(
+              title: '任务列表',
+              subtitle: controller.items.isEmpty
+                  ? '还没有视频任务'
+                  : '共 ${controller.items.length} 条已加载记录',
+              icon: Icons.list_alt_rounded,
+              accentColor: AppTheme.primary,
+              child: controller.items.isEmpty
+                  ? const EmptyState(
+                      title: '还没有历史记录',
+                      subtitle: '完成第一次创作后，视频任务会自动保存在这里。',
+                    )
+                  : Column(
+                      children: <Widget>[
+                        for (int index = 0;
+                            index < controller.items.length;
+                            index++) ...<Widget>[
+                          if (index > 0)
+                            Divider(
+                              color:
+                                  Theme.of(context).colorScheme.outlineVariant,
+                            ),
+                          _HistoryListItem(
+                            item: controller.items[index],
+                            onPlay: controller.items[index].isCompleted
+                                ? () => controller.playItem(
+                                      controller.items[index],
+                                    )
+                                : null,
+                            onDownload: controller.items[index].isCompleted
+                                ? () => controller.downloadItem(
+                                      controller.items[index],
+                                    )
+                                : null,
+                            onDelete: () =>
+                                controller.deleteItem(controller.items[index].id),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        _LoadMoreArea(controller: controller),
+                      ],
+                    ),
+            ),
           ],
         ),
       );
@@ -64,84 +129,72 @@ class HistoryPage extends GetView<HistoryController> {
       return content;
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('历史记录')),
-      body: SafeArea(child: content),
+    return AppPageScaffold(
+      title: '历史记录',
+      subtitle: '查看结果、下载和删除任务',
+      accentColor: AppTheme.sky,
+      child: content,
     );
   }
 }
 
-class _HistoryOverviewCard extends StatelessWidget {
-  const _HistoryOverviewCard({required this.controller});
+class _AdaptiveOverviewActions extends StatelessWidget {
+  const _AdaptiveOverviewActions({required this.controller});
 
   final HistoryController controller;
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      title: '历史记录管理',
-      subtitle:
-          controller.isRefreshingProcessing.value ? '正在刷新处理中任务' : '按当前登录账号保存',
-      icon: Icons.inventory_2_outlined,
-      accentColor: const Color(0xFF4D74B8),
-      child: Column(
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                  child: _SummaryTag(
-                      label: '全部',
-                      value: controller.totalCount.value.toString())),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _SummaryTag(
-                      label: '完成',
-                      value: controller.completedCount.value.toString())),
-            ],
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final List<Widget> buttons = <Widget>[
+          PrimaryButton.outline(
+            label: '刷新状态',
+            icon: Icons.refresh_rounded,
+            onPressed: controller.refreshList,
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              Expanded(
-                  child: _SummaryTag(
-                      label: '处理中',
-                      value: controller.processingCount.value.toString())),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _SummaryTag(
-                      label: '失败',
-                      value: controller.failedCount.value.toString())),
-            ],
+          PrimaryButton.outline(
+            label: '清空记录',
+            icon: Icons.delete_sweep_outlined,
+            onPressed: controller.totalCount.value == 0
+                ? null
+                : () => _confirmClearAll(context, controller),
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: PrimaryButton.outline(
-                  label: '刷新状态',
-                  icon: Icons.refresh_rounded,
-                  onPressed: controller.refreshList,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: PrimaryButton.outline(
-                  label: '清空记录',
-                  icon: Icons.delete_sweep_outlined,
-                  onPressed: controller.totalCount.value == 0
-                      ? null
-                      : () => _confirmClearAll(context, controller),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ];
+
+        if (constraints.maxWidth < 360) {
+          return Column(
+            children: buttons
+                .expand<Widget>(
+                  (Widget child) => <Widget>[
+                    child,
+                    const SizedBox(height: 10),
+                  ],
+                )
+                .toList()
+              ..removeLast(),
+          );
+        }
+
+        return Row(
+          children: buttons
+              .expand<Widget>(
+                (Widget child) => <Widget>[
+                  Expanded(child: child),
+                  const SizedBox(width: 12),
+                ],
+              )
+              .toList()
+            ..removeLast(),
+        );
+      },
     );
   }
 
   Future<void> _confirmClearAll(
-      BuildContext context, HistoryController controller) async {
+    BuildContext context,
+    HistoryController controller,
+  ) async {
     final bool? confirmed = await Get.dialog<bool>(
       AlertDialog(
         title: const Text('清空历史记录'),
@@ -194,8 +247,8 @@ class _HistoryFilterBar extends StatelessWidget {
   }
 }
 
-class _HistoryItemCard extends StatelessWidget {
-  const _HistoryItemCard({
+class _HistoryListItem extends StatelessWidget {
+  const _HistoryListItem({
     required this.item,
     required this.onPlay,
     required this.onDownload,
@@ -209,57 +262,77 @@ class _HistoryItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     final String subtitle = item.createdAt == null
         ? '任务编号：${item.id}'
         : DateFormat('yyyy-MM-dd HH:mm').format(item.createdAt!);
 
-    return SectionCard(
-      title: item.displayTitle,
-      subtitle: subtitle,
-      icon: Icons.history_rounded,
-      accentColor: const Color(0xFF4D74B8),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      item.displayTitle,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
               StatusChip(status: item.status),
-              if (item.duration != null) ...<Widget>[
-                const SizedBox(width: 8),
-                _MetaTag(label: '${item.duration} 秒'),
-              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              if (item.duration != null) _MetaTag(label: '${item.duration} 秒'),
+              _MetaTag(label: item.isCompleted ? '可播放' : '等待完成'),
             ],
           ),
           if (item.errorMessage?.isNotEmpty == true) ...<Widget>[
             const SizedBox(height: 10),
-            Text(item.errorMessage!,
-                style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              item.errorMessage!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFFC35A4E),
+              ),
+            ),
           ],
           const SizedBox(height: 14),
-          Row(
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: <Widget>[
-              Expanded(
-                child: PrimaryButton.outline(
-                  label: '播放',
-                  icon: Icons.play_circle_outline,
-                  onPressed: onPlay,
-                ),
+              _ActionChipButton(
+                icon: Icons.play_circle_outline,
+                label: '播放',
+                onTap: onPlay,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: PrimaryButton.outline(
-                  label: '下载',
-                  icon: Icons.download_outlined,
-                  onPressed: onDownload,
-                ),
+              _ActionChipButton(
+                icon: Icons.download_outlined,
+                label: '下载',
+                onTap: onDownload,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: PrimaryButton.outline(
-                  label: '删除',
-                  icon: Icons.delete_outline,
-                  onPressed: onDelete,
-                ),
+              _ActionChipButton(
+                icon: Icons.delete_outline,
+                label: '删除',
+                onTap: onDelete,
+                tint: AppTheme.coral,
               ),
             ],
           ),
@@ -273,27 +346,37 @@ class _SummaryTag extends StatelessWidget {
   const _SummaryTag({
     required this.label,
     required this.value,
+    required this.tint,
   });
 
   final String label;
   final String value;
+  final Color tint;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F4EC),
+        color: tint.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text(label, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 6),
-          Text(value, style: theme.textTheme.titleLarge),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.text,
+                ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppTheme.text,
+                ),
+          ),
         ],
       ),
     );
@@ -310,15 +393,69 @@ class _MetaTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0E7D8),
+        color: Colors.white.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.text,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF6D5A45),
             ),
+      ),
+    );
+  }
+}
+
+class _ActionChipButton extends StatelessWidget {
+  const _ActionChipButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.tint = AppTheme.primary,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = onTap != null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: enabled
+                ? tint.withValues(alpha: 0.12)
+                : Colors.white.withValues(alpha: 0.46),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                icon,
+                size: 18,
+                color: enabled ? tint : AppTheme.muted,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: enabled ? AppTheme.text : AppTheme.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -340,7 +477,7 @@ class _LoadMoreArea extends StatelessWidget {
       }
       if (!controller.hasMore.value) {
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.only(top: 6),
           child: Center(
             child: Text(
               '没有更多记录了',
@@ -349,13 +486,10 @@ class _LoadMoreArea extends StatelessWidget {
           ),
         );
       }
-      return Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: PrimaryButton.outline(
-          label: '加载更多',
-          icon: Icons.expand_more,
-          onPressed: () => controller.loadHistory(),
-        ),
+      return PrimaryButton.outline(
+        label: '加载更多',
+        icon: Icons.expand_more,
+        onPressed: () => controller.loadHistory(),
       );
     });
   }
