@@ -4,7 +4,7 @@
     :locale="zhCN"
     :date-locale="dateZhCN"
     :theme="appStore.isDark ? darkTheme : undefined"
-    :theme-overrides="naiveThemeOverrides"
+    :theme-overrides="themeOverrides"
   >
     <n-loading-bar-provider>
       <n-dialog-provider>
@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { defineComponent, h } from 'vue'
+import { computed, defineComponent, h, watchEffect } from 'vue'
 import {
   zhCN,
   dateZhCN,
@@ -30,34 +30,43 @@ import {
   useMessage,
   useNotification,
 } from 'naive-ui'
-import { useCssVar } from '@vueuse/core'
 import { kebabCase } from 'lodash-es'
 import { setupMessage, setupDialog } from '@/utils'
-import { naiveThemeOverrides } from '~/settings'
+import { darkThemeOverrides, lightThemeOverrides } from '~/settings'
 import { useAppStore } from '@/store'
 
 const appStore = useAppStore()
 
+const themeOverrides = computed(() => (appStore.isDark ? darkThemeOverrides : lightThemeOverrides))
+
 function setupCssVar() {
-  const common = naiveThemeOverrides.common
+  const common = themeOverrides.value.common || {}
   for (const key in common) {
-    useCssVar(`--${kebabCase(key)}`, document.documentElement).value = common[key] || ''
-    if (key === 'primaryColor') window.localStorage.setItem('__THEME_COLOR__', common[key] || '')
+    document.documentElement.style.setProperty(`--${kebabCase(key)}`, common[key] || '')
+    if (key === 'primaryColor') {
+      window.localStorage.setItem('__THEME_COLOR__', common[key] || '')
+    }
   }
+
+  const mode = appStore.isDark ? 'dark' : 'light'
+  document.documentElement.dataset.theme = mode
+  document.body.dataset.theme = mode
+  document.documentElement.classList.toggle('dark', appStore.isDark)
+  document.body.classList.toggle('dark', appStore.isDark)
 }
 
-// 挂载naive组件的方法至window, 以便在全局使用
 function setupNaiveTools() {
   window.$loadingBar = useLoadingBar()
   window.$notification = useNotification()
-
   window.$message = setupMessage(useMessage())
   window.$dialog = setupDialog(useDialog())
 }
 
 const NaiveProviderContent = defineComponent({
   setup() {
-    setupCssVar()
+    watchEffect(() => {
+      setupCssVar()
+    })
     setupNaiveTools()
   },
   render() {

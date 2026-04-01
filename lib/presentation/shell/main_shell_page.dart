@@ -15,22 +15,25 @@ class MainShellPage extends GetView<MainShellController> {
     const SettingsPage.embedded(),
   ];
 
-  final List<String> _titles = <String>[
-    '创建视频',
-    '历史记录',
-    '我的',
-  ];
-
-  final List<IconData> _icons = <IconData>[
-    Icons.auto_awesome_rounded,
-    Icons.history_toggle_off_rounded,
-    Icons.account_circle_outlined,
-  ];
-
-  final List<List<Color>> _gradients = <List<Color>>[
-    <Color>[const Color(0xFF2E7080), const Color(0xFFE18C49)],
-    <Color>[const Color(0xFF3B6EA8), const Color(0xFF69A8A1)],
-    <Color>[const Color(0xFF547A63), const Color(0xFFD2A24C)],
+  final List<_ShellTabMeta> _tabs = const <_ShellTabMeta>[
+    _ShellTabMeta(
+      title: '创作视频',
+      subtitle: '文案、提示词与任务提交',
+      icon: Icons.auto_awesome_rounded,
+      tint: Color(0xFF2F746A),
+    ),
+    _ShellTabMeta(
+      title: '历史记录',
+      subtitle: '查看状态、结果与下载',
+      icon: Icons.history_toggle_off_rounded,
+      tint: Color(0xFF4D80C9),
+    ),
+    _ShellTabMeta(
+      title: '个人中心',
+      subtitle: '账号信息与版本管理',
+      icon: Icons.account_circle_outlined,
+      tint: Color(0xFFD79B47),
+    ),
   ];
 
   @override
@@ -39,6 +42,7 @@ class MainShellPage extends GetView<MainShellController> {
 
     return Obx(() {
       final int index = controller.currentIndex.value;
+      final _ShellTabMeta tab = _tabs[index];
 
       return Scaffold(
         body: SafeArea(
@@ -46,40 +50,57 @@ class MainShellPage extends GetView<MainShellController> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 240),
+                  duration: const Duration(milliseconds: 220),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: _gradients[index],
+                      colors: <Color>[
+                        Colors.white.withValues(alpha: 0.74),
+                        tab.tint.withValues(alpha: 0.08),
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(26),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          _titles[index],
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(16),
+                          color: tab.tint.withValues(alpha: 0.14),
                         ),
                         alignment: Alignment.center,
-                        child:
-                            Icon(_icons[index], color: Colors.white, size: 26),
+                        child: Icon(tab.icon, color: tab.tint, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              tab.title,
+                              style: theme.textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              tab.subtitle,
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -96,12 +117,18 @@ class MainShellPage extends GetView<MainShellController> {
         ),
         bottomNavigationBar: SafeArea(
           top: false,
-          minimum: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+          minimum: const EdgeInsets.fromLTRB(12, 6, 12, 12),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
+              color: Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: theme.colorScheme.outlineVariant),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
             child: NavigationBar(
               selectedIndex: index,
@@ -110,7 +137,7 @@ class MainShellPage extends GetView<MainShellController> {
                 NavigationDestination(
                   icon: Icon(Icons.edit_note_outlined),
                   selectedIcon: Icon(Icons.edit_note),
-                  label: '创建',
+                  label: '创作',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.history_outlined),
@@ -129,4 +156,18 @@ class MainShellPage extends GetView<MainShellController> {
       );
     });
   }
+}
+
+class _ShellTabMeta {
+  const _ShellTabMeta({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.tint,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color tint;
 }

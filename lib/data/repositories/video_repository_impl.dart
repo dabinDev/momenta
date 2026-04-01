@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../../domain/repositories/video_repository.dart';
 import '../api/api_service.dart';
 import '../models/paginated_history_model.dart';
@@ -13,16 +15,24 @@ class VideoRepositoryImpl implements VideoRepository {
   Future<void> deleteHistory(String id) => _apiService.deleteHistory(id);
 
   @override
+  Future<String> transcribeAudio(File audioFile) =>
+      _apiService.speechToText(audioFile);
+
+  @override
   Future<String> generatePrompt(String text) =>
       _apiService.generatePrompt(text);
 
   @override
   Future<VideoTaskModel> generateVideo({
+    String? inputText,
+    String? polishedText,
     required String prompt,
     required List<String> images,
     required int duration,
   }) {
     return _apiService.generateVideo(
+      inputText: inputText,
+      polishedText: polishedText,
       prompt: prompt,
       images: images,
       duration: duration,

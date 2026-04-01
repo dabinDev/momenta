@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from app.controllers.user import user_controller
 from app.core.ctx import CTX_USER_ID
 from app.core.dependency import DependAuth
-from app.models.admin import Api, Menu, Role, User
+from app.models.admin import Api, Dept, Menu, Role, User
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema, JWTPayload, JWTOut
 from app.schemas.users import ForgotPasswordRequest, UpdateCurrentUserProfile, UpdatePassword
@@ -13,6 +13,16 @@ from app.settings import settings
 from app.utils.jwt_utils import create_access_token
 
 router = APIRouter()
+
+
+async def _serialize_current_user(user_obj: User) -> dict:
+    data = await user_obj.to_dict(m2m=True, exclude_fields=["password"])
+    data["avatar"] = "https://avatars.githubusercontent.com/u/54677442?v=4"
+    data["roles"] = data.get("roles") or []
+
+    dept = await Dept.filter(id=user_obj.dept_id).first() if user_obj.dept_id else None
+    data["dept"] = await dept.to_dict() if dept else {}
+    return data
 
 
 @router.post("/access_token", summary="Get access token")
@@ -40,9 +50,7 @@ async def login_access_token(credentials: CredentialsSchema):
 async def get_userinfo():
     user_id = CTX_USER_ID.get()
     user_obj = await user_controller.get(id=user_id)
-    data = await user_obj.to_dict(exclude_fields=["password"])
-    data["avatar"] = "https://avatars.githubusercontent.com/u/54677442?v=4"
-    return Success(data=data)
+    return Success(data=await _serialize_current_user(user_obj))
 
 
 @router.get("/usermenu", summary="Get current user menu", dependencies=[DependAuth])
@@ -121,6 +129,4 @@ async def update_current_user_profile(req_in: UpdateCurrentUserProfile):
         alias=req_in.alias,
         phone=req_in.phone,
     )
-    data = await user_obj.to_dict(exclude_fields=["password"])
-    data["avatar"] = "https://avatars.githubusercontent.com/u/54677442?v=4"
-    return Success(data=data)
+    return Success(data=await _serialize_current_user(user_obj))

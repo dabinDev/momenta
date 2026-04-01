@@ -21,7 +21,7 @@ class CreatePage extends GetView<CreateController> {
   @override
   Widget build(BuildContext context) {
     final Widget content = ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 22),
       children: <Widget>[
         SectionCard(
           title: '文案',
@@ -77,7 +77,7 @@ class CreatePage extends GetView<CreateController> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         SectionCard(
           title: '提示词',
           subtitle: '生成后再按需要微调。',
@@ -107,7 +107,7 @@ class CreatePage extends GetView<CreateController> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         SectionCard(
           title: '参考图和时长',
           subtitle: '图片最多 3 张，可不上传。',
@@ -164,7 +164,7 @@ class CreatePage extends GetView<CreateController> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         SectionCard(
           title: '生成视频',
           subtitle: '点击后会自动刷新当前进度。',

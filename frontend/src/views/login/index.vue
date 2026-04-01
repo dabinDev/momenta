@@ -1,72 +1,76 @@
 <template>
   <AppPage :show-footer="false">
-    <div class="login-page" :style="{ backgroundImage: `url(${bgImg})` }">
-      <div class="login-page__overlay" />
+    <div class="login-page">
+      <div class="login-page__ambient login-page__ambient--left" />
+      <div class="login-page__ambient login-page__ambient--right" />
 
-      <section class="login-hero">
-        <div class="login-hero__brand">
-          <div class="login-hero__logo">
-            <icon-custom-logo text-42 color-primary />
+      <div class="login-shell">
+        <section class="login-poster">
+          <div class="login-poster__brand">
+            <div class="login-poster__logo">
+              <icon-custom-logo text-42 color-primary />
+            </div>
+            <div>
+              <p class="login-poster__eyebrow">Momenta Admin</p>
+              <h1>{{ $t('app_name') }}</h1>
+            </div>
           </div>
-          <div>
-            <p class="login-hero__eyebrow">Momenta Admin</p>
-            <h1>{{ $t('app_name') }}</h1>
-          </div>
-        </div>
 
-        <div class="login-hero__copy">
-          <h2>用户、记录与配置在同一后台完成管理</h2>
-          <p>保持简洁的工作流，让账号管理、审计日志和应用配置都能快速处理。</p>
-        </div>
-
-        <div class="login-hero__points">
-          <div class="login-point">
-            <span>用户体系</span>
-            <strong>登录、改密、找回</strong>
+          <div class="login-poster__copy">
+            <h2>统一管理用户、记录和应用配置。</h2>
+            <p>保持清晰的工作流，把主要操作留在视线里，把多余噪音收起来。</p>
           </div>
-          <div class="login-point">
-            <span>业务记录</span>
-            <strong>历史与审计统一查看</strong>
-          </div>
-          <div class="login-point">
-            <span>配置同步</span>
-            <strong>App 与后台接口联动</strong>
-          </div>
-        </div>
-      </section>
 
-      <section class="login-panel">
-        <p class="login-panel__eyebrow">后台登录</p>
-        <h3>欢迎回来</h3>
-        <p>请输入账号和密码。</p>
+          <div class="login-poster__badges">
+            <span>用户管理</span>
+            <span>历史记录</span>
+            <span>账号安全</span>
+          </div>
 
-        <div class="login-panel__form">
-          <n-input
-            v-model:value="loginInfo.username"
-            autofocus
-            class="login-panel__input"
-            placeholder="请输入用户名"
-            :maxlength="20"
-          />
-          <n-input
-            v-model:value="loginInfo.password"
-            class="login-panel__input"
-            type="password"
-            show-password-on="mousedown"
-            placeholder="请输入密码"
-            :maxlength="20"
-            @keypress.enter="handleLogin"
-          />
-          <n-button
-            class="login-panel__submit"
-            type="primary"
-            :loading="loading"
-            @click="handleLogin"
-          >
-            {{ $t('views.login.text_login') }}
-          </n-button>
-        </div>
-      </section>
+          <div class="login-poster__visual" :style="{ backgroundImage: `url(${bgImg})` }" />
+        </section>
+
+        <section class="login-panel">
+          <div class="login-panel__head">
+            <p class="login-panel__eyebrow">后台登录</p>
+            <h3>欢迎回来</h3>
+            <p>输入账号和密码后继续操作。</p>
+          </div>
+
+          <div class="login-panel__form">
+            <n-input
+              v-model:value="loginInfo.username"
+              autofocus
+              class="login-field"
+              placeholder="请输入用户名"
+              :maxlength="20"
+            />
+            <n-input
+              v-model:value="loginInfo.password"
+              class="login-field"
+              type="password"
+              show-password-on="click"
+              placeholder="请输入密码"
+              :maxlength="20"
+              @keydown.enter="handleLogin"
+            />
+
+            <div class="login-panel__meta">
+              <span>仅限已授权账号登录</span>
+              <span>登录后进入左侧菜单工作区</span>
+            </div>
+
+            <n-button
+              class="login-panel__submit"
+              type="primary"
+              :loading="loading"
+              @click="handleLogin"
+            >
+              {{ $t('views.login.text_login') }}
+            </n-button>
+          </div>
+        </section>
+      </div>
     </div>
   </AppPage>
 </template>
@@ -121,7 +125,7 @@ async function handleLogin() {
       router.push('/')
     }
   } catch (e) {
-    console.error('login error', e.error)
+    console.error('login error', e)
   } finally {
     loading.value = false
   }
@@ -131,56 +135,80 @@ async function handleLogin() {
 <style scoped>
 .login-page {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px);
-  gap: 28px;
-  min-height: calc(100vh - 30px);
-  padding: 28px;
-  border-radius: 32px;
+  display: flex;
+  min-height: 100%;
   overflow: hidden;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+  border-radius: 32px;
 }
 
-.login-page__overlay {
+.login-page__ambient {
   position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(110deg, rgba(22, 39, 34, 0.68) 0%, rgba(22, 39, 34, 0.48) 40%, rgba(247, 250, 248, 0.88) 100%);
+  border-radius: 999px;
+  filter: blur(10px);
+  pointer-events: none;
 }
 
-.login-hero,
-.login-panel {
+.login-page__ambient--left {
+  top: 6%;
+  left: -4%;
+  width: 260px;
+  height: 260px;
+  background: var(--ambient-amber);
+}
+
+.login-page__ambient--right {
+  right: -6%;
+  bottom: 2%;
+  width: 320px;
+  height: 320px;
+  background: var(--ambient-jade);
+}
+
+.login-shell {
   position: relative;
   z-index: 1;
-}
-
-.login-hero {
   display: grid;
-  align-content: space-between;
-  gap: 28px;
-  padding: 20px 16px 20px 8px;
-  color: #fff;
+  width: 100%;
+  max-width: 1180px;
+  min-height: 100%;
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px);
+  gap: 24px;
 }
 
-.login-hero__brand {
+.login-poster,
+.login-panel {
+  border: 1px solid var(--shell-border);
+  border-radius: 32px;
+  backdrop-filter: blur(18px);
+}
+
+.login-poster {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(280px, 1fr);
+  gap: 24px;
+  padding: 28px;
+  background: var(--login-poster-bg);
+  box-shadow: var(--panel-shadow);
+}
+
+.login-poster__brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
-.login-hero__logo {
+.login-poster__logo {
   display: grid;
+  width: 64px;
+  height: 64px;
   place-items: center;
-  width: 60px;
-  height: 60px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(10px);
+  border-radius: 22px;
+  background: var(--sidebar-mark-bg);
+  box-shadow: inset 0 0 0 1px var(--sidebar-mark-ring), var(--soft-shadow);
 }
 
-.login-hero__eyebrow,
+.login-poster__eyebrow,
 .login-panel__eyebrow {
   margin: 0 0 6px;
   font-size: 12px;
@@ -189,131 +217,172 @@ async function handleLogin() {
   text-transform: uppercase;
 }
 
-.login-hero__brand h1 {
+.login-poster__brand h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 700;
+  color: var(--app-text);
 }
 
-.login-hero__copy h2 {
-  max-width: 540px;
+.login-poster__copy h2 {
+  max-width: 520px;
   margin: 0;
   font-size: 42px;
   line-height: 1.08;
   font-weight: 700;
+  color: var(--app-text);
 }
 
-.login-hero__copy p {
-  max-width: 520px;
+.login-poster__copy p {
+  max-width: 460px;
   margin: 14px 0 0;
   font-size: 16px;
   line-height: 1.7;
-  opacity: 0.9;
+  color: var(--app-muted);
 }
 
-.login-hero__points {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+.login-poster__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.login-point {
-  padding: 16px 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(10px);
+.login-poster__badges span {
+  padding: 9px 14px;
+  border: 1px solid var(--shell-border);
+  border-radius: 999px;
+  background: var(--surface-card-strong);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-text);
 }
 
-.login-point span {
-  display: block;
-  font-size: 12px;
-  opacity: 0.78;
-}
-
-.login-point strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 18px;
-  line-height: 1.35;
+.login-poster__visual {
+  min-height: 280px;
+  border-radius: 28px;
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), var(--soft-shadow);
 }
 
 .login-panel {
   align-self: center;
-  padding: 30px 28px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 24px 70px rgba(34, 49, 41, 0.14);
+  padding: 32px 30px;
+  background: var(--login-panel-bg);
+  box-shadow: var(--panel-shadow);
+}
+
+.login-panel__head h3 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--app-text);
+}
+
+.login-panel__head p:last-child {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--app-muted);
 }
 
 .login-panel__eyebrow {
-  color: #6f7a72;
-}
-
-.login-panel h3 {
-  margin: 0;
-  font-size: 30px;
-  color: #223129;
-}
-
-.login-panel p {
-  margin: 10px 0 0;
-  font-size: 14px;
-  color: #6a756e;
+  color: var(--app-muted);
 }
 
 .login-panel__form {
   display: grid;
   gap: 14px;
-  margin-top: 24px;
+  margin-top: 28px;
 }
 
-.login-panel__input {
-  height: 52px;
+.login-field {
+  --n-height: 56px;
+  --n-padding-left: 18px;
+  --n-padding-right: 18px;
+  --n-border-radius: 18px;
+  --n-color: var(--control-bg);
+  --n-color-focus: var(--control-bg-focus);
+  --n-text-color: var(--control-text);
+  --n-caret-color: var(--primary-color);
+  --n-placeholder-color: var(--control-muted);
+  --n-border: 1px solid var(--shell-border);
+  --n-border-hover: 1px solid rgba(47, 111, 103, 0.22);
+  --n-border-focus: 1px solid var(--primary-color);
+  --n-box-shadow-focus: 0 0 0 4px rgba(47, 111, 103, 0.14);
+  --n-font-size: 16px;
+}
+
+.login-field :deep(.n-input__input-el),
+.login-field :deep(.n-input__textarea-el) {
+  caret-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.login-field :deep(.n-input__suffix) {
+  color: var(--app-muted);
+}
+
+.login-panel__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--app-muted);
 }
 
 .login-panel__submit {
-  height: 52px;
-  border-radius: 16px;
+  height: 56px;
+  margin-top: 6px;
+  border-radius: 18px;
   font-size: 16px;
   font-weight: 700;
 }
 
 @media (max-width: 980px) {
-  .login-page {
+  .login-shell {
     grid-template-columns: 1fr;
-    min-height: auto;
   }
 
-  .login-hero {
-    padding-right: 0;
-  }
-
-  .login-hero__copy h2 {
-    font-size: 34px;
+  .login-poster {
+    grid-template-rows: auto auto auto 220px;
   }
 
   .login-panel {
-    max-width: 480px;
+    max-width: 460px;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .login-page {
-    padding: 18px;
     border-radius: 24px;
   }
 
-  .login-hero__points {
-    grid-template-columns: 1fr;
+  .login-poster,
+  .login-panel {
+    border-radius: 24px;
   }
 
-  .login-hero__copy h2 {
-    font-size: 28px;
+  .login-poster {
+    padding: 22px;
+    gap: 20px;
+  }
+
+  .login-poster__copy h2 {
+    font-size: 30px;
   }
 
   .login-panel {
     padding: 24px 20px;
+  }
+
+  .login-panel__head h3 {
+    font-size: 26px;
+  }
+
+  .login-panel__meta {
+    flex-direction: column;
+    gap: 6px;
   }
 }
 </style>

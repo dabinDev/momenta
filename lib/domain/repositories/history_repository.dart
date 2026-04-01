@@ -3,6 +3,7 @@ import '../../data/models/paginated_history_model.dart';
 
 abstract class HistoryRepository {
   Future<List<HistoryItemModel>> allItems();
+  Future<Map<String, int>> summary();
   Future<PaginatedHistoryModel> list({
     required int page,
     required int limit,

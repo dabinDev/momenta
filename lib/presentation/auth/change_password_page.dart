@@ -15,7 +15,7 @@ class ChangePasswordPage extends GetView<ChangePasswordController> {
       appBar: AppBar(title: const Text('修改密码')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
           children: <Widget>[
             SectionCard(
               title: '修改密码',
@@ -31,7 +31,7 @@ class ChangePasswordPage extends GetView<ChangePasswordController> {
                     obscureText: true,
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   LargeTextField(
                     controller: controller.newPasswordController,
                     label: '新密码',
@@ -39,7 +39,7 @@ class ChangePasswordPage extends GetView<ChangePasswordController> {
                     obscureText: true,
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   LargeTextField(
                     controller: controller.confirmPasswordController,
                     label: '确认新密码',

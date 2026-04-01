@@ -39,22 +39,27 @@ class ApiService {
   }
 
   Future<List<UploadedFileModel>> uploadImages(List<File> files) async {
+    final Options authOptions = await _authOptions();
     final FormData formData = FormData();
     for (final File file in files) {
       formData.files.add(
         MapEntry<String, MultipartFile>(
           'images',
-          await MultipartFile.fromFile(file.path,
-              filename: file.uri.pathSegments.last),
+          await MultipartFile.fromFile(
+            file.path,
+            filename: file.uri.pathSegments.last,
+          ),
         ),
       );
     }
     final Response<dynamic> response = await _dio.post(
       '/api/upload-images',
       data: formData,
-      options: Options(contentType: Headers.multipartFormDataContentType),
+      options: authOptions.copyWith(
+        contentType: Headers.multipartFormDataContentType,
+      ),
     );
-    final dynamic payload = response.data;
+    final dynamic payload = _unwrapEnvelopeData(response.data);
     final List<dynamic> list = payload is Map<String, dynamic>
         ? (payload['images'] as List<dynamic>? ??
             payload['data'] as List<dynamic>? ??
@@ -66,25 +71,33 @@ class ApiService {
   }
 
   Future<String> speechToText(File audioFile) async {
+    final Options authOptions = await _authOptions();
     final FormData formData = FormData.fromMap(<String, dynamic>{
-      'audio': await MultipartFile.fromFile(audioFile.path,
-          filename: audioFile.uri.pathSegments.last),
+      'audio': await MultipartFile.fromFile(
+        audioFile.path,
+        filename: audioFile.uri.pathSegments.last,
+      ),
     });
-    final Response<dynamic> response = await _dio.post(
-      '/api/speech-to-text',
+    final Response<dynamic> response = await _authDio.post(
+      '/api/voice/transcribe',
       data: formData,
-      options: Options(contentType: Headers.multipartFormDataContentType),
+      options: authOptions.copyWith(
+        contentType: Headers.multipartFormDataContentType,
+        sendTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 90),
+      ),
     );
-    final Map<String, dynamic> map = _readMap(response.data);
-    return (map['text'] ?? map['result'] ?? map['data'] ?? '').toString();
+    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
+    return (map['text'] ?? map['result'] ?? '').toString();
   }
 
   Future<String> polishText(String text) async {
     final Response<dynamic> response = await _dio.post(
       '/api/polish-text',
       data: <String, dynamic>{'text': text},
+      options: await _authOptions(),
     );
-    final Map<String, dynamic> map = _readMap(response.data);
+    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
     return (map['text'] ?? map['result'] ?? map['content'] ?? '').toString();
   }
 
@@ -92,48 +105,84 @@ class ApiService {
     final Response<dynamic> response = await _dio.post(
       '/api/generate-prompt',
       data: <String, dynamic>{'text': text},
+      options: await _authOptions(),
     );
-    final Map<String, dynamic> map = _readMap(response.data);
+    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
     return (map['prompt'] ?? map['text'] ?? map['result'] ?? '').toString();
   }
 
   Future<VideoTaskModel> generateVideo({
+    String? inputText,
+    String? polishedText,
     required String prompt,
     required List<String> images,
     required int duration,
   }) async {
     final Response<dynamic> response = await _dio.post(
-      '/api/generate-video',
+      '/api/tasks',
       data: <String, dynamic>{
+        if (inputText != null) 'input_text': inputText,
+        if (polishedText != null) 'polished_text': polishedText,
         'prompt': prompt,
         'images': images,
         'duration': duration,
       },
+      options: await _authOptions(),
     );
-    return VideoTaskModel.fromJson(_readMap(response.data));
+    return VideoTaskModel.fromJson(_readEnvelopeMap(response.data));
   }
 
   Future<VideoTaskModel> videoStatus(String id) async {
-    final Response<dynamic> response = await _dio.get('/api/video-status/$id');
-    return VideoTaskModel.fromJson(_readMap(response.data));
+    final Response<dynamic> response = await _dio.get(
+      '/api/tasks/$id',
+      options: await _authOptions(),
+    );
+    return VideoTaskModel.fromJson(_readEnvelopeMap(response.data));
   }
 
   Future<PaginatedHistoryModel> history({
     required int page,
     required int limit,
+    String filter = 'all',
   }) async {
     final Response<dynamic> response = await _dio.get(
-      '/api/history',
+      '/api/tasks',
       queryParameters: <String, dynamic>{
         'page': page,
         'limit': limit,
+        'filter': filter,
       },
+      options: await _authOptions(),
     );
-    return PaginatedHistoryModel.fromJson(_readMap(response.data));
+    return PaginatedHistoryModel.fromJson(_readEnvelopeMap(response.data));
+  }
+
+  Future<Map<String, int>> historySummary() async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/tasks/summary',
+      options: await _authOptions(),
+    );
+    final Map<String, dynamic> data = _readEnvelopeMap(response.data);
+    return <String, int>{
+      'total': int.tryParse('${data['total'] ?? 0}') ?? 0,
+      'completed': int.tryParse('${data['completed'] ?? 0}') ?? 0,
+      'processing': int.tryParse('${data['processing'] ?? 0}') ?? 0,
+      'failed': int.tryParse('${data['failed'] ?? 0}') ?? 0,
+    };
   }
 
   Future<void> deleteHistory(String id) async {
-    await _dio.delete('/api/history/$id');
+    await _dio.delete(
+      '/api/tasks/$id',
+      options: await _authOptions(),
+    );
+  }
+
+  Future<void> clearHistory() async {
+    await _dio.delete(
+      '/api/tasks',
+      options: await _authOptions(),
+    );
   }
 
   Future<File> downloadVideo({
@@ -234,6 +283,16 @@ class ApiService {
   static Map<String, dynamic> _readEnvelopeMap(dynamic data) {
     final Map<String, dynamic> map = _readMap(data);
     return _readMap(map['data']);
+  }
+
+  static dynamic _unwrapEnvelopeData(dynamic data) {
+    if (data is Map<String, dynamic> && data.containsKey('data')) {
+      return data['data'];
+    }
+    if (data is Map && data.containsKey('data')) {
+      return data['data'];
+    }
+    return data;
   }
 
   static Map<String, dynamic> _readMap(dynamic data) {

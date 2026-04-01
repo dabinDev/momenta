@@ -26,7 +26,7 @@ class PrimaryButton extends StatelessWidget {
     final Color iconColor =
         _outlined ? theme.colorScheme.primary : Colors.white;
     final Color iconBackground = _outlined
-        ? theme.colorScheme.primary.withValues(alpha: 0.08)
+        ? theme.colorScheme.primary.withValues(alpha: 0.1)
         : Colors.white.withValues(alpha: 0.16);
 
     final Widget child = Row(
@@ -40,7 +40,7 @@ class PrimaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           alignment: Alignment.center,
-          child: Icon(icon, size: 19, color: iconColor),
+          child: Icon(icon, size: 18, color: iconColor),
         ),
         const SizedBox(width: 10),
         Flexible(

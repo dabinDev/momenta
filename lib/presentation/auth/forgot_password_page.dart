@@ -15,7 +15,7 @@ class ForgotPasswordPage extends GetView<ForgotPasswordController> {
       appBar: AppBar(title: const Text('忘记密码')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
           children: <Widget>[
             SectionCard(
               title: '找回密码',
@@ -30,7 +30,7 @@ class ForgotPasswordPage extends GetView<ForgotPasswordController> {
                     hintText: '请输入用户名',
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   LargeTextField(
                     controller: controller.emailController,
                     label: '邮箱',
@@ -38,7 +38,7 @@ class ForgotPasswordPage extends GetView<ForgotPasswordController> {
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   LargeTextField(
                     controller: controller.newPasswordController,
                     label: '新密码',
@@ -46,7 +46,7 @@ class ForgotPasswordPage extends GetView<ForgotPasswordController> {
                     obscureText: true,
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   LargeTextField(
                     controller: controller.confirmPasswordController,
                     label: '确认新密码',

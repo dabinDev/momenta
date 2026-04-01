@@ -192,14 +192,11 @@ class HistoryController extends GetxController {
   }
 
   Future<void> _loadSummary() async {
-    final List<HistoryItemModel> all = await _historyRepository.allItems();
-    totalCount.value = all.length;
-    completedCount.value =
-        all.where((HistoryItemModel item) => item.isCompleted).length;
-    processingCount.value =
-        all.where((HistoryItemModel item) => item.isProcessing).length;
-    failedCount.value =
-        all.where((HistoryItemModel item) => item.isFailed).length;
+    final Map<String, int> summary = await _historyRepository.summary();
+    totalCount.value = summary['total'] ?? 0;
+    completedCount.value = summary['completed'] ?? 0;
+    processingCount.value = summary['processing'] ?? 0;
+    failedCount.value = summary['failed'] ?? 0;
   }
 
   String _readError(Object error, {required String fallback}) {

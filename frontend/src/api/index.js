@@ -40,4 +40,8 @@ export default {
   deleteDept: (params = {}) => request.delete('/dept/delete', { params }),
   // auditlog
   getAuditLogList: (params = {}) => request.get('/auditlog/list', { params }),
+  // task center
+  getTaskList: (params = {}) => request.get('/task/list', { params }),
+  syncTask: (params = {}) => request.post('/task/sync', null, { params }),
+  getVoiceLogList: (params = {}) => request.get('/voice_log/list', { params }),
 }

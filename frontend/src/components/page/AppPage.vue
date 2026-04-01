@@ -1,9 +1,11 @@
 <template>
   <transition name="fade-slide" mode="out-in" appear>
-    <section class="cus-scroll-y wh-full flex-col bg-[#f5f6fb] p-15 dark:bg-hex-121212">
-      <slot />
-      <AppFooter v-if="showFooter" mt-15 />
-      <n-back-top :bottom="20" />
+    <section class="app-page cus-scroll-y">
+      <div class="app-page__body">
+        <slot />
+        <AppFooter v-if="showFooter" class="app-page__footer" />
+      </div>
+      <n-back-top :bottom="28" />
     </section>
   </transition>
 </template>
@@ -16,3 +18,31 @@ defineProps({
   },
 })
 </script>
+
+<style scoped>
+.app-page {
+  height: 100%;
+  padding: 20px;
+}
+
+.app-page__body {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.app-page__footer {
+  margin-top: auto;
+}
+
+@media (max-width: 768px) {
+  .app-page {
+    padding: 16px;
+  }
+
+  .app-page__body {
+    gap: 16px;
+  }
+}
+</style>

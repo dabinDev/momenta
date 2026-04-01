@@ -34,20 +34,20 @@ class SettingsPage extends GetView<SettingsController> {
 
         return ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 22),
           children: <Widget>[
             _ProfileHero(
               controller: controller,
               user: user,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _ProfileInfoCard(
               controller: controller,
               user: user,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _SecurityCard(controller: controller),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _VersionCard(controller: controller),
           ],
         );
@@ -87,7 +87,7 @@ class _ProfileHero extends StatelessWidget {
     final String statusLabel = user?.isActive == false ? '已停用' : '正常使用';
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: <Color>[
@@ -422,11 +422,10 @@ class _InfoRow extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surface.withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,11 +520,10 @@ class _EntryTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.colorScheme.surface.withValues(alpha: 0.82),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
           child: Row(
             children: <Widget>[

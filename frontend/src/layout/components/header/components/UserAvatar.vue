@@ -1,17 +1,12 @@
 <template>
   <n-dropdown :options="options" @select="handleSelect">
     <div class="user-chip">
-      <n-avatar
-        :src="userStore.avatar"
-        :size="38"
-        round
-        class="user-chip__avatar"
-      >
+      <n-avatar :src="userStore.avatar" :size="40" round class="user-chip__avatar">
         {{ (userStore.displayName || userStore.name || 'U').slice(0, 1) }}
       </n-avatar>
       <div class="user-chip__copy">
         <strong>{{ userStore.displayName || userStore.name }}</strong>
-        <span>{{ userStore.isSuperUser ? '管理员' : '已登录' }}</span>
+        <span>{{ userStore.isSuperUser ? '管理员' : '已登录账号' }}</span>
       </div>
     </div>
   </n-dropdown>
@@ -61,18 +56,20 @@ function handleSelect(key) {
 <style scoped>
 .user-chip {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 10px;
-  min-width: 0;
-  padding: 6px 8px 6px 6px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(255, 250, 239, 0.95), rgba(239, 247, 243, 0.95));
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--shell-border);
+  border-radius: 20px;
+  background: var(--surface-card-strong);
+  box-shadow: var(--soft-shadow);
   cursor: pointer;
 }
 
 .user-chip__avatar {
   flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.88);
+  border: 2px solid rgba(255, 255, 255, 0.42);
 }
 
 .user-chip__copy {
@@ -81,24 +78,26 @@ function handleSelect(key) {
 }
 
 .user-chip__copy strong {
+  overflow: hidden;
   font-size: 14px;
   font-weight: 700;
-  color: #2f3a32;
+  color: var(--app-text);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .user-chip__copy span {
   font-size: 12px;
-  color: #7a847c;
+  color: var(--app-muted);
 }
 
 @media (max-width: 720px) {
-  .user-chip__copy {
-    display: none;
-  }
-
   .user-chip {
     padding-right: 6px;
+  }
+
+  .user-chip__copy {
+    display: none;
   }
 }
 </style>

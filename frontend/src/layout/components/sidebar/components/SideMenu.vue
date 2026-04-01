@@ -4,8 +4,8 @@
     class="side-menu"
     accordion
     :indent="18"
-    :collapsed-icon-size="22"
-    :collapsed-width="72"
+    :collapsed-icon-size="20"
+    :collapsed-width="74"
     :options="menuOptions"
     :value="activeKey"
     @update:value="handleMenuSelect"
@@ -24,7 +24,7 @@ const appStore = useAppStore()
 const activeKey = computed(() => curRoute.meta?.activeMenu || curRoute.name)
 
 const menuOptions = computed(() => {
-  return permissionStore.menus.map(item => getMenuItem(item)).sort((a, b) => a.order - b.order)
+  return permissionStore.menus.map((item) => getMenuItem(item)).sort((a, b) => a.order - b.order)
 })
 
 const menu = ref(null)
@@ -38,8 +38,8 @@ function resolvePath(basePath, path) {
   return (
     '/' +
     [basePath, path]
-      .filter(path => !!path && path !== '/')
-      .map(path => path.replace(/(^\/)|(\/$)/g, ''))
+      .filter((path) => !!path && path !== '/')
+      .map((path) => path.replace(/(^\/)|(\/$)/g, ''))
       .join('/')
   )
 }
@@ -54,7 +54,7 @@ function getMenuItem(route, basePath = '') {
   }
 
   const visibleChildren = route.children
-    ? route.children.filter(item => item.name && !item.isHidden)
+    ? route.children.filter((item) => item.name && !item.isHidden)
     : []
 
   if (!visibleChildren.length) return menuItem
@@ -69,19 +69,19 @@ function getMenuItem(route, basePath = '') {
       icon: getIcon(singleRoute.meta),
     }
     const visibleItems = singleRoute.children
-      ? singleRoute.children.filter(item => item.name && !item.isHidden)
+      ? singleRoute.children.filter((item) => item.name && !item.isHidden)
       : []
 
     if (visibleItems.length === 1) {
       menuItem = getMenuItem(visibleItems[0], menuItem.path)
     } else if (visibleItems.length > 1) {
       menuItem.children = visibleItems
-        .map(item => getMenuItem(item, menuItem.path))
+        .map((item) => getMenuItem(item, menuItem.path))
         .sort((a, b) => a.order - b.order)
     }
   } else {
     menuItem.children = visibleChildren
-      .map(item => getMenuItem(item, menuItem.path))
+      .map((item) => getMenuItem(item, menuItem.path))
       .sort((a, b) => a.order - b.order)
   }
   return menuItem
@@ -106,33 +106,56 @@ function handleMenuSelect(key, item) {
 
 <style lang="scss">
 .side-menu {
-  padding: 8px 10px 18px;
+  padding: 6px 10px 16px;
 
   .n-menu-item-content,
   .n-submenu-children .n-menu-item-content {
-    margin: 3px 0;
-    border-radius: 14px;
-    transition: background-color 0.2s ease, transform 0.2s ease;
+    margin: 4px 0;
+    border-radius: 16px;
+    transition: transform 0.2s ease, color 0.2s ease;
 
     &::before {
-      left: 4px;
-      right: 4px;
-      border-radius: 12px;
+      left: 6px;
+      right: 6px;
+      border-radius: 14px;
+      background: transparent;
+    }
+
+    &:hover {
+      transform: translateX(2px);
     }
 
     &:hover::before {
-      background: rgba(220, 235, 225, 0.55);
+      background: var(--menu-hover-bg);
     }
   }
 
   .n-menu-item-content--selected::before,
   .n-menu-item-content--child-active::before {
-    background: linear-gradient(135deg, rgba(235, 245, 239, 0.95), rgba(255, 247, 232, 0.95));
+    background: var(--menu-active-bg);
     box-shadow: inset 3px 0 0 var(--primary-color);
   }
 
   .n-menu-item-content-header {
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--app-text);
+  }
+
+  .n-menu-item-content__icon,
+  .n-submenu .n-menu-item-content__icon {
+    color: var(--app-muted);
+  }
+
+  .n-menu-item-content--selected {
+    .n-menu-item-content-header,
+    .n-menu-item-content__icon {
+      color: var(--primary-color);
+    }
+  }
+
+  .n-menu-item-content-arrow {
+    color: var(--app-muted);
   }
 }
 </style>

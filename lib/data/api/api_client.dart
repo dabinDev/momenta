@@ -4,7 +4,7 @@ import '../../app/constants.dart';
 import '../../core/errors/app_exception.dart';
 
 class ApiClient {
-  ApiClient() : dio = _buildDio(AppConstants.serverBaseUrl);
+  ApiClient() : dio = _buildDio(AppConstants.authServerBaseUrl);
 
   final Dio dio;
 

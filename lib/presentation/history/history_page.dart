@@ -26,12 +26,12 @@ class HistoryPage extends GetView<HistoryController> {
       return RefreshIndicator(
         onRefresh: controller.refreshList,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 22),
           children: <Widget>[
             _HistoryOverviewCard(controller: controller),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _HistoryFilterBar(controller: controller),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             if (controller.items.isEmpty)
               const EmptyState(
                 title: '还没有历史记录',
@@ -40,7 +40,7 @@ class HistoryPage extends GetView<HistoryController> {
             else
               ...controller.items.map(
                 (HistoryItemModel item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.only(bottom: 12),
                   child: _HistoryItemCard(
                     item: item,
                     onPlay: item.isCompleted

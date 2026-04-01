@@ -3,23 +3,23 @@
     <n-layout-sider
       class="app-shell__sider"
       collapse-mode="width"
-      :collapsed-width="72"
-      :width="236"
+      :collapsed-width="74"
+      :width="248"
       :native-scrollbar="false"
       :collapsed="appStore.collapsed"
     >
       <SideBar />
     </n-layout-sider>
 
-    <article class="app-shell__main" flex-col flex-1 overflow-hidden>
+    <article class="app-shell__main">
       <header class="app-shell__header" :style="`height: ${header.height}px`">
         <AppHeader />
       </header>
-      <section v-if="tags.visible" class="app-shell__tags" hidden sm:block>
-        <AppTags :style="{ height: `${tags.height}px` }" />
-      </section>
-      <section class="app-shell__content" flex-1 overflow-hidden>
-        <AppMain />
+
+      <section class="app-shell__content">
+        <div class="app-shell__workspace">
+          <AppMain />
+        </div>
       </section>
     </article>
   </n-layout>
@@ -29,9 +29,8 @@
 import AppHeader from './components/header/index.vue'
 import SideBar from './components/sidebar/index.vue'
 import AppMain from './components/AppMain.vue'
-import AppTags from './components/tags/index.vue'
 import { useAppStore } from '@/store'
-import { header, tags } from '~/settings'
+import { header } from '~/settings'
 
 import { useBreakpoints } from '@vueuse/core'
 
@@ -68,43 +67,62 @@ watchEffect(() => {
 
 <style scoped>
 .app-shell {
-  background:
-    radial-gradient(circle at top right, rgba(190, 214, 255, 0.18), transparent 28%),
-    linear-gradient(180deg, #f7faf8 0%, #f3f6fb 100%);
+  background: transparent;
 }
 
 .app-shell__sider {
-  border-right: 1px solid rgba(58, 84, 71, 0.08);
-  background: linear-gradient(180deg, #fbfdfc 0%, #f5f9f7 100%);
-  box-shadow: 12px 0 32px rgba(43, 67, 56, 0.04);
+  background: var(--shell-sidebar-bg);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--shell-border);
+  box-shadow: var(--soft-shadow);
 }
 
 .app-shell__main {
+  display: flex;
   min-width: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 .app-shell__header {
   display: flex;
   align-items: center;
-  padding: 0 18px;
-  border-bottom: 1px solid rgba(58, 84, 71, 0.08);
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(16px);
-}
-
-.app-shell__tags {
-  border-bottom: 1px solid rgba(58, 84, 71, 0.07);
-  background: rgba(255, 255, 255, 0.72);
+  padding: 0 24px 0 18px;
+  background: var(--shell-header-bg);
 }
 
 .app-shell__content {
-  background:
-    radial-gradient(circle at top right, rgba(255, 214, 146, 0.14), transparent 24%),
-    linear-gradient(180deg, #f7faf8 0%, #f3f6fb 100%);
+  min-height: 0;
+  flex: 1;
+  padding: 0 20px 20px 12px;
+}
+
+.app-shell__workspace {
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--shell-border);
+  border-radius: 32px;
+  background: var(--shell-workspace-bg);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(18px);
 }
 
 :deep(.n-layout-sider-scroll-container) {
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .app-shell__header {
+    padding: 0 14px 0 12px;
+  }
+
+  .app-shell__content {
+    padding: 0 14px 14px;
+  }
+
+  .app-shell__workspace {
+    border-radius: 24px;
+  }
 }
 </style>

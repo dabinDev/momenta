@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../app/constants.dart';
 import '../../app/routes.dart';
@@ -24,13 +26,11 @@ class CreateController extends GetxController {
         _videoRepository = Get.find<VideoRepository>(),
         _historyRepository = Get.find<HistoryRepository>();
 
-  static const MethodChannel _speechChannel =
-      MethodChannel('com.dabindev.momenta/speech');
-
   final MediaRepository _mediaRepository;
   final VideoRepository _videoRepository;
   final HistoryRepository _historyRepository;
   final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
 
   final TextEditingController textController = TextEditingController();
   final TextEditingController promptController = TextEditingController();
@@ -43,15 +43,29 @@ class CreateController extends GetxController {
   final RxBool isPolishing = false.obs;
   final RxBool isGeneratingPrompt = false.obs;
   final RxBool isSubmitting = false.obs;
+  final RxInt recordingSeconds = 0.obs;
   final RxInt pollingCount = 0.obs;
   final RxDouble generationProgress = 0.0.obs;
   final RxString transcribedText = ''.obs;
   final Rxn<VideoTaskModel> currentTask = Rxn<VideoTaskModel>();
 
   bool _isSpeechDialogVisible = false;
+  bool _isApplyingTextChange = false;
+  Timer? _recordingTimer;
+  Completer<bool>? _speechDecisionCompleter;
+  String? _lastRawTextBeforePolish;
+  String? _lastPolishedText;
+
+  @override
+  void onInit() {
+    super.onInit();
+    textController.addListener(_handleTextChanged);
+  }
 
   @override
   void onClose() {
+    _recordingTimer?.cancel();
+    _audioRecorder.dispose();
     textController.dispose();
     promptController.dispose();
     super.onClose();
@@ -81,63 +95,68 @@ class CreateController extends GetxController {
   }
 
   Future<void> toggleRecording() async {
-    if (isRecording.value) {
-      return;
-    }
-    if (!Platform.isAndroid) {
-      SnackbarHelper.error('当前仅支持安卓端语音输入');
+    if (isRecording.value || isTranscribing.value) {
       return;
     }
 
-    final PermissionStatus status = await Permission.microphone.request();
-    if (!status.isGranted) {
+    final bool hasPermission = await _audioRecorder.hasPermission();
+    if (!hasPermission) {
       SnackbarHelper.error('未授予麦克风权限，仍可手动输入');
       return;
     }
 
-    isRecording.value = true;
-    isTranscribing.value = true;
+    _speechDecisionCompleter = Completer<bool>();
     _showSpeechDialog();
 
+    File? audioFile;
     try {
-      final String? text =
-          await _speechChannel.invokeMethod<String>('startSpeechToText');
-      final String recognizedText = text?.trim() ?? '';
+      await _startSpeechRecording();
+      final bool shouldTranscribe = await _speechDecisionCompleter!.future;
+      audioFile = await _stopSpeechRecording(shouldSave: shouldTranscribe);
+      if (audioFile == null) {
+        return;
+      }
+
+      isTranscribing.value = true;
+      final String recognizedText =
+          (await _videoRepository.transcribeAudio(audioFile)).trim();
       if (recognizedText.isEmpty) {
-        SnackbarHelper.error('没有识别到语音，请再试一次');
+        SnackbarHelper.error('没有识别到清晰语音，请重试');
         return;
       }
 
       transcribedText.value = recognizedText;
-      textController.text = recognizedText;
-      textController.selection =
-          TextSelection.collapsed(offset: recognizedText.length);
+      _appendRecognizedText(recognizedText);
       SnackbarHelper.success('语音已转成文字');
-    } on PlatformException catch (error) {
-      if (error.code != 'cancelled') {
-        SnackbarHelper.error(_readSpeechError(error));
-      }
+    } catch (error) {
+      SnackbarHelper.error(_readError(error, fallback: '语音识别失败'));
     } finally {
-      _closeSpeechDialog();
+      _recordingTimer?.cancel();
+      _speechDecisionCompleter = null;
+      recordingSeconds.value = 0;
       isRecording.value = false;
       isTranscribing.value = false;
+      _closeSpeechDialog();
+      if (audioFile != null) {
+        await _clearSpeechTempFile(audioFile.path);
+      }
     }
   }
 
-  Future<void> cancelSpeechRecognition() async {
-    try {
-      await _speechChannel.invokeMethod<void>('cancelSpeechToText');
-    } catch (_) {
-      // Ignore local cancel errors.
+  void cancelSpeechRecognition() {
+    final Completer<bool>? completer = _speechDecisionCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(false);
     }
+    _closeSpeechDialog();
   }
 
-  Future<void> finishSpeechRecognition() async {
-    try {
-      await _speechChannel.invokeMethod<void>('stopSpeechToText');
-    } catch (_) {
-      // Ignore local stop errors.
+  void finishSpeechRecognition() {
+    final Completer<bool>? completer = _speechDecisionCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(true);
     }
+    _closeSpeechDialog();
   }
 
   Future<void> polishText() async {
@@ -149,7 +168,9 @@ class CreateController extends GetxController {
     isPolishing.value = true;
     try {
       final String polished = await _videoRepository.polishText(rawText);
-      textController.text = polished;
+      _lastRawTextBeforePolish = rawText;
+      _lastPolishedText = polished.trim();
+      _replaceText(polished);
       SnackbarHelper.success('文案已完成 AI 润色');
     } catch (error) {
       SnackbarHelper.error(_readError(error, fallback: '文案润色失败'));
@@ -198,7 +219,15 @@ class CreateController extends GetxController {
         uploadedImagePaths.clear();
       }
 
+      final String currentText = textController.text.trim();
+      final String? polishedText = _resolvePolishedText(currentText);
+      final String? inputText = polishedText == null
+          ? _normalizeNullableText(currentText)
+          : _normalizeNullableText(_lastRawTextBeforePolish);
+
       final VideoTaskModel task = await _videoRepository.generateVideo(
+        inputText: inputText,
+        polishedText: polishedText,
         prompt: prompt,
         images: uploadedImagePaths.toList(),
         duration: selectedDuration.value,
@@ -228,7 +257,8 @@ class CreateController extends GetxController {
       pollingCount.value = index;
       generationProgress.value = index / AppConstants.maxPollingTimes;
       await Future<void>.delayed(
-          const Duration(seconds: AppConstants.pollingIntervalSeconds));
+        const Duration(seconds: AppConstants.pollingIntervalSeconds),
+      );
 
       final VideoTaskModel status = await _videoRepository.videoStatus(id);
       currentTask.value = status;
@@ -299,10 +329,80 @@ class CreateController extends GetxController {
     );
   }
 
+  Future<void> _startSpeechRecording() async {
+    final Directory directory = await getTemporaryDirectory();
+    final String filePath = p.join(
+      directory.path,
+      'speech_${DateTime.now().millisecondsSinceEpoch}.pcm',
+    );
+
+    recordingSeconds.value = 0;
+    await _audioRecorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: AppConstants.speechSampleRate,
+        numChannels: 1,
+        autoGain: true,
+        echoCancel: true,
+        noiseSuppress: true,
+        androidConfig: AndroidRecordConfig(
+          audioSource: AndroidAudioSource.voiceRecognition,
+        ),
+      ),
+      path: filePath,
+    );
+
+    isRecording.value = true;
+    _recordingTimer?.cancel();
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
+      final int nextValue = recordingSeconds.value + 1;
+      recordingSeconds.value = nextValue;
+      if (nextValue >= AppConstants.maxSpeechSeconds) {
+        timer.cancel();
+        finishSpeechRecognition();
+      }
+    });
+  }
+
+  Future<File?> _stopSpeechRecording({required bool shouldSave}) async {
+    _recordingTimer?.cancel();
+    isRecording.value = false;
+    if (!shouldSave) {
+      await _audioRecorder.cancel();
+      return null;
+    }
+
+    final String? path = await _audioRecorder.stop();
+    if (path == null || path.isEmpty) {
+      throw const AppException('录音文件保存失败，请重试');
+    }
+    return File(path);
+  }
+
+  Future<void> _clearSpeechTempFile(String path) async {
+    final File file = File(path);
+    if (await file.exists()) {
+      try {
+        await file.delete();
+      } catch (_) {
+        // Ignore local temp file cleanup failures.
+      }
+    }
+  }
+
+  void _appendRecognizedText(String recognizedText) {
+    _clearPolishDraft();
+    final String existingText = textController.text.trim();
+    final String nextText = existingText.isEmpty
+        ? recognizedText
+        : '$existingText\n$recognizedText';
+    _replaceText(nextText);
+  }
+
   void _showSpeechDialog() {
     _isSpeechDialogVisible = true;
     Get.dialog<void>(
-      const _SpeechListeningDialog(),
+      const _SpeechRecordingDialog(),
       barrierDismissible: false,
       useSafeArea: true,
     );
@@ -324,8 +424,47 @@ class CreateController extends GetxController {
     }
   }
 
-  void markSpeechDialogClosed() {
-    _isSpeechDialogVisible = false;
+  String get formattedRecordingTime {
+    final int seconds = recordingSeconds.value;
+    final int minutes = seconds ~/ 60;
+    final int remainder = seconds % 60;
+    final String minuteText = minutes.toString().padLeft(2, '0');
+    final String secondText = remainder.toString().padLeft(2, '0');
+    return '$minuteText:$secondText';
+  }
+
+  void _handleTextChanged() {
+    if (_isApplyingTextChange) {
+      return;
+    }
+    final String currentText = textController.text.trim();
+    if (_lastPolishedText != null && currentText != _lastPolishedText) {
+      _clearPolishDraft();
+    }
+  }
+
+  void _replaceText(String nextText) {
+    _isApplyingTextChange = true;
+    textController.text = nextText;
+    textController.selection = TextSelection.collapsed(offset: nextText.length);
+    _isApplyingTextChange = false;
+  }
+
+  void _clearPolishDraft() {
+    _lastRawTextBeforePolish = null;
+    _lastPolishedText = null;
+  }
+
+  String? _resolvePolishedText(String currentText) {
+    if (_lastPolishedText == null || currentText != _lastPolishedText) {
+      return null;
+    }
+    return _normalizeNullableText(_lastPolishedText);
+  }
+
+  String? _normalizeNullableText(String? value) {
+    final String normalized = value?.trim() ?? '';
+    return normalized.isEmpty ? null : normalized;
   }
 
   String _readError(Object error, {required String fallback}) {
@@ -334,25 +473,10 @@ class CreateController extends GetxController {
     }
     return error.toString().isEmpty ? fallback : error.toString();
   }
-
-  String _readSpeechError(PlatformException error) {
-    switch (error.code) {
-      case 'unavailable':
-        return '当前手机没有可用的语音识别服务';
-      case 'busy':
-        return '语音识别正在进行中';
-      case 'no_match':
-        return '没有识别到清晰语音，请重试';
-      default:
-        return error.message?.trim().isNotEmpty == true
-            ? error.message!
-            : '语音识别失败，请稍后重试';
-    }
-  }
 }
 
-class _SpeechListeningDialog extends StatelessWidget {
-  const _SpeechListeningDialog();
+class _SpeechRecordingDialog extends StatelessWidget {
+  const _SpeechRecordingDialog();
 
   @override
   Widget build(BuildContext context) {
@@ -364,76 +488,101 @@ class _SpeechListeningDialog extends StatelessWidget {
       child: Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: <Color>[Color(0xFF2F6E7C), Color(0xFFE28A45)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        child: Obx(() {
+          final double progress = (controller.recordingSeconds.value /
+                  AppConstants.maxSpeechSeconds)
+              .clamp(0, 1)
+              .toDouble();
+
+          return Container(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 28,
+                  offset: const Offset(0, 18),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  width: 94,
+                  height: 94,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: <Color>[Color(0xFFF28B5B), Color(0xFFF2BF52)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(30),
                   ),
-                  borderRadius: BorderRadius.circular(30),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.mic_rounded,
+                    size: 42,
+                    color: Colors.white,
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.mic_none_rounded,
-                  size: 42,
-                  color: Colors.white,
+                const SizedBox(height: 18),
+                Text(
+                  '正在录音',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                '正在聆听',
-                style: theme.textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '请直接说话，识别完成后会自动填入文案。',
-                style: theme.textTheme.bodyLarge,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 18),
-              const LinearProgressIndicator(minHeight: 8),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    controller.markSpeechDialogClosed();
-                    Navigator.of(context, rootNavigator: true).pop();
-                    controller.finishSpeechRecognition();
-                  },
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('说完了'),
+                const SizedBox(height: 8),
+                Text(
+                  '${controller.formattedRecordingTime} / 01:00',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    controller.markSpeechDialogClosed();
-                    Navigator.of(context, rootNavigator: true).pop();
-                    controller.cancelSpeechRecognition();
-                  },
-                  icon: const Icon(Icons.close_rounded),
-                  label: const Text('取消'),
+                const SizedBox(height: 8),
+                Text(
+                  '说完后点“说完了”',
+                  style: theme.textTheme.bodyLarge,
+                  textAlign: TextAlign.center,
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    minHeight: 10,
+                    value: progress,
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: controller.cancelSpeechRecognition,
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('取消'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: controller.finishSpeechRecognition,
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('说完了'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
       ),
     );
   }

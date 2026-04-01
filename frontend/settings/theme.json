@@ -1,37 +1,173 @@
 {
   "header": {
-    "height": 60
+    "height": 72
   },
   "tags": {
-    "visible": true,
-    "height": 50
+    "visible": false,
+    "height": 44
   },
-  "naiveThemeOverrides": {
+  "lightThemeOverrides": {
     "common": {
-      "primaryColor": "#F4511E",
-      "primaryColorHover": "#F4511E",
-      "primaryColorPressed": "#2B4C59FF",
-      "primaryColorSuppl": "#F4511E",
-
-      "infoColor": "#2080F0FF",
-      "infoColorHover": "#4098FCFF",
-      "infoColorPressed": "#1060C9FF",
-      "infoColorSuppl": "#4098FCFF",
-
-      "successColor": "#18A058FF",
-      "successColorHover": "#F4511E",
-      "successColorPressed": "#0C7A43FF",
-      "successColorSuppl": "#F4511E",
-
-      "warningColor": "#F0A020FF",
-      "warningColorHover": "#FCB040FF",
-      "warningColorPressed": "#C97C10FF",
-      "warningColorSuppl": "#FCB040FF",
-
-      "errorColor": "#D03050FF",
-      "errorColorHover": "#DE576DFF",
-      "errorColorPressed": "#AB1F3FFF",
-      "errorColorSuppl": "#DE576DFF"
+      "fontFamily": "HarmonyOS Sans SC, PingFang SC, Microsoft YaHei, sans-serif",
+      "fontWeightStrong": "700",
+      "primaryColor": "#2F746A",
+      "primaryColorHover": "#3E857A",
+      "primaryColorPressed": "#245C53",
+      "primaryColorSuppl": "#2F746A",
+      "infoColor": "#4D80C9",
+      "infoColorHover": "#5B8FD7",
+      "infoColorPressed": "#3C6CAD",
+      "infoColorSuppl": "#4D80C9",
+      "successColor": "#5A9B6E",
+      "successColorHover": "#67A87A",
+      "successColorPressed": "#447B56",
+      "successColorSuppl": "#5A9B6E",
+      "warningColor": "#D79B47",
+      "warningColorHover": "#E3AA5C",
+      "warningColorPressed": "#BA8031",
+      "warningColorSuppl": "#D79B47",
+      "errorColor": "#C76050",
+      "errorColorHover": "#D46F60",
+      "errorColorPressed": "#AB4C3E",
+      "errorColorSuppl": "#C76050",
+      "bodyColor": "#F5EFE6",
+      "cardColor": "#FFFCF7",
+      "modalColor": "#FFFCF8",
+      "popoverColor": "#FFFFFF",
+      "tableColor": "#FFFDF9",
+      "tableHeaderColor": "#F7F1E7",
+      "inputColor": "#FFFDF8",
+      "actionColor": "rgba(47, 116, 106, 0.06)",
+      "hoverColor": "rgba(47, 116, 106, 0.08)",
+      "pressedColor": "rgba(47, 116, 106, 0.12)",
+      "borderColor": "#E4DACB",
+      "dividerColor": "#EFE6D8",
+      "textColorBase": "#1F312A",
+      "textColor1": "#1F312A",
+      "textColor2": "#617069",
+      "textColor3": "#7C8983",
+      "placeholderColor": "#89958E",
+      "placeholderColorDisabled": "#AFB7B1",
+      "iconColor": "#66756E",
+      "iconColorHover": "#2F746A",
+      "iconColorPressed": "#245C53",
+      "scrollbarColor": "rgba(47, 116, 106, 0.18)",
+      "scrollbarColorHover": "rgba(47, 116, 106, 0.32)"
+    },
+    "Card": {
+      "color": "#FFFCF7",
+      "borderColor": "rgba(113, 95, 58, 0.08)"
+    },
+    "Input": {
+      "color": "#FFFDF8",
+      "colorFocus": "#FFFFFF",
+      "textColor": "#1F312A",
+      "placeholderColor": "#89958E",
+      "caretColor": "#2F746A",
+      "border": "1px solid rgba(113, 95, 58, 0.12)",
+      "borderHover": "1px solid rgba(47, 116, 106, 0.26)",
+      "borderFocus": "1px solid #2F746A",
+      "boxShadowFocus": "0 0 0 4px rgba(47, 116, 106, 0.14)"
+    },
+    "DataTable": {
+      "thColor": "#F7F1E7",
+      "tdColor": "#FFFDF9",
+      "borderColor": "rgba(113, 95, 58, 0.08)",
+      "thTextColor": "#4B635C",
+      "tdTextColor": "#1F312A"
+    },
+    "Menu": {
+      "itemTextColor": "#32463E",
+      "itemTextColorActive": "#2F746A",
+      "itemTextColorChildActive": "#2F746A",
+      "itemIconColor": "#687670",
+      "itemIconColorActive": "#2F746A",
+      "itemIconColorChildActive": "#2F746A",
+      "itemColorHover": "rgba(47, 116, 106, 0.08)",
+      "itemColorActive": "rgba(47, 116, 106, 0.12)",
+      "itemColorActiveCollapsed": "rgba(47, 116, 106, 0.14)"
+    }
+  },
+  "darkThemeOverrides": {
+    "common": {
+      "fontFamily": "HarmonyOS Sans SC, PingFang SC, Microsoft YaHei, sans-serif",
+      "fontWeightStrong": "700",
+      "primaryColor": "#6BCEB0",
+      "primaryColorHover": "#80DAC0",
+      "primaryColorPressed": "#4FB595",
+      "primaryColorSuppl": "#6BCEB0",
+      "infoColor": "#7CB4FF",
+      "infoColorHover": "#91C2FF",
+      "infoColorPressed": "#629CDD",
+      "infoColorSuppl": "#7CB4FF",
+      "successColor": "#7FD59A",
+      "successColorHover": "#93E3AC",
+      "successColorPressed": "#5FB777",
+      "successColorSuppl": "#7FD59A",
+      "warningColor": "#F0C46F",
+      "warningColorHover": "#F7D186",
+      "warningColorPressed": "#D7A54A",
+      "warningColorSuppl": "#F0C46F",
+      "errorColor": "#F08A79",
+      "errorColorHover": "#F59A8B",
+      "errorColorPressed": "#D96B5B",
+      "errorColorSuppl": "#F08A79",
+      "bodyColor": "#0D141A",
+      "cardColor": "#121D22",
+      "modalColor": "#152128",
+      "popoverColor": "#18252B",
+      "tableColor": "#121D22",
+      "tableHeaderColor": "#17262C",
+      "inputColor": "#15242A",
+      "actionColor": "rgba(107, 206, 176, 0.08)",
+      "hoverColor": "rgba(107, 206, 176, 0.10)",
+      "pressedColor": "rgba(107, 206, 176, 0.14)",
+      "borderColor": "#22343B",
+      "dividerColor": "#1C2B31",
+      "textColorBase": "#ECF5F2",
+      "textColor1": "#ECF5F2",
+      "textColor2": "#A4B9B2",
+      "textColor3": "#82968F",
+      "placeholderColor": "#728A83",
+      "placeholderColorDisabled": "#5D716A",
+      "iconColor": "#9EB3AC",
+      "iconColorHover": "#6BCEB0",
+      "iconColorPressed": "#4FB595",
+      "scrollbarColor": "rgba(107, 206, 176, 0.22)",
+      "scrollbarColorHover": "rgba(107, 206, 176, 0.36)"
+    },
+    "Card": {
+      "color": "#121D22",
+      "borderColor": "rgba(107, 206, 176, 0.10)"
+    },
+    "Input": {
+      "color": "#15242A",
+      "colorFocus": "#182A30",
+      "textColor": "#ECF5F2",
+      "placeholderColor": "#7E938C",
+      "caretColor": "#6BCEB0",
+      "border": "1px solid rgba(107, 206, 176, 0.08)",
+      "borderHover": "1px solid rgba(107, 206, 176, 0.22)",
+      "borderFocus": "1px solid #6BCEB0",
+      "boxShadowFocus": "0 0 0 4px rgba(107, 206, 176, 0.16)"
+    },
+    "DataTable": {
+      "thColor": "#17262C",
+      "tdColor": "#121D22",
+      "borderColor": "rgba(107, 206, 176, 0.08)",
+      "thTextColor": "#B9CBC5",
+      "tdTextColor": "#ECF5F2"
+    },
+    "Menu": {
+      "itemTextColor": "#CFDDD8",
+      "itemTextColorActive": "#6BCEB0",
+      "itemTextColorChildActive": "#6BCEB0",
+      "itemIconColor": "#9DB2AB",
+      "itemIconColorActive": "#6BCEB0",
+      "itemIconColorChildActive": "#6BCEB0",
+      "itemColorHover": "rgba(107, 206, 176, 0.10)",
+      "itemColorActive": "rgba(107, 206, 176, 0.14)",
+      "itemColorActiveCollapsed": "rgba(107, 206, 176, 0.16)"
     }
   }
 }

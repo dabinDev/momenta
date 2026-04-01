@@ -47,6 +47,7 @@ class AppBinding extends Bindings {
     Get.put<HistoryRepository>(
       HistoryRepositoryImpl(
         localStorageService: Get.find<LocalStorageService>(),
+        apiService: Get.find<ApiService>(),
       ),
       permanent: true,
     );

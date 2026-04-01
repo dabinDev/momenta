@@ -10,6 +10,7 @@ dependencies = [
     "aiosqlite>=0.20,<1",
     "email-validator>=2.2,<3",
     "fastapi>=0.111,<1",
+    "httpx>=0.28,<1",
     "loguru>=0.7,<1",
     "passlib>=1.7,<2",
     "pydantic>=2.10,<3",
@@ -19,6 +20,7 @@ dependencies = [
     "python-multipart>=0.0.20,<1",
     "tortoise-orm>=0.23,<1",
     "uvicorn>=0.34,<1",
+    "websockets>=15,<16",
 ]
 
 [tool.black]
