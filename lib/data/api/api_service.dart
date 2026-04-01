@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../../app/constants.dart';
+import '../../core/errors/app_exception.dart';
 import '../../core/services/secure_storage_service.dart';
 import '../models/app_config_model.dart';
 import '../models/app_update_info_model.dart';
@@ -79,17 +80,21 @@ class ApiService {
         filename: audioFile.uri.pathSegments.last,
       ),
     });
-    final Response<dynamic> response = await _authDio.post(
-      '/api/voice/transcribe',
-      data: formData,
-      options: authOptions.copyWith(
-        contentType: Headers.multipartFormDataContentType,
-        sendTimeout: const Duration(seconds: 60),
-        receiveTimeout: const Duration(seconds: 90),
-      ),
-    );
-    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
-    return (map['text'] ?? map['result'] ?? '').toString();
+    try {
+      final Response<dynamic> response = await _authDio.post(
+        '/api/voice/transcribe',
+        data: formData,
+        options: authOptions.copyWith(
+          contentType: Headers.multipartFormDataContentType,
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 90),
+        ),
+      );
+      final Map<String, dynamic> map = _readEnvelopeMap(response.data);
+      return (map['text'] ?? map['result'] ?? '').toString();
+    } on DioException catch (error) {
+      throw AppException.fromDioException(error);
+    }
   }
 
   Future<String> polishText(String text) async {

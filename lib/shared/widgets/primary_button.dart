@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme.dart';
+
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
@@ -22,14 +24,15 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color foreground =
-        _outlined ? theme.colorScheme.onSurface : Colors.white;
+    final bool enabled = onPressed != null;
+    final Color foreground = _outlined
+        ? (enabled ? AppTheme.primaryDeep : AppTheme.muted)
+        : Colors.white;
     final Widget child = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
-        Icon(icon, size: 19, color: foreground),
-        const SizedBox(width: 8),
+        Icon(icon, size: 20, color: foreground),
+        const SizedBox(width: 10),
         Flexible(
           child: Text(
             label,

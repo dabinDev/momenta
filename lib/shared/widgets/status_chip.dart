@@ -16,23 +16,26 @@ class StatusChip extends StatelessWidget {
 
     switch (status) {
       case 'completed':
-        background = const Color(0xFFDDEFE7);
-        foreground = const Color(0xFF2D5E4F);
+        background = const Color(0xFFD9EEE1);
+        foreground = const Color(0xFF245844);
         label = '已完成';
       case 'failed':
-        background = const Color(0xFFF5DFDA);
-        foreground = const Color(0xFF9F4238);
+        background = const Color(0xFFF8DDD7);
+        foreground = const Color(0xFF9C3E34);
         label = '失败';
       default:
-        background = const Color(0xFFFCE9D7);
-        foreground = const Color(0xFF91653B);
+        background = const Color(0xFFFFE7CF);
+        foreground = const Color(0xFF8E5D2F);
         label = '处理中';
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: background,
+        border: Border.all(
+          color: foreground.withValues(alpha: 0.18),
+        ),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -50,7 +53,7 @@ class StatusChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               color: foreground,
             ),

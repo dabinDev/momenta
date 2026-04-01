@@ -126,10 +126,6 @@ class AppSettingsController extends GetxController {
   }
 
   String _readError(Object error, {required String fallback}) {
-    if (error is AppException) {
-      return error.message;
-    }
-    final String message = error.toString().trim();
-    return message.isEmpty ? fallback : message;
+    return AppException.resolveMessage(error, fallback: fallback);
   }
 }

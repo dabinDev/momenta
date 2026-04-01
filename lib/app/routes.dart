@@ -15,6 +15,7 @@ import '../presentation/settings/app_settings_binding.dart';
 import '../presentation/settings/app_settings_page.dart';
 import '../presentation/settings/edit_profile_binding.dart';
 import '../presentation/settings/edit_profile_page.dart';
+import '../presentation/settings/profile_detail_page.dart';
 import '../presentation/settings/settings_binding.dart';
 import '../presentation/settings/settings_page.dart';
 import '../presentation/shell/main_shell_binding.dart';
@@ -33,6 +34,7 @@ class AppRoutes {
   static const String create = '/create';
   static const String history = '/history';
   static const String settings = '/settings';
+  static const String profileDetail = '/profile-detail';
   static const String appSettings = '/app-settings';
   static const String editProfile = '/edit-profile';
   static const String videoPlayer = '/video-player';
@@ -79,6 +81,11 @@ class AppPages {
     GetPage<dynamic>(
       name: AppRoutes.settings,
       page: SettingsPage.new,
+      binding: SettingsBinding(),
+    ),
+    GetPage<dynamic>(
+      name: AppRoutes.profileDetail,
+      page: ProfileDetailPage.new,
       binding: SettingsBinding(),
     ),
     GetPage<dynamic>(

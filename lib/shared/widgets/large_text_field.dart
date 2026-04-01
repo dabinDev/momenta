@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme.dart';
+
 class LargeTextField extends StatefulWidget {
   const LargeTextField({
     super.key,
@@ -62,8 +64,9 @@ class _LargeTextFieldState extends State<LargeTextField> {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             widget.label,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontSize: 16,
+              color: AppTheme.text,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -81,7 +84,7 @@ class _LargeTextFieldState extends State<LargeTextField> {
           cursorColor: theme.colorScheme.primary,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurface,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
           decoration: InputDecoration(
             hintText: widget.hintText,

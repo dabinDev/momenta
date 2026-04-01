@@ -8,7 +8,7 @@ class AppConstants {
   static const String releaseChannelCode = 'lan';
   static const String updateChannel = '局域网安装包';
   static const String updateHint = '如有新版本，重新安装新的 APK 即可覆盖更新。';
-  static const String authServerBaseUrl = 'http://192.168.12.197:9999';
+  static const String authServerBaseUrl = 'http://192.168.101.21:9999';
   static const String serverBaseUrl = authServerBaseUrl;
   static const String legacyServerBaseUrl = 'http://1.15.227.223:3000';
   static const String defaultLlmBaseUrl = 'https://api.moonshot.cn/v1';

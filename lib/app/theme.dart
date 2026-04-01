@@ -6,6 +6,7 @@ class AppTheme {
 
   static const Color primary = Color(0xFFFF6A1A);
   static const Color primaryDeep = Color(0xFFE65712);
+  static const Color primaryDark = Color(0xFFBE470C);
   static const Color amber = Color(0xFFFFB446);
   static const Color jade = Color(0xFF5E9A75);
   static const Color sky = Color(0xFF6D95F4);
@@ -17,6 +18,9 @@ class AppTheme {
   static const Color surfaceMuted = Color(0xFFFFEBDD);
   static const Color outline = Color(0xFFF1E2D4);
   static const Color outlineSoft = Color(0xFFF7EEE5);
+  static const Color fieldSurface = Color(0xFFFFFEFC);
+  static const Color fieldBorder = Color(0xFFDCC9B8);
+  static const Color secondaryButtonSurface = Color(0xFFFFF3E9);
   static const Color text = Color(0xFF2E2118);
   static const Color muted = Color(0xFF7E6B5C);
 
@@ -32,7 +36,7 @@ class AppTheme {
 
   static ThemeData get lightTheme {
     const ColorScheme colorScheme = ColorScheme.light(
-      primary: primary,
+      primary: primaryDeep,
       secondary: amber,
       tertiary: jade,
       surface: surface,
@@ -63,13 +67,13 @@ class AppTheme {
         },
       ),
       cupertinoOverrideTheme: const NoDefaultCupertinoThemeData(
-        primaryColor: primary,
+        primaryColor: primaryDeep,
         scaffoldBackgroundColor: canvas,
         barBackgroundColor: Colors.transparent,
         textTheme: CupertinoTextThemeData(
-          primaryColor: primary,
+          primaryColor: primaryDeep,
           textStyle: TextStyle(
-            fontSize: 17,
+            fontSize: 18,
             height: 1.45,
             color: text,
           ),
@@ -81,9 +85,9 @@ class AppTheme {
         ),
       ),
       textSelectionTheme: const TextSelectionThemeData(
-        cursorColor: primary,
+        cursorColor: primaryDeep,
         selectionColor: Color(0x33FF8B4B),
-        selectionHandleColor: primary,
+        selectionHandleColor: primaryDeep,
       ),
       appBarTheme: const AppBarTheme(
         centerTitle: false,
@@ -102,50 +106,70 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.82),
+        fillColor: fieldSurface,
         hintStyle: const TextStyle(
           fontSize: 17,
           height: 1.45,
-          color: Color(0xFFAA998B),
+          color: Color(0xFF917F72),
+          fontWeight: FontWeight.w500,
         ),
-        prefixIconColor: muted,
+        prefixIconColor: primaryDeep,
         suffixIconColor: muted,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(
+            color: fieldBorder,
+            width: 1.2,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(
+            color: fieldBorder,
+            width: 1.2,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: primary.withValues(alpha: 0.18)),
+          borderSide: const BorderSide(
+            color: primaryDeep,
+            width: 1.8,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFD1534A), width: 1.2),
+          borderSide: const BorderSide(
+            color: Color(0xFFD1534A),
+            width: 1.3,
+          ),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFD1534A), width: 1.3),
+          borderSide: const BorderSide(
+            color: Color(0xFFD1534A),
+            width: 1.6,
+          ),
         ),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           elevation: 0,
-          minimumSize: const Size.fromHeight(56),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          backgroundColor: primary,
+          minimumSize: const Size.fromHeight(58),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
+          backgroundColor: primaryDeep,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFE7D7C9),
-          disabledForegroundColor: const Color(0xFFB8A898),
+          disabledBackgroundColor: const Color(0xFFD8C5B6),
+          disabledForegroundColor: const Color(0xFF8F7E71),
           textStyle: const TextStyle(
-            fontSize: 17,
+            fontSize: 18,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.1,
+          ),
+          side: const BorderSide(
+            color: primaryDark,
+            width: 1.1,
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -156,12 +180,37 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           elevation: 0,
           shadowColor: Colors.transparent,
+          minimumSize: const Size.fromHeight(58),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
+          backgroundColor: primaryDeep,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFD8C5B6),
+          disabledForegroundColor: const Color(0xFF8F7E71),
+          textStyle: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.1,
+          ),
+          side: const BorderSide(
+            color: primaryDark,
+            width: 1.1,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          elevation: 0,
           minimumSize: const Size.fromHeight(56),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFE7D7C9),
-          disabledForegroundColor: const Color(0xFFB8A898),
+          backgroundColor: secondaryButtonSurface,
+          foregroundColor: primaryDeep,
+          side: BorderSide(
+            color: primaryDeep.withValues(alpha: 0.28),
+            width: 1.2,
+          ),
           textStyle: const TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -172,65 +221,50 @@ class AppTheme {
           ),
         ),
       ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          elevation: 0,
-          minimumSize: const Size.fromHeight(54),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-          backgroundColor: Colors.white.withValues(alpha: 0.58),
-          foregroundColor: text,
-          side: BorderSide.none,
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.1,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: primaryDeep,
+          foregroundColor: primaryDark,
           textStyle: const TextStyle(
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: FontWeight.w700,
           ),
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: Colors.white.withValues(alpha: 0.64),
+        backgroundColor: const Color(0xFFFFF8F3),
         disabledColor: surfaceSoft,
-        selectedColor: primary.withValues(alpha: 0.14),
-        secondarySelectedColor: primary.withValues(alpha: 0.14),
-        side: BorderSide.none,
+        selectedColor: primary.withValues(alpha: 0.18),
+        secondarySelectedColor: primary.withValues(alpha: 0.18),
+        side: const BorderSide(
+          color: fieldBorder,
+          width: 1,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
         labelStyle: const TextStyle(
-          fontSize: 15,
+          fontSize: 16,
           fontWeight: FontWeight.w700,
           color: text,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         height: 64,
-        indicatorColor: primary.withValues(alpha: 0.12),
+        indicatorColor: primary.withValues(alpha: 0.16),
         labelTextStyle: const WidgetStatePropertyAll(
           TextStyle(
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: FontWeight.w700,
             color: text,
           ),
         ),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: primary,
+        color: primaryDeep,
         linearTrackColor: Color(0xFFFFE7D3),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -284,12 +318,12 @@ class AppTheme {
           color: text,
         ),
         bodyLarge: TextStyle(
-          fontSize: 17,
+          fontSize: 18,
           height: 1.52,
           color: text,
         ),
         bodyMedium: TextStyle(
-          fontSize: 15,
+          fontSize: 16,
           height: 1.48,
           color: muted,
         ),

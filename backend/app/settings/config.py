@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     LOGS_ROOT: str = os.path.join(BASE_DIR, "app/logs")
     MEDIA_ROOT: str = os.path.join(BASE_DIR, "media")
     SERVER_BASE_URL: str = "http://1.15.227.223:3000"
-    PUBLIC_BASE_URL: str = "http://192.168.12.197:9999"
+    PUBLIC_BASE_URL: str = "http://192.168.101.21:9999"
     SECRET_KEY: str = "3488a63e1765035d386f05409663f55c83bfae3b3c61a932744b20ad14244dcf"  # openssl rand -hex 32
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 day

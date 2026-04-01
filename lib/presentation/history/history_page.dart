@@ -35,55 +35,11 @@ class HistoryPage extends GetView<HistoryController> {
           children: <Widget>[
             SectionCard(
               title: '历史记录',
-              subtitle: controller.isRefreshingProcessing.value
-                  ? '正在刷新处理中任务'
-                  : '生成结果会自动按当前账号保存',
-              icon: Icons.inventory_2_outlined,
-              accentColor: AppTheme.sky,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: <Widget>[
-                      _SummaryTag(
-                        label: '全部',
-                        value: controller.totalCount.value.toString(),
-                        tint: AppTheme.primary,
-                      ),
-                      _SummaryTag(
-                        label: '完成',
-                        value: controller.completedCount.value.toString(),
-                        tint: AppTheme.jade,
-                      ),
-                      _SummaryTag(
-                        label: '处理中',
-                        value: controller.processingCount.value.toString(),
-                        tint: AppTheme.amber,
-                      ),
-                      _SummaryTag(
-                        label: '失败',
-                        value: controller.failedCount.value.toString(),
-                        tint: AppTheme.coral,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _HistoryFilterBar(controller: controller),
-                  const SizedBox(height: 16),
-                  _AdaptiveOverviewActions(controller: controller),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            SectionCard(
-              title: '任务列表',
               subtitle: controller.items.isEmpty
-                  ? '还没有视频任务'
-                  : '共 ${controller.items.length} 条已加载记录',
-              icon: Icons.list_alt_rounded,
-              accentColor: AppTheme.primary,
+                  ? '下拉可以刷新'
+                  : '共 ${controller.totalCount.value} 条任务记录',
+              icon: Icons.history_rounded,
+              accentColor: AppTheme.sky,
               child: controller.items.isEmpty
                   ? const EmptyState(
                       title: '还没有历史记录',
@@ -111,10 +67,12 @@ class HistoryPage extends GetView<HistoryController> {
                                       controller.items[index],
                                     )
                                 : null,
-                            onDelete: () =>
-                                controller.deleteItem(controller.items[index].id),
+                            onDelete: () => controller
+                                .deleteItem(controller.items[index].id),
                           ),
                         ],
+                        const SizedBox(height: 16),
+                        _HistoryActionRow(controller: controller),
                         const SizedBox(height: 12),
                         _LoadMoreArea(controller: controller),
                       ],
@@ -138,8 +96,8 @@ class HistoryPage extends GetView<HistoryController> {
   }
 }
 
-class _AdaptiveOverviewActions extends StatelessWidget {
-  const _AdaptiveOverviewActions({required this.controller});
+class _HistoryActionRow extends StatelessWidget {
+  const _HistoryActionRow({required this.controller});
 
   final HistoryController controller;
 
@@ -147,9 +105,9 @@ class _AdaptiveOverviewActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final List<Widget> buttons = <Widget>[
+        final List<Widget> children = <Widget>[
           PrimaryButton.outline(
-            label: '刷新状态',
+            label: '刷新',
             icon: Icons.refresh_rounded,
             onPressed: controller.refreshList,
           ),
@@ -164,10 +122,10 @@ class _AdaptiveOverviewActions extends StatelessWidget {
 
         if (constraints.maxWidth < 360) {
           return Column(
-            children: buttons
+            children: children
                 .expand<Widget>(
-                  (Widget child) => <Widget>[
-                    child,
+                  (Widget item) => <Widget>[
+                    item,
                     const SizedBox(height: 10),
                   ],
                 )
@@ -177,10 +135,10 @@ class _AdaptiveOverviewActions extends StatelessWidget {
         }
 
         return Row(
-          children: buttons
+          children: children
               .expand<Widget>(
-                (Widget child) => <Widget>[
-                  Expanded(child: child),
+                (Widget item) => <Widget>[
+                  Expanded(child: item),
                   const SizedBox(width: 12),
                 ],
               )
@@ -215,35 +173,6 @@ class _AdaptiveOverviewActions extends StatelessWidget {
     if (confirmed == true) {
       await controller.clearAll();
     }
-  }
-}
-
-class _HistoryFilterBar extends StatelessWidget {
-  const _HistoryFilterBar({required this.controller});
-
-  final HistoryController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    const List<Map<String, String>> filters = <Map<String, String>>[
-      <String, String>{'label': '全部', 'value': 'all'},
-      <String, String>{'label': '处理中', 'value': 'processing'},
-      <String, String>{'label': '已完成', 'value': 'completed'},
-      <String, String>{'label': '失败', 'value': 'failed'},
-    ];
-
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: filters.map((Map<String, String> item) {
-        final bool selected = controller.selectedFilter.value == item['value'];
-        return ChoiceChip(
-          label: Text(item['label']!),
-          selected: selected,
-          onSelected: (_) => controller.changeFilter(item['value']!),
-        );
-      }).toList(),
-    );
   }
 }
 
@@ -342,47 +271,6 @@ class _HistoryListItem extends StatelessWidget {
   }
 }
 
-class _SummaryTag extends StatelessWidget {
-  const _SummaryTag({
-    required this.label,
-    required this.value,
-    required this.tint,
-  });
-
-  final String label;
-  final String value;
-  final Color tint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.text,
-                ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.text,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MetaTag extends StatelessWidget {
   const _MetaTag({required this.label});
 
@@ -394,6 +282,7 @@ class _MetaTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.7),
+        border: Border.all(color: AppTheme.outline),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -435,6 +324,11 @@ class _ActionChipButton extends StatelessWidget {
             color: enabled
                 ? tint.withValues(alpha: 0.12)
                 : Colors.white.withValues(alpha: 0.46),
+            border: Border.all(
+              color: enabled
+                  ? tint.withValues(alpha: 0.24)
+                  : AppTheme.outline.withValues(alpha: 0.9),
+            ),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(

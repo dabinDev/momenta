@@ -200,9 +200,6 @@ class HistoryController extends GetxController {
   }
 
   String _readError(Object error, {required String fallback}) {
-    if (error is AppException) {
-      return error.message;
-    }
-    return error.toString().isEmpty ? fallback : error.toString();
+    return AppException.resolveMessage(error, fallback: fallback);
   }
 }

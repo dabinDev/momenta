@@ -27,31 +27,35 @@ class LoginPage extends GetView<LoginController> {
               final Widget hero = _LoginHero(wideLayout: wideLayout);
               final Widget form = _LoginForm(controller: controller);
 
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 980),
-                    child: wideLayout
-                        ? IntrinsicHeight(
-                            child: Row(
+              return ScrollConfiguration(
+                behavior:
+                    ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 980),
+                      child: wideLayout
+                          ? IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: <Widget>[
+                                  Expanded(child: hero),
+                                  const SizedBox(width: 22),
+                                  SizedBox(width: 400, child: form),
+                                ],
+                              ),
+                            )
+                          : Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: <Widget>[
-                                Expanded(child: hero),
-                                const SizedBox(width: 22),
-                                SizedBox(width: 400, child: form),
+                                hero,
+                                const SizedBox(height: 18),
+                                form,
                               ],
                             ),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: <Widget>[
-                              hero,
-                              const SizedBox(height: 18),
-                              form,
-                            ],
-                          ),
+                    ),
                   ),
                 ),
               );
@@ -95,21 +99,6 @@ class _LoginHero extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          const SizedBox(height: 24),
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: AppTheme.primary,
-              size: 34,
-            ),
-          ),
           const SizedBox(height: 22),
           Text(
             AppConstants.appTitle,
@@ -117,28 +106,37 @@ class _LoginHero extends StatelessWidget {
               fontSize: wideLayout ? 38 : 32,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            '专为长辈准备的简洁视频创作流程。',
-            style: theme.textTheme.bodyLarge,
+            '更适合长辈使用的简洁创作助手',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: AppTheme.muted,
+            ),
           ),
-          const SizedBox(height: 22),
-          const _HeroLine(
-            icon: Icons.favorite_border_rounded,
-            label: '一句话就能生成温暖视频',
-            tint: AppTheme.coral,
-          ),
-          const SizedBox(height: 12),
-          const _HeroLine(
-            icon: Icons.graphic_eq_rounded,
-            label: '支持语音输入和文案润色',
-            tint: AppTheme.sky,
-          ),
-          const SizedBox(height: 12),
-          const _HeroLine(
-            icon: Icons.history_rounded,
-            label: '历史记录与个人中心一目了然',
-            tint: AppTheme.jade,
+          const SizedBox(height: 18),
+          const Row(
+            children: <Widget>[
+              Expanded(
+                child: _HeroPill(
+                  label: '语音输入',
+                  tint: AppTheme.coral,
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _HeroPill(
+                  label: '一键生成',
+                  tint: AppTheme.sky,
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _HeroPill(
+                  label: '历史可查',
+                  tint: AppTheme.jade,
+                ),
+              ),
+            ],
           ),
           if (wideLayout) const Spacer(),
         ],
@@ -147,39 +145,34 @@ class _LoginHero extends StatelessWidget {
   }
 }
 
-class _HeroLine extends StatelessWidget {
-  const _HeroLine({
-    required this.icon,
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({
     required this.label,
     required this.tint,
   });
 
-  final IconData icon;
   final String label;
   final Color tint;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: tint.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          alignment: Alignment.center,
-          child: Icon(icon, size: 20, color: tint),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.12),
+        border: Border.all(color: tint.withValues(alpha: 0.24)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppTheme.text,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
     );
   }
 }
@@ -206,12 +199,7 @@ class _LoginForm extends GetView<LoginController> {
               '账号登录',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
-            const SizedBox(height: 8),
-            Text(
-              '输入用户名和密码后继续。',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             LargeTextField(
               controller: controller.usernameController,
               label: '用户名',

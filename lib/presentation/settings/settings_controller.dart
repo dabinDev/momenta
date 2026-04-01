@@ -52,6 +52,10 @@ class SettingsController extends GetxController {
     Get.toNamed(AppRoutes.changePassword);
   }
 
+  void openProfileDetail() {
+    Get.toNamed(AppRoutes.profileDetail);
+  }
+
   Future<void> logout() async {
     await authController.logout();
   }
