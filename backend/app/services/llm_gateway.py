@@ -20,27 +20,42 @@ class OpenAICompatibleLLMService:
             and (config.llm_model or "").strip()
         )
 
+    async def correct_text(self, *, config: UserAppConfig, text: str) -> dict[str, str]:
+        result = await self._chat(
+            config=config,
+            system_prompt=(
+                "你是中文输入纠错助手。"
+                "请修正用户文本中的错别字、同音字、缺字漏字、标点问题和明显的语义识别错误。"
+                "保持原意，不要扩写，不要解释，只输出修正后的正文。"
+            ),
+            user_prompt=text,
+            temperature=0.2,
+        )
+        return {"text": result}
+
     async def polish_text(self, *, config: UserAppConfig, text: str) -> dict[str, str]:
         result = await self._chat(
             config=config,
             system_prompt=(
                 "你是资深中文短视频文案编辑。"
-                "请在不改变核心意思的前提下，将用户输入润色成更自然、更适合老年用户表达的中文文案。"
-                "只输出润色后的正文，不要加解释、标题或引号。"
+                "请在不改变核心意思的前提下，将用户输入润色成更自然、更适合中老年用户表达的中文文案。"
+                "只输出润色后的正文，不要添加解释、标题或引号。"
             ),
             user_prompt=text,
             temperature=0.4,
         )
         return {"text": result}
 
-    async def generate_prompt(self, *, config: UserAppConfig, text: str) -> dict[str, str]:
+    async def generate_prompt(
+        self,
+        *,
+        config: UserAppConfig,
+        text: str,
+        prompt_template_instruction: str,
+    ) -> dict[str, str]:
         result = await self._chat(
             config=config,
-            system_prompt=(
-                "你是短视频生成提示词专家。"
-                "请把用户文案转换成适合视频生成模型理解的提示词，突出主体、场景、镜头、光线、构图、风格和节奏。"
-                "输出一段简洁但信息完整的中文提示词，不要解释。"
-            ),
+            system_prompt=prompt_template_instruction,
             user_prompt=text,
             temperature=0.5,
         )

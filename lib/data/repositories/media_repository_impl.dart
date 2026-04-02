@@ -15,6 +15,10 @@ class MediaRepositoryImpl implements MediaRepository {
       _apiService.speechToText(audioFile);
 
   @override
+  Future<UploadedFileModel> uploadReferenceVideo(File file) =>
+      _apiService.uploadReferenceVideo(file);
+
+  @override
   Future<List<UploadedFileModel>> uploadImages(List<File> files) =>
       _apiService.uploadImages(files);
 }

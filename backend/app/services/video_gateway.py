@@ -28,6 +28,7 @@ class OpenAICompatibleVideoService:
         prompt: str,
         images: list[str],
         duration: int,
+        size: str = "720x1280",
     ) -> dict[str, Any]:
         base_url = (config.video_base_url or "").rstrip("/")
         timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
@@ -40,6 +41,7 @@ class OpenAICompatibleVideoService:
                         config=config,
                         prompt=prompt,
                         duration=duration,
+                        size=size,
                         image_location=images[0],
                     )
                 else:
@@ -50,7 +52,7 @@ class OpenAICompatibleVideoService:
                             "model": config.video_model,
                             "prompt": prompt,
                             "seconds": duration,
-                            "size": "720x1280",
+                            "size": size,
                         },
                     )
                 response.raise_for_status()
@@ -130,6 +132,7 @@ class OpenAICompatibleVideoService:
         config: UserAppConfig,
         prompt: str,
         duration: int,
+        size: str,
         image_location: str,
     ) -> httpx.Response:
         image_name, image_bytes, content_type = await local_media_service.read_remote_bytes(image_location)
@@ -137,7 +140,7 @@ class OpenAICompatibleVideoService:
             ("model", (None, config.video_model)),
             ("prompt", (None, prompt)),
             ("seconds", (None, str(duration))),
-            ("size", (None, "720x1280")),
+            ("size", (None, size)),
             ("input_reference", (image_name, image_bytes, content_type)),
         ]
         return await client.post("/videos", headers=self._headers(config), files=files)

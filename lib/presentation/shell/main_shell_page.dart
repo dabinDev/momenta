@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import '../../app/theme.dart';
 import '../../shared/widgets/app_backdrop.dart';
 import '../../shared/widgets/app_brand_mark.dart';
+import '../create/create_controller.dart';
+import '../create/create_mode_sheet.dart';
 import '../create/create_page.dart';
 import '../history/history_page.dart';
 import '../settings/settings_page.dart';
@@ -20,7 +22,7 @@ class MainShellPage extends GetView<MainShellController> {
 
   final List<_ShellTabMeta> _tabs = const <_ShellTabMeta>[
     _ShellTabMeta(
-      title: '创建视频',
+      title: 'AI创作',
       icon: Icons.auto_awesome_rounded,
       tint: AppTheme.coral,
       supportTint: AppTheme.amber,
@@ -42,10 +44,13 @@ class MainShellPage extends GetView<MainShellController> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final CreateController createController = Get.find<CreateController>();
 
     return Obx(() {
       final int index = controller.currentIndex.value;
       final _ShellTabMeta tab = _tabs[index];
+      final bool isCreateTab = index == 0;
+      final CreateWorkbenchMode createMode = createController.mode;
 
       return Scaffold(
         backgroundColor: Colors.transparent,
@@ -61,19 +66,30 @@ class MainShellPage extends GetView<MainShellController> {
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
                   child: Row(
                     children: <Widget>[
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        width: 7,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: <Color>[tab.tint, tab.supportTint],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
+                      if (isCreateTab)
+                        _HeaderModeButton(
+                          label: createController.labelForMode(createMode),
+                          onTap: () {
+                            showCreateModeSheet(
+                              context: context,
+                              controller: createController,
+                            );
+                          },
+                        )
+                      else
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          width: 7,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: <Color>[tab.tint, tab.supportTint],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                          borderRadius: BorderRadius.circular(999),
                         ),
-                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -85,6 +101,19 @@ class MainShellPage extends GetView<MainShellController> {
                           ),
                         ),
                       ),
+                      if (isCreateTab) const SizedBox(width: 8),
+                      if (isCreateTab)
+                        Expanded(
+                          child: Text(
+                            createController.labelForMode(createMode),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: AppTheme.muted,
+                            ),
+                          ),
+                        ),
                       const AppBrandMark(size: 34, radius: 10),
                     ],
                   ),
@@ -114,7 +143,7 @@ class MainShellPage extends GetView<MainShellController> {
                 NavigationDestination(
                   icon: Icon(Icons.edit_note_outlined),
                   selectedIcon: Icon(Icons.edit_note),
-                  label: '创作',
+                  label: 'AI',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.history_outlined),
@@ -147,4 +176,46 @@ class _ShellTabMeta {
   final IconData icon;
   final Color tint;
   final Color supportTint;
+}
+
+class _HeaderModeButton extends StatelessWidget {
+  const _HeaderModeButton({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(Icons.tune_rounded, size: 18, color: AppTheme.text),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

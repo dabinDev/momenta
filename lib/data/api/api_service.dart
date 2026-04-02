@@ -7,6 +7,8 @@ import '../../core/errors/app_exception.dart';
 import '../../core/services/secure_storage_service.dart';
 import '../models/app_config_model.dart';
 import '../models/app_update_info_model.dart';
+import '../models/ai_template_model.dart';
+import '../models/create_workbench_model.dart';
 import '../models/paginated_history_model.dart';
 import '../models/uploaded_file_model.dart';
 import '../models/video_task_model.dart';
@@ -72,6 +74,24 @@ class ApiService {
         .toList();
   }
 
+  Future<UploadedFileModel> uploadReferenceVideo(File file) async {
+    final Options authOptions = await _authOptions();
+    final FormData formData = FormData.fromMap(<String, dynamic>{
+      'video': await MultipartFile.fromFile(
+        file.path,
+        filename: file.uri.pathSegments.last,
+      ),
+    });
+    final Response<dynamic> response = await _dio.post(
+      '/api/upload-reference-video',
+      data: formData,
+      options: authOptions.copyWith(
+        contentType: Headers.multipartFormDataContentType,
+      ),
+    );
+    return UploadedFileModel.fromJson(_readEnvelopeMap(response.data));
+  }
+
   Future<String> speechToText(File audioFile) async {
     final Options authOptions = await _authOptions();
     final FormData formData = FormData.fromMap(<String, dynamic>{
@@ -97,6 +117,16 @@ class ApiService {
     }
   }
 
+  Future<String> correctText(String text) async {
+    final Response<dynamic> response = await _dio.post(
+      '/api/correct-text',
+      data: <String, dynamic>{'text': text},
+      options: await _authOptions(),
+    );
+    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
+    return (map['text'] ?? map['result'] ?? map['content'] ?? '').toString();
+  }
+
   Future<String> polishText(String text) async {
     final Response<dynamic> response = await _dio.post(
       '/api/polish-text',
@@ -107,35 +137,124 @@ class ApiService {
     return (map['text'] ?? map['result'] ?? map['content'] ?? '').toString();
   }
 
-  Future<String> generatePrompt(String text) async {
+  Future<List<AiTemplateModel>> fetchPromptTemplates() async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/prompt-templates',
+      options: await _authOptions(),
+    );
+    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
+    final List<dynamic> items = map['items'] as List<dynamic>? ?? <dynamic>[];
+    return items
+        .map((dynamic item) => AiTemplateModel.fromJson(_readMap(item)))
+        .toList();
+  }
+
+  Future<List<AiTemplateModel>> fetchVideoTemplates() async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/video-templates',
+      options: await _authOptions(),
+    );
+    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
+    final List<dynamic> items = map['items'] as List<dynamic>? ?? <dynamic>[];
+    return items
+        .map((dynamic item) => AiTemplateModel.fromJson(_readMap(item)))
+        .toList();
+  }
+
+  Future<CreateWorkbenchModel> fetchCreateWorkbench() async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/create-workbench',
+      options: await _authOptions(),
+    );
+    return CreateWorkbenchModel.fromJson(_readEnvelopeMap(response.data));
+  }
+
+  Future<String> generatePrompt(String text,
+      {String? promptTemplateKey}) async {
     final Response<dynamic> response = await _dio.post(
       '/api/generate-prompt',
-      data: <String, dynamic>{'text': text},
+      data: <String, dynamic>{
+        'text': text,
+        if (promptTemplateKey != null) 'prompt_template_key': promptTemplateKey,
+      },
       options: await _authOptions(),
     );
     final Map<String, dynamic> map = _readEnvelopeMap(response.data);
     return (map['prompt'] ?? map['text'] ?? map['result'] ?? '').toString();
   }
 
-  Future<VideoTaskModel> generateVideo({
+  Future<VideoTaskModel> generateSimpleVideo({
     String? inputText,
     String? polishedText,
     required String prompt,
     required List<String> images,
     required int duration,
-  }) async {
-    final Response<dynamic> response = await _dio.post(
-      '/api/tasks',
+    String? promptTemplateKey,
+    String? videoTemplateKey,
+  }) {
+    return _postVideoTask(
+      path: '/api/tasks',
       data: <String, dynamic>{
         if (inputText != null) 'input_text': inputText,
         if (polishedText != null) 'polished_text': polishedText,
         'prompt': prompt,
         'images': images,
         'duration': duration,
+        if (promptTemplateKey != null) 'prompt_template_key': promptTemplateKey,
+        if (videoTemplateKey != null) 'video_template_key': videoTemplateKey,
       },
-      options: await _authOptions(),
     );
-    return VideoTaskModel.fromJson(_readEnvelopeMap(response.data));
+  }
+
+  Future<VideoTaskModel> generateStarterVideo({
+    String? inputText,
+    String? prompt,
+    required List<String> images,
+    required int duration,
+    required String referenceLink,
+    String? promptTemplateKey,
+    String? videoTemplateKey,
+    String? supplementalText,
+  }) {
+    return _postVideoTask(
+      path: '/api/starter-tasks',
+      data: <String, dynamic>{
+        if (inputText != null) 'input_text': inputText,
+        if (prompt != null) 'prompt': prompt,
+        'images': images,
+        'duration': duration,
+        'reference_link': referenceLink,
+        if (promptTemplateKey != null) 'prompt_template_key': promptTemplateKey,
+        if (videoTemplateKey != null) 'video_template_key': videoTemplateKey,
+        if (supplementalText != null) 'supplemental_text': supplementalText,
+      },
+    );
+  }
+
+  Future<VideoTaskModel> generateCustomVideo({
+    String? inputText,
+    String? prompt,
+    required List<String> images,
+    required int duration,
+    required String videoTemplateKey,
+    String? promptTemplateKey,
+    String? referenceVideoPath,
+    String? supplementalText,
+  }) {
+    return _postVideoTask(
+      path: '/api/custom-tasks',
+      data: <String, dynamic>{
+        if (inputText != null) 'input_text': inputText,
+        if (prompt != null) 'prompt': prompt,
+        'images': images,
+        'duration': duration,
+        'video_template_key': videoTemplateKey,
+        if (promptTemplateKey != null) 'prompt_template_key': promptTemplateKey,
+        if (referenceVideoPath != null)
+          'reference_video_path': referenceVideoPath,
+        if (supplementalText != null) 'supplemental_text': supplementalText,
+      },
+    );
   }
 
   Future<VideoTaskModel> videoStatus(String id) async {
@@ -323,5 +442,17 @@ class ApiService {
           .map((dynamic key, dynamic value) => MapEntry(key.toString(), value));
     }
     return <String, dynamic>{'data': data};
+  }
+
+  Future<VideoTaskModel> _postVideoTask({
+    required String path,
+    required Map<String, dynamic> data,
+  }) async {
+    final Response<dynamic> response = await _dio.post(
+      path,
+      data: data,
+      options: await _authOptions(),
+    );
+    return VideoTaskModel.fromJson(_readEnvelopeMap(response.data));
   }
 }

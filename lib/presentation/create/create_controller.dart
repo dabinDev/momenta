@@ -14,12 +14,112 @@ import '../../app/theme.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/file_utils.dart';
 import '../../core/utils/snackbar_helper.dart';
+import '../../data/models/ai_template_model.dart';
+import '../../data/models/create_mode_model.dart';
+import '../../data/models/create_workbench_model.dart';
 import '../../data/models/history_item_model.dart';
 import '../../data/models/video_task_model.dart';
 import '../../domain/repositories/history_repository.dart';
 import '../../domain/repositories/media_repository.dart';
 import '../../domain/repositories/video_repository.dart';
 import '../history/history_controller.dart';
+
+enum CreateWorkbenchMode {
+  simple,
+  starter,
+  custom,
+}
+
+extension CreateWorkbenchModeX on CreateWorkbenchMode {
+  String get code {
+    switch (this) {
+      case CreateWorkbenchMode.simple:
+        return 'simple';
+      case CreateWorkbenchMode.starter:
+        return 'starter';
+      case CreateWorkbenchMode.custom:
+        return 'custom';
+    }
+  }
+
+  String get fallbackLabel {
+    switch (this) {
+      case CreateWorkbenchMode.simple:
+        return '简单';
+      case CreateWorkbenchMode.starter:
+        return '入门';
+      case CreateWorkbenchMode.custom:
+        return '自定义';
+    }
+  }
+
+  String get fallbackTitle {
+    switch (this) {
+      case CreateWorkbenchMode.simple:
+        return 'AI 快速创作';
+      case CreateWorkbenchMode.starter:
+        return '链接跟做';
+      case CreateWorkbenchMode.custom:
+        return '模板复刻';
+    }
+  }
+
+  String get fallbackSubtitle {
+    switch (this) {
+      case CreateWorkbenchMode.simple:
+        return '保留语音转写、AI 校准、提示词生成和基础成片能力。';
+      case CreateWorkbenchMode.starter:
+        return '复制公开视频链接，结合上传图片快速生成同主题短视频。';
+      case CreateWorkbenchMode.custom:
+        return '查看热门模板样片，按模板或参考短视频去复刻成片。';
+    }
+  }
+
+  List<String> get fallbackHighlights {
+    switch (this) {
+      case CreateWorkbenchMode.simple:
+        return const <String>['语音转文字', 'AI 校准', '少参数'];
+      case CreateWorkbenchMode.starter:
+        return const <String>['视频链接', '上传图片', '快速跟做'];
+      case CreateWorkbenchMode.custom:
+        return const <String>['热门模板', '样片预览', '图片和短视频'];
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case CreateWorkbenchMode.simple:
+        return Icons.auto_awesome_rounded;
+      case CreateWorkbenchMode.starter:
+        return Icons.link_rounded;
+      case CreateWorkbenchMode.custom:
+        return Icons.view_in_ar_rounded;
+    }
+  }
+
+  Color get tint {
+    switch (this) {
+      case CreateWorkbenchMode.simple:
+        return AppTheme.coral;
+      case CreateWorkbenchMode.starter:
+        return AppTheme.sky;
+      case CreateWorkbenchMode.custom:
+        return AppTheme.jade;
+    }
+  }
+}
+
+CreateWorkbenchMode? createWorkbenchModeFromCode(String? code) {
+  switch ((code ?? '').trim().toLowerCase()) {
+    case 'simple':
+      return CreateWorkbenchMode.simple;
+    case 'starter':
+      return CreateWorkbenchMode.starter;
+    case 'custom':
+      return CreateWorkbenchMode.custom;
+  }
+  return null;
+}
 
 class CreateController extends GetxController {
   CreateController()
@@ -35,15 +135,31 @@ class CreateController extends GetxController {
 
   final TextEditingController textController = TextEditingController();
   final TextEditingController promptController = TextEditingController();
+  final TextEditingController starterLinkController = TextEditingController();
+  final TextEditingController starterNoteController = TextEditingController();
+  final TextEditingController customNoteController = TextEditingController();
 
+  final Rx<CreateWorkbenchMode> currentMode = CreateWorkbenchMode.simple.obs;
+  final RxList<CreateModeModel> modeConfigs = <CreateModeModel>[].obs;
+  final RxList<AiTemplateModel> promptTemplates = <AiTemplateModel>[].obs;
+  final RxList<AiTemplateModel> videoTemplates = <AiTemplateModel>[].obs;
+  final RxList<int> availableDurations =
+      List<int>.from(AppConstants.durations).obs;
   final RxList<XFile> selectedImages = <XFile>[].obs;
+  final Rxn<XFile> selectedReferenceVideo = Rxn<XFile>();
   final RxList<String> uploadedImagePaths = <String>[].obs;
+  final RxnString uploadedReferenceVideoPath = RxnString();
   final RxInt selectedDuration = AppConstants.durations.first.obs;
+  final RxnString selectedPromptTemplateKey = RxnString();
+  final RxnString selectedVideoTemplateKey = RxnString();
+  final RxnString selectedCustomTemplateKey = RxnString();
+  final RxBool isLoadingTemplates = false.obs;
   final RxBool isRecording = false.obs;
   final RxBool isTranscribing = false.obs;
-  final RxBool isPolishing = false.obs;
+  final RxBool isCorrecting = false.obs;
   final RxBool isGeneratingPrompt = false.obs;
   final RxBool isSubmitting = false.obs;
+  final RxBool isUploadingReferenceVideo = false.obs;
   final RxInt recordingSeconds = 0.obs;
   final RxInt pollingCount = 0.obs;
   final RxDouble generationProgress = 0.0.obs;
@@ -54,13 +170,14 @@ class CreateController extends GetxController {
   bool _isApplyingTextChange = false;
   Timer? _recordingTimer;
   Completer<bool>? _speechDecisionCompleter;
-  String? _lastRawTextBeforePolish;
-  String? _lastPolishedText;
+  String? _lastRawTextBeforeCorrection;
+  String? _lastCorrectedText;
 
   @override
   void onInit() {
     super.onInit();
     textController.addListener(_handleTextChanged);
+    unawaited(loadTemplates());
   }
 
   @override
@@ -69,7 +186,125 @@ class CreateController extends GetxController {
     _audioRecorder.dispose();
     textController.dispose();
     promptController.dispose();
+    starterLinkController.dispose();
+    starterNoteController.dispose();
+    customNoteController.dispose();
     super.onClose();
+  }
+
+  CreateWorkbenchMode get mode => currentMode.value;
+
+  List<CreateWorkbenchMode> get availableModes {
+    final List<CreateWorkbenchMode> items = modeConfigs
+        .map((CreateModeModel item) => createWorkbenchModeFromCode(item.code))
+        .whereType<CreateWorkbenchMode>()
+        .toList();
+    return items.isEmpty ? CreateWorkbenchMode.values : items;
+  }
+
+  String get modeLabel => labelForMode(mode);
+
+  String get modeTitle => titleForMode(mode);
+
+  String get modeSubtitle => subtitleForMode(mode);
+
+  List<String> get modeHighlights => highlightsForMode(mode);
+
+  CreateModeModel? modeConfigFor(CreateWorkbenchMode mode) =>
+      _findModeConfig(mode.code);
+
+  String labelForMode(CreateWorkbenchMode mode) =>
+      modeConfigFor(mode)?.label ?? mode.fallbackLabel;
+
+  String titleForMode(CreateWorkbenchMode mode) =>
+      modeConfigFor(mode)?.title ?? mode.fallbackTitle;
+
+  String subtitleForMode(CreateWorkbenchMode mode) =>
+      modeConfigFor(mode)?.subtitle ?? mode.fallbackSubtitle;
+
+  List<String> highlightsForMode(CreateWorkbenchMode mode) =>
+      modeConfigFor(mode)?.highlights ?? mode.fallbackHighlights;
+
+  AiTemplateModel? get selectedPromptTemplate =>
+      _findTemplate(promptTemplates, selectedPromptTemplateKey.value);
+
+  AiTemplateModel? get selectedVideoTemplate =>
+      _findTemplate(videoTemplates, selectedVideoTemplateKey.value);
+
+  AiTemplateModel? get selectedCustomTemplate =>
+      _findTemplate(videoTemplates, selectedCustomTemplateKey.value);
+
+  Future<void> loadTemplates({bool silent = true}) async {
+    if (isLoadingTemplates.value) {
+      return;
+    }
+
+    isLoadingTemplates.value = true;
+    try {
+      final CreateWorkbenchModel workbench =
+          await _videoRepository.fetchCreateWorkbench();
+      final CreateWorkbenchMode? defaultMode =
+          createWorkbenchModeFromCode(workbench.defaultModeCode);
+
+      modeConfigs.assignAll(workbench.modes);
+      promptTemplates.assignAll(workbench.promptTemplates);
+      videoTemplates.assignAll(workbench.videoTemplates);
+      availableDurations.assignAll(
+        workbench.durations.isEmpty
+            ? AppConstants.durations
+            : workbench.durations,
+      );
+      final bool currentModeSupported = workbench.modes.any(
+        (CreateModeModel item) => item.code.trim().toLowerCase() == mode.code,
+      );
+      if (!currentModeSupported && defaultMode != null) {
+        currentMode.value = defaultMode;
+      }
+      if (availableDurations.isNotEmpty &&
+          !availableDurations.contains(selectedDuration.value)) {
+        selectedDuration.value = availableDurations.first;
+      }
+      _ensureTemplateSelection();
+    } catch (error) {
+      if (!silent ||
+          modeConfigs.isEmpty ||
+          promptTemplates.isEmpty ||
+          videoTemplates.isEmpty) {
+        SnackbarHelper.error(_readError(error, fallback: '读取创作配置失败'));
+      }
+    } finally {
+      isLoadingTemplates.value = false;
+    }
+  }
+
+  Future<void> refreshTemplates() => loadTemplates(silent: false);
+
+  void setMode(CreateWorkbenchMode mode) {
+    currentMode.value = mode;
+    _applyModeDefaults(mode);
+    _syncDurationForMode(mode);
+  }
+
+  void selectPromptTemplate(AiTemplateModel template) {
+    selectedPromptTemplateKey.value = template.key;
+  }
+
+  void selectVideoTemplate(AiTemplateModel template) {
+    selectedVideoTemplateKey.value = template.key;
+    final int? defaultDuration = template.defaultDuration;
+    if (defaultDuration != null &&
+        AppConstants.durations.contains(defaultDuration)) {
+      selectedDuration.value = defaultDuration;
+    }
+  }
+
+  void selectCustomTemplate(AiTemplateModel template) {
+    selectedCustomTemplateKey.value = template.key;
+    final int? defaultDuration = template.defaultDuration;
+    if (defaultDuration != null &&
+        AppConstants.durations.contains(defaultDuration)) {
+      selectedDuration.value = defaultDuration;
+    }
   }
 
   Future<void> pickImages() async {
@@ -80,11 +315,13 @@ class CreateController extends GetxController {
     if (files.isEmpty) {
       return;
     }
+
     final List<XFile> combined = <XFile>[...selectedImages, ...files];
     if (combined.length > AppConstants.maxImages) {
       SnackbarHelper.error('最多只能上传 ${AppConstants.maxImages} 张参考图');
       return;
     }
+
     selectedImages.assignAll(combined);
     uploadedImagePaths.clear();
     SnackbarHelper.success('已选择 ${selectedImages.length} 张参考图');
@@ -95,6 +332,41 @@ class CreateController extends GetxController {
     uploadedImagePaths.clear();
   }
 
+  Future<void> pickReferenceVideo() async {
+    final XFile? file = await _imagePicker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(minutes: 1),
+    );
+    if (file == null) {
+      return;
+    }
+
+    selectedReferenceVideo.value = file;
+    uploadedReferenceVideoPath.value = null;
+    SnackbarHelper.success('已选择参考短视频');
+  }
+
+  void removeReferenceVideo() {
+    selectedReferenceVideo.value = null;
+    uploadedReferenceVideoPath.value = null;
+  }
+
+  Future<void> openTemplatePreview(AiTemplateModel template) async {
+    final String url = template.previewVideoUrl?.trim() ?? '';
+    if (url.isEmpty) {
+      SnackbarHelper.error('该模板暂时没有样片');
+      return;
+    }
+
+    await Get.toNamed(
+      AppRoutes.videoPlayer,
+      arguments: <String, dynamic>{
+        'url': url,
+        'title': '${template.name} 样片',
+      },
+    );
+  }
+
   Future<void> toggleRecording() async {
     if (isRecording.value || isTranscribing.value) {
       return;
@@ -102,7 +374,7 @@ class CreateController extends GetxController {
 
     final bool hasPermission = await _audioRecorder.hasPermission();
     if (!hasPermission) {
-      SnackbarHelper.error('未授予麦克风权限，仍可手动输入');
+      SnackbarHelper.error('未授予麦克风权限，仍可手动输入文字');
       return;
     }
 
@@ -160,37 +432,46 @@ class CreateController extends GetxController {
     _closeSpeechDialog();
   }
 
-  Future<void> polishText() async {
+  Future<void> correctText() async {
     final String rawText = textController.text.trim();
     if (rawText.isEmpty) {
-      SnackbarHelper.error('请先输入文案内容');
+      SnackbarHelper.error('请先输入或识别文字内容');
       return;
     }
-    isPolishing.value = true;
+
+    isCorrecting.value = true;
     try {
-      final String polished = await _videoRepository.polishText(rawText);
-      _lastRawTextBeforePolish = rawText;
-      _lastPolishedText = polished.trim();
-      _replaceText(polished);
-      SnackbarHelper.success('文案已完成 AI 润色');
+      final String corrected =
+          (await _videoRepository.correctText(rawText)).trim();
+      if (corrected.isEmpty) {
+        throw const AppException('AI 校准结果为空，请稍后重试');
+      }
+      _lastRawTextBeforeCorrection = rawText;
+      _lastCorrectedText = corrected;
+      _replaceText(corrected);
+      SnackbarHelper.success('已完成 AI 校准');
     } catch (error) {
-      SnackbarHelper.error(_readError(error, fallback: '文案润色失败'));
+      SnackbarHelper.error(_readError(error, fallback: 'AI 校准失败'));
     } finally {
-      isPolishing.value = false;
+      isCorrecting.value = false;
     }
   }
 
   Future<void> buildPrompt() async {
     final String rawText = textController.text.trim();
     if (rawText.isEmpty) {
-      SnackbarHelper.error('请先输入或识别文案');
+      SnackbarHelper.error('请先输入或识别文字内容');
       return;
     }
+
     isGeneratingPrompt.value = true;
     try {
-      final String prompt = await _videoRepository.generatePrompt(rawText);
+      final String prompt = await _videoRepository.generatePrompt(
+        rawText,
+        promptTemplateKey: selectedPromptTemplateKey.value,
+      );
       promptController.text = prompt;
-      SnackbarHelper.success('提示词已生成，可继续修改');
+      SnackbarHelper.success('创作提示词已生成，可继续修改');
     } catch (error) {
       SnackbarHelper.error(_readError(error, fallback: '提示词生成失败'));
     } finally {
@@ -198,43 +479,158 @@ class CreateController extends GetxController {
     }
   }
 
-  Future<void> generateVideo() async {
+  Future<void> generateVideo() => generateSimpleVideo();
+
+  Future<void> generateSimpleVideo() async {
     final String prompt = promptController.text.trim();
     if (prompt.isEmpty) {
-      SnackbarHelper.error('生成视频前请先准备提示词');
+      SnackbarHelper.error('生成视频前请先准备创作提示词');
       return;
     }
 
+    final String currentText = textController.text.trim();
+    final String? correctedText = _resolveCorrectedText(currentText);
+    final String? inputText = correctedText == null
+        ? _normalizeNullableText(currentText)
+        : _normalizeNullableText(_lastRawTextBeforeCorrection);
+
+    await _submitVideoTask(
+      mode: CreateWorkbenchMode.simple,
+      prompt: prompt,
+      inputText: inputText,
+      polishedText: correctedText,
+      promptTemplateKey: selectedPromptTemplateKey.value,
+      videoTemplateKey: selectedVideoTemplateKey.value,
+    );
+  }
+
+  Future<void> generateStarterVideo() async {
+    final String link = starterLinkController.text.trim();
+    if (!_looksLikeVideoUrl(link)) {
+      SnackbarHelper.error('请先输入可访问的视频链接');
+      return;
+    }
+    if (selectedImages.isEmpty) {
+      SnackbarHelper.error('入门模式至少上传 1 张图片');
+      return;
+    }
+
+    final String note = starterNoteController.text.trim();
+    await _submitVideoTask(
+      mode: CreateWorkbenchMode.starter,
+      prompt: null,
+      inputText: _normalizeNullableText(note),
+      polishedText: null,
+      promptTemplateKey:
+          _modeDefaultPromptTemplateKey(CreateWorkbenchMode.starter),
+      videoTemplateKey:
+          _modeDefaultVideoTemplateKey(CreateWorkbenchMode.starter),
+      referenceLink: link,
+    );
+  }
+
+  Future<void> generateCustomVideo() async {
+    final AiTemplateModel? template = selectedCustomTemplate;
+    if (template == null) {
+      SnackbarHelper.error('请先选择一个热门模板');
+      return;
+    }
+    if (selectedImages.isEmpty) {
+      SnackbarHelper.error('自定义模式至少上传 1 张图片');
+      return;
+    }
+
+    final String note = customNoteController.text.trim();
+    await _submitVideoTask(
+      mode: CreateWorkbenchMode.custom,
+      prompt: null,
+      inputText: _normalizeNullableText(note),
+      polishedText: null,
+      promptTemplateKey:
+          _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom),
+      videoTemplateKey: template.key,
+      includeReferenceVideo: true,
+    );
+  }
+
+  Future<void> _submitVideoTask({
+    required CreateWorkbenchMode mode,
+    required String? prompt,
+    required String? inputText,
+    required String? polishedText,
+    String? promptTemplateKey,
+    String? videoTemplateKey,
+    String? referenceLink,
+    String? supplementalText,
+    bool includeReferenceVideo = false,
+  }) async {
     isSubmitting.value = true;
     generationProgress.value = 0;
     pollingCount.value = 0;
     currentTask.value = null;
 
     try {
-      if (selectedImages.isNotEmpty) {
-        final List<File> files =
-            selectedImages.map((XFile file) => File(file.path)).toList();
-        final uploadedFiles = await _mediaRepository.uploadImages(files);
-        uploadedImagePaths.assignAll(uploadedFiles.map((file) => file.path));
-      } else {
-        uploadedImagePaths.clear();
+      final List<String> images = await _prepareImagesIfNeeded();
+      final String? referenceVideoPath =
+          includeReferenceVideo ? await _prepareReferenceVideoIfNeeded() : null;
+
+      final VideoTaskModel task;
+      switch (mode) {
+        case CreateWorkbenchMode.simple:
+          task = await _videoRepository.generateSimpleVideo(
+            inputText: inputText,
+            polishedText: polishedText,
+            prompt: prompt!,
+            images: images,
+            duration: selectedDuration.value,
+            promptTemplateKey: promptTemplateKey,
+            videoTemplateKey: videoTemplateKey,
+          );
+          break;
+        case CreateWorkbenchMode.starter:
+          final String? normalizedReferenceLink =
+              _normalizeNullableText(referenceLink);
+          if (normalizedReferenceLink == null) {
+            throw const AppException('请先输入可访问的视频链接');
+          }
+          task = await _videoRepository.generateStarterVideo(
+            inputText: inputText,
+            prompt: prompt,
+            images: images,
+            duration: selectedDuration.value,
+            referenceLink: normalizedReferenceLink,
+            promptTemplateKey: promptTemplateKey,
+            videoTemplateKey: videoTemplateKey,
+            supplementalText: supplementalText,
+          );
+          break;
+        case CreateWorkbenchMode.custom:
+          final String? normalizedVideoTemplateKey =
+              _normalizeNullableText(videoTemplateKey);
+          if (normalizedVideoTemplateKey == null) {
+            throw const AppException('请先选择一个热门模板');
+          }
+          task = await _videoRepository.generateCustomVideo(
+            inputText: inputText,
+            prompt: prompt,
+            images: images,
+            duration: selectedDuration.value,
+            videoTemplateKey: normalizedVideoTemplateKey,
+            promptTemplateKey: promptTemplateKey,
+            referenceVideoPath: referenceVideoPath,
+            supplementalText: supplementalText,
+          );
+          break;
       }
-
-      final String currentText = textController.text.trim();
-      final String? polishedText = _resolvePolishedText(currentText);
-      final String? inputText = polishedText == null
-          ? _normalizeNullableText(currentText)
-          : _normalizeNullableText(_lastRawTextBeforePolish);
-
-      final VideoTaskModel task = await _videoRepository.generateVideo(
-        inputText: inputText,
-        polishedText: polishedText,
-        prompt: prompt,
-        images: uploadedImagePaths.toList(),
-        duration: selectedDuration.value,
-      );
       currentTask.value = task;
-      await _persistTask(task, fallbackPrompt: prompt);
+      await _persistTask(
+        task,
+        fallbackPrompt: _fallbackPrompt(
+          mode: mode,
+          prompt: prompt,
+          inputText: inputText,
+        ),
+      );
 
       if (task.isCompleted && (task.videoUrl?.isNotEmpty ?? false)) {
         _handleCompleted();
@@ -244,7 +640,14 @@ class CreateController extends GetxController {
         throw const AppException('未获取到任务编号，请稍后再试');
       }
 
-      await _pollVideoStatus(task.id, fallbackPrompt: prompt);
+      await _pollVideoStatus(
+        task.id,
+        fallbackPrompt: _fallbackPrompt(
+          mode: mode,
+          prompt: prompt,
+          inputText: inputText,
+        ),
+      );
     } catch (error) {
       SnackbarHelper.error(_readError(error, fallback: '视频生成失败'));
     } finally {
@@ -252,8 +655,44 @@ class CreateController extends GetxController {
     }
   }
 
-  Future<void> _pollVideoStatus(String id,
-      {required String fallbackPrompt}) async {
+  Future<List<String>> _prepareImagesIfNeeded() async {
+    if (selectedImages.isEmpty) {
+      uploadedImagePaths.clear();
+      return const <String>[];
+    }
+
+    final List<File> files =
+        selectedImages.map((XFile file) => File(file.path)).toList();
+    final uploadedFiles = await _mediaRepository.uploadImages(files);
+    uploadedImagePaths.assignAll(uploadedFiles.map((file) => file.path));
+    return uploadedImagePaths.toList();
+  }
+
+  Future<String?> _prepareReferenceVideoIfNeeded() async {
+    final XFile? file = selectedReferenceVideo.value;
+    if (file == null) {
+      uploadedReferenceVideoPath.value = null;
+      return null;
+    }
+    if (uploadedReferenceVideoPath.value?.isNotEmpty == true) {
+      return uploadedReferenceVideoPath.value;
+    }
+
+    isUploadingReferenceVideo.value = true;
+    try {
+      final uploadedFile =
+          await _mediaRepository.uploadReferenceVideo(File(file.path));
+      uploadedReferenceVideoPath.value = uploadedFile.path;
+      return uploadedFile.path;
+    } finally {
+      isUploadingReferenceVideo.value = false;
+    }
+  }
+
+  Future<void> _pollVideoStatus(
+    String id, {
+    required String fallbackPrompt,
+  }) async {
     for (int index = 1; index <= AppConstants.maxPollingTimes; index++) {
       pollingCount.value = index;
       generationProgress.value = index / AppConstants.maxPollingTimes;
@@ -293,6 +732,7 @@ class CreateController extends GetxController {
       SnackbarHelper.error('当前没有可播放的视频');
       return;
     }
+
     Get.toNamed(
       AppRoutes.videoPlayer,
       arguments: <String, dynamic>{
@@ -304,17 +744,20 @@ class CreateController extends GetxController {
 
   void _handleCompleted() {
     generationProgress.value = 1;
-    SnackbarHelper.success('视频生成完成，可立即播放');
+    SnackbarHelper.success('视频生成完成，可以立即播放');
     if (Get.isRegistered<HistoryController>()) {
       Get.find<HistoryController>().refreshList();
     }
   }
 
-  Future<void> _persistTask(VideoTaskModel task,
-      {required String fallbackPrompt}) {
+  Future<void> _persistTask(
+    VideoTaskModel task, {
+    required String fallbackPrompt,
+  }) {
     if (task.id.isEmpty) {
       return Future<void>.value();
     }
+
     return _historyRepository.upsert(
       HistoryItemModel(
         id: task.id,
@@ -392,7 +835,7 @@ class CreateController extends GetxController {
   }
 
   void _appendRecognizedText(String recognizedText) {
-    _clearPolishDraft();
+    _clearCorrectionDraft();
     final String existingText = textController.text.trim();
     final String nextText = existingText.isEmpty
         ? recognizedText
@@ -413,11 +856,13 @@ class CreateController extends GetxController {
     if (!_isSpeechDialogVisible) {
       return;
     }
+
     _isSpeechDialogVisible = false;
     final BuildContext? overlayContext = Get.overlayContext;
     if (overlayContext == null) {
       return;
     }
+
     final NavigatorState navigator =
         Navigator.of(overlayContext, rootNavigator: true);
     if (navigator.canPop()) {
@@ -438,9 +883,10 @@ class CreateController extends GetxController {
     if (_isApplyingTextChange) {
       return;
     }
+
     final String currentText = textController.text.trim();
-    if (_lastPolishedText != null && currentText != _lastPolishedText) {
-      _clearPolishDraft();
+    if (_lastCorrectedText != null && currentText != _lastCorrectedText) {
+      _clearCorrectionDraft();
     }
   }
 
@@ -451,21 +897,158 @@ class CreateController extends GetxController {
     _isApplyingTextChange = false;
   }
 
-  void _clearPolishDraft() {
-    _lastRawTextBeforePolish = null;
-    _lastPolishedText = null;
+  void _clearCorrectionDraft() {
+    _lastRawTextBeforeCorrection = null;
+    _lastCorrectedText = null;
   }
 
-  String? _resolvePolishedText(String currentText) {
-    if (_lastPolishedText == null || currentText != _lastPolishedText) {
+  String? _resolveCorrectedText(String currentText) {
+    if (_lastCorrectedText == null || currentText != _lastCorrectedText) {
       return null;
     }
-    return _normalizeNullableText(_lastPolishedText);
+    return _normalizeNullableText(_lastCorrectedText);
   }
 
   String? _normalizeNullableText(String? value) {
     final String normalized = value?.trim() ?? '';
     return normalized.isEmpty ? null : normalized;
+  }
+
+  void _ensureTemplateSelection() {
+    final String? promptTemplateKey = _modeDefaultPromptTemplateKey(mode) ??
+        _defaultTemplateKey(promptTemplates);
+    final String? videoTemplateKey = _defaultTemplateKey(videoTemplates);
+
+    selectedPromptTemplateKey.value ??= promptTemplateKey;
+    selectedVideoTemplateKey.value ??=
+        _modeDefaultVideoTemplateKey(CreateWorkbenchMode.simple) ??
+            videoTemplateKey;
+    selectedCustomTemplateKey.value ??=
+        _modeDefaultVideoTemplateKey(CreateWorkbenchMode.custom) ??
+            videoTemplateKey;
+    _applyModeDefaults(mode);
+
+    final AiTemplateModel? template = selectedVideoTemplate;
+    final int? defaultDuration = template?.defaultDuration;
+    if (defaultDuration != null &&
+        availableDurations.contains(defaultDuration) &&
+        selectedDuration.value == availableDurations.first) {
+      selectedDuration.value = defaultDuration;
+    }
+  }
+
+  void _applyModeDefaults(CreateWorkbenchMode mode) {
+    final String? modePromptTemplateKey = _modeDefaultPromptTemplateKey(mode);
+    final String? modeVideoTemplateKey = _modeDefaultVideoTemplateKey(mode);
+
+    if (modePromptTemplateKey != null &&
+        mode != CreateWorkbenchMode.simple &&
+        selectedPromptTemplateKey.value != modePromptTemplateKey) {
+      selectedPromptTemplateKey.value = modePromptTemplateKey;
+    } else {
+      selectedPromptTemplateKey.value ??=
+          modePromptTemplateKey ?? _defaultTemplateKey(promptTemplates);
+    }
+
+    switch (mode) {
+      case CreateWorkbenchMode.simple:
+        selectedVideoTemplateKey.value ??=
+            modeVideoTemplateKey ?? _defaultTemplateKey(videoTemplates);
+        break;
+      case CreateWorkbenchMode.starter:
+        if (modeVideoTemplateKey != null) {
+          selectedVideoTemplateKey.value = modeVideoTemplateKey;
+        }
+        break;
+      case CreateWorkbenchMode.custom:
+        selectedCustomTemplateKey.value ??=
+            modeVideoTemplateKey ?? _defaultTemplateKey(videoTemplates);
+        break;
+    }
+  }
+
+  void _syncDurationForMode(CreateWorkbenchMode mode) {
+    AiTemplateModel? template;
+    switch (mode) {
+      case CreateWorkbenchMode.simple:
+      case CreateWorkbenchMode.starter:
+        template = selectedVideoTemplate;
+        break;
+      case CreateWorkbenchMode.custom:
+        template = selectedCustomTemplate;
+        break;
+    }
+    final int? defaultDuration = template?.defaultDuration;
+    if (defaultDuration != null &&
+        availableDurations.contains(defaultDuration)) {
+      selectedDuration.value = defaultDuration;
+    }
+  }
+
+  String? _defaultTemplateKey(List<AiTemplateModel> templates) {
+    if (templates.isEmpty) {
+      return null;
+    }
+    for (final AiTemplateModel item in templates) {
+      if (item.isDefault) {
+        return item.key;
+      }
+    }
+    return templates.first.key;
+  }
+
+  AiTemplateModel? _findTemplate(
+    List<AiTemplateModel> templates,
+    String? key,
+  ) {
+    if (key == null || key.isEmpty) {
+      return templates.isEmpty ? null : templates.first;
+    }
+    for (final AiTemplateModel item in templates) {
+      if (item.key == key) {
+        return item;
+      }
+    }
+    return templates.isEmpty ? null : templates.first;
+  }
+
+  CreateModeModel? _findModeConfig(String code) {
+    final String normalizedCode = code.trim().toLowerCase();
+    for (final CreateModeModel item in modeConfigs) {
+      if (item.code.trim().toLowerCase() == normalizedCode) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  String? _modeDefaultPromptTemplateKey(CreateWorkbenchMode mode) =>
+      _findModeConfig(mode.code)?.defaultPromptTemplateKey;
+
+  String? _modeDefaultVideoTemplateKey(CreateWorkbenchMode mode) =>
+      _findModeConfig(mode.code)?.defaultVideoTemplateKey;
+
+  bool _looksLikeVideoUrl(String value) {
+    final Uri? uri = Uri.tryParse(value.trim());
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        (uri.host.isNotEmpty);
+  }
+
+  String _fallbackPrompt({
+    required CreateWorkbenchMode mode,
+    required String? prompt,
+    required String? inputText,
+  }) {
+    final String? normalizedPrompt = _normalizeNullableText(prompt);
+    if (normalizedPrompt != null) {
+      return normalizedPrompt;
+    }
+    final String? normalizedInput = _normalizeNullableText(inputText);
+    if (normalizedInput != null) {
+      return normalizedInput;
+    }
+    return titleForMode(mode);
   }
 
   String _readError(Object error, {required String fallback}) {
@@ -529,7 +1112,7 @@ class _SpeechRecordingDialog extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '说完后点“说完了”即可识别',
+                            '说完后点“识别文字”即可提交转写',
                             style: theme.textTheme.bodyMedium,
                           ),
                         ],
@@ -560,7 +1143,7 @@ class _SpeechRecordingDialog extends StatelessWidget {
                     ElevatedButton.icon(
                       onPressed: controller.finishSpeechRecognition,
                       icon: const Icon(Icons.check_rounded),
-                      label: const Text('说完了'),
+                      label: const Text('识别文字'),
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(

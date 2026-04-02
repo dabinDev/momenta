@@ -33,7 +33,35 @@ class LocalMediaService:
         user_id: int,
         files: Sequence[tuple[str, bytes, str]],
     ) -> list[dict[str, str]]:
-        target_dir = self._media_root / "uploads" / f"user_{user_id}"
+        return await self._save_uploaded_files(
+            user_id=user_id,
+            files=files,
+            subdir="uploads",
+        )
+
+    async def save_uploaded_video(
+        self,
+        *,
+        user_id: int,
+        filename: str,
+        content: bytes,
+        content_type: str | None,
+    ) -> dict[str, str]:
+        items = await self._save_uploaded_files(
+            user_id=user_id,
+            files=[(filename, content, content_type or "application/octet-stream")],
+            subdir="reference_videos",
+        )
+        return items[0]
+
+    async def _save_uploaded_files(
+        self,
+        *,
+        user_id: int,
+        files: Sequence[tuple[str, bytes, str]],
+        subdir: str,
+    ) -> list[dict[str, str]]:
+        target_dir = self._media_root / subdir / f"user_{user_id}"
         target_dir.mkdir(parents=True, exist_ok=True)
 
         saved_files: list[dict[str, str]] = []
@@ -43,7 +71,7 @@ class LocalMediaService:
             target_file = target_dir / safe_name
             target_file.write_bytes(content)
 
-            relative_path = f"/media/uploads/user_{user_id}/{safe_name}"
+            relative_path = f"/media/{subdir}/user_{user_id}/{safe_name}"
             public_url = self.media_url(relative_path)
             saved_files.append(
                 {
