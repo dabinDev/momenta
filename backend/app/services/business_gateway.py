@@ -7,9 +7,9 @@ from app.models.video_task import VideoTask
 from app.services.ai_template_registry import ai_template_registry_service
 from app.services.config_store import get_or_create_user_app_config
 from app.services.legacy_gateway import legacy_gateway_service
-from app.services.llm_gateway import llm_gateway_service
+from app.services.llm_gateway import LLMGatewayError, llm_gateway_service
 from app.services.local_media import local_media_service
-from app.services.video_gateway import video_gateway_service
+from app.services.video_gateway import VideoGatewayError, video_gateway_service
 
 
 class BusinessGatewayService:
@@ -28,10 +28,7 @@ class BusinessGatewayService:
         user_id: int,
         files: Sequence[tuple[str, bytes, str]],
     ) -> Any:
-        config = await get_or_create_user_app_config(user_id)
-        if video_gateway_service.is_configured(config):
-            return {"images": await local_media_service.save_uploaded_images(user_id=user_id, files=files)}
-        return await legacy_gateway_service.upload_images(files)
+        return {"images": await local_media_service.save_uploaded_images(user_id=user_id, files=files)}
 
     async def upload_reference_video(
         self,
@@ -49,29 +46,29 @@ class BusinessGatewayService:
 
     async def correct_text(self, *, user_id: int, text: str) -> Any:
         config = await get_or_create_user_app_config(user_id)
-        if llm_gateway_service.is_configured(config):
-            return await llm_gateway_service.correct_text(config=config, text=text)
-        return await legacy_gateway_service.polish_text(text)
+        if not llm_gateway_service.is_configured(config):
+            raise LLMGatewayError("文案模型未配置，请先在应用设置中填写 LLM 服务地址、模型和 API Key")
+        return await llm_gateway_service.correct_text(config=config, text=text)
 
     async def polish_text(self, *, user_id: int, text: str) -> Any:
         config = await get_or_create_user_app_config(user_id)
-        if llm_gateway_service.is_configured(config):
-            return await llm_gateway_service.polish_text(config=config, text=text)
-        return await legacy_gateway_service.polish_text(text)
+        if not llm_gateway_service.is_configured(config):
+            raise LLMGatewayError("文案模型未配置，请先在应用设置中填写 LLM 服务地址、模型和 API Key")
+        return await llm_gateway_service.polish_text(config=config, text=text)
 
     async def generate_prompt(self, *, user_id: int, text: str, prompt_template_key: str | None = None) -> Any:
         prompt_template = ai_template_registry_service.get_prompt_template(prompt_template_key)
         config = await get_or_create_user_app_config(user_id)
-        if llm_gateway_service.is_configured(config):
-            payload = await llm_gateway_service.generate_prompt(
-                config=config,
-                text=text,
-                prompt_template_instruction=ai_template_registry_service.build_prompt_system_prompt(
-                    prompt_template_key=prompt_template.key,
-                ),
-            )
-        else:
-            payload = await legacy_gateway_service.generate_prompt(text)
+        if not llm_gateway_service.is_configured(config):
+            raise LLMGatewayError("文案模型未配置，请先在应用设置中填写 LLM 服务地址、模型和 API Key")
+
+        payload = await llm_gateway_service.generate_prompt(
+            config=config,
+            text=text,
+            prompt_template_instruction=ai_template_registry_service.build_prompt_system_prompt(
+                prompt_template_key=prompt_template.key,
+            ),
+        )
 
         if isinstance(payload, dict):
             payload.setdefault("prompt_template_key", prompt_template.key)
@@ -171,22 +168,17 @@ class BusinessGatewayService:
         resolved_size = str(request_context["size"])
 
         config = await get_or_create_user_app_config(user_id)
-        if video_gateway_service.is_configured(config):
-            payload = await video_gateway_service.create_video(
-                config=config,
-                prompt=provider_prompt,
-                images=images,
-                duration=resolved_duration,
-                size=resolved_size,
-            )
-            return video_gateway_service.provider_name(config), self._merge_video_request(payload, request_context)
+        if not video_gateway_service.is_configured(config):
+            raise VideoGatewayError("视频模型未配置，请先在应用设置中填写视频服务地址、模型和 API Key")
 
-        payload = await legacy_gateway_service.generate_video(
+        payload = await video_gateway_service.create_video(
+            config=config,
             prompt=provider_prompt,
             images=images,
             duration=resolved_duration,
+            size=resolved_size,
         )
-        return "legacy", self._merge_video_request(payload, request_context)
+        return video_gateway_service.provider_name(config), self._merge_video_request(payload, request_context)
 
     async def sync_video_status(self, task: VideoTask) -> Any:
         if task.provider in {"openai_compatible", "relay_video"}:
