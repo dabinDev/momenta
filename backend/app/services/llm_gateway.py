@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -69,7 +70,7 @@ class OpenAICompatibleLLMService:
         user_prompt: str,
         temperature: float,
     ) -> str:
-        base_url = (config.llm_base_url or "").rstrip("/")
+        base_url = (config.llm_base_url or "").strip().rstrip("/")
         timeout = httpx.Timeout(connect=20.0, read=120.0, write=120.0, pool=20.0)
 
         payload = {
@@ -81,10 +82,10 @@ class OpenAICompatibleLLMService:
             ],
         }
 
-        async with httpx.AsyncClient(base_url=base_url, timeout=timeout, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:
                 response = await client.post(
-                    "/chat/completions",
+                    self._build_url(base_url, "/v1/chat/completions"),
                     headers={
                         "Authorization": f"Bearer {config.llm_api_key}",
                         "Content-Type": "application/json",
@@ -127,6 +128,14 @@ class OpenAICompatibleLLMService:
                     fragments.append(str(item["text"]))
             return "".join(fragments).strip()
         return ""
+
+    @staticmethod
+    def _build_url(base_url: str, versioned_path: str) -> str:
+        normalized_base_url = base_url.rstrip("/")
+        parsed = urlparse(normalized_base_url)
+        if parsed.path.rstrip("/").endswith("/v1") and versioned_path.startswith("/v1/"):
+            return f"{normalized_base_url}{versioned_path.removeprefix('/v1')}"
+        return f"{normalized_base_url}{versioned_path}"
 
     @staticmethod
     def _read_error_detail(response: httpx.Response) -> str:

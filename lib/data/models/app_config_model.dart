@@ -8,6 +8,9 @@ class AppConfigModel {
     required this.videoBaseUrl,
     required this.videoApiKey,
     required this.videoModel,
+    required this.speechBaseUrl,
+    required this.speechApiKey,
+    required this.speechModel,
   });
 
   final String llmBaseUrl;
@@ -16,6 +19,9 @@ class AppConfigModel {
   final String videoBaseUrl;
   final String videoApiKey;
   final String videoModel;
+  final String speechBaseUrl;
+  final String speechApiKey;
+  final String speechModel;
 
   factory AppConfigModel.defaults() {
     return const AppConfigModel(
@@ -25,6 +31,9 @@ class AppConfigModel {
       videoBaseUrl: AppConstants.defaultVideoBaseUrl,
       videoApiKey: '',
       videoModel: AppConstants.defaultVideoModel,
+      speechBaseUrl: AppConstants.defaultSpeechBaseUrl,
+      speechApiKey: '',
+      speechModel: AppConstants.defaultSpeechModel,
     );
   }
 
@@ -49,6 +58,16 @@ class AppConfigModel {
               json['video_model'] ??
               AppConstants.defaultVideoModel)
           .toString(),
+      speechBaseUrl: (json['speechBaseUrl'] ??
+              json['speech_base_url'] ??
+              AppConstants.defaultSpeechBaseUrl)
+          .toString(),
+      speechApiKey:
+          (json['speechApiKey'] ?? json['speech_api_key'] ?? '').toString(),
+      speechModel: (json['speechModel'] ??
+              json['speech_model'] ??
+              AppConstants.defaultSpeechModel)
+          .toString(),
     );
   }
 
@@ -58,8 +77,11 @@ class AppConfigModel {
       'llmModel': llmModel,
       'videoBaseUrl': videoBaseUrl,
       'videoModel': videoModel,
+      'speechBaseUrl': speechBaseUrl,
+      'speechModel': speechModel,
       if (includeKeys) 'llmApiKey': llmApiKey,
       if (includeKeys) 'videoApiKey': videoApiKey,
+      if (includeKeys) 'speechApiKey': speechApiKey,
     };
   }
 
@@ -70,6 +92,9 @@ class AppConfigModel {
     String? videoBaseUrl,
     String? videoApiKey,
     String? videoModel,
+    String? speechBaseUrl,
+    String? speechApiKey,
+    String? speechModel,
   }) {
     return AppConfigModel(
       llmBaseUrl: llmBaseUrl ?? this.llmBaseUrl,
@@ -78,6 +103,9 @@ class AppConfigModel {
       videoBaseUrl: videoBaseUrl ?? this.videoBaseUrl,
       videoApiKey: videoApiKey ?? this.videoApiKey,
       videoModel: videoModel ?? this.videoModel,
+      speechBaseUrl: speechBaseUrl ?? this.speechBaseUrl,
+      speechApiKey: speechApiKey ?? this.speechApiKey,
+      speechModel: speechModel ?? this.speechModel,
     );
   }
 }

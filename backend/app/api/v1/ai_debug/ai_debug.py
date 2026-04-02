@@ -5,7 +5,7 @@ from app.controllers.user import user_controller
 from app.log.log import logger
 from app.schemas.ai_debug import AIDebugTaskCreateRequest, AIDebugTextRequest
 from app.schemas.base import Success
-from app.services import speech_service
+from app.services import get_or_create_user_app_config, speech_service
 from app.services.business_gateway import business_gateway_service
 from app.services.legacy_gateway import LegacyGatewayError
 from app.services.llm_gateway import LLMGatewayError
@@ -16,16 +16,9 @@ from app.services.speech import (
     SpeechRecognitionError,
 )
 from app.services.video_gateway import VideoGatewayError
-from app.settings import settings
 
-_SERVICE_NOT_READY = (
-    "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff0c"
-    "\u8bf7\u7a0d\u540e\u91cd\u8bd5"
-)
-_SERVICE_NOT_CONFIGURED = (
-    "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u5c1a\u672a\u914d\u7f6e\uff0c"
-    "\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458"
-)
+_SERVICE_NOT_READY = "语音识别服务暂时不可用，请稍后重试"
+_SERVICE_NOT_CONFIGURED = "语音识别服务尚未配置，请联系管理员"
 
 router = APIRouter()
 
@@ -121,18 +114,24 @@ async def transcribe_debug_voice(
 ):
     await user_controller.get(id=user_id)
     filename = audio.filename or "voice.pcm"
+    config = await get_or_create_user_app_config(user_id)
+    provider = speech_service.provider_name(config)
     try:
         content = await audio.read()
-        result = await speech_service.transcribe_upload(filename=filename, content=content)
+        result = await speech_service.transcribe_upload(
+            config=config,
+            filename=filename,
+            content=content,
+        )
         voice_log = await task_controller.create_voice_log(
             user_id=user_id,
             task_id=task_id,
-            provider="xfyun",
+            provider=result.provider,
             file_name=filename,
             audio_format=result.audio_format,
             audio_duration=result.duration_seconds,
-            language=settings.XFYUN_ASR_LANGUAGE,
-            accent=settings.XFYUN_ASR_ACCENT,
+            language=result.language,
+            accent=result.accent,
             recognized_text=result.text,
             status="success",
         )
@@ -147,6 +146,7 @@ async def transcribe_debug_voice(
             user_id=user_id,
             task_id=task_id,
             filename=filename,
+            provider=provider,
             error_message=_SERVICE_NOT_CONFIGURED,
         )
         raise HTTPException(status_code=503, detail=_SERVICE_NOT_CONFIGURED) from exc
@@ -161,6 +161,7 @@ async def transcribe_debug_voice(
             user_id=user_id,
             task_id=task_id,
             filename=filename,
+            provider=provider,
             error_message=_SERVICE_NOT_READY,
         )
         raise HTTPException(status_code=503, detail=_SERVICE_NOT_READY) from exc
@@ -169,6 +170,7 @@ async def transcribe_debug_voice(
             user_id=user_id,
             task_id=task_id,
             filename=filename,
+            provider=provider,
             error_message=str(exc),
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -183,6 +185,7 @@ async def transcribe_debug_voice(
             user_id=user_id,
             task_id=task_id,
             filename=filename,
+            provider=provider,
             error_message=_SERVICE_NOT_READY,
         )
         raise HTTPException(status_code=500, detail=_SERVICE_NOT_READY) from exc
@@ -192,24 +195,31 @@ async def transcribe_debug_voice(
     return Success(
         data={
             "text": result.text,
-            "provider": "xfyun",
+            "provider": result.provider,
             "duration": result.duration_seconds,
             "voice_log": await task_controller.serialize_voice_log(voice_log),
         }
     )
 
 
-async def _create_failed_voice_log(*, user_id: int, task_id: int | None, filename: str, error_message: str) -> None:
+async def _create_failed_voice_log(
+    *,
+    user_id: int,
+    task_id: int | None,
+    filename: str,
+    provider: str,
+    error_message: str,
+) -> None:
     try:
         await task_controller.create_voice_log(
             user_id=user_id,
             task_id=task_id,
-            provider="xfyun",
+            provider=provider,
             file_name=filename,
             audio_format=_infer_audio_format(filename),
             audio_duration=0,
-            language=settings.XFYUN_ASR_LANGUAGE,
-            accent=settings.XFYUN_ASR_ACCENT,
+            language=speech_service.default_language,
+            accent=speech_service.default_accent,
             recognized_text=None,
             status="failed",
             error_message=error_message,

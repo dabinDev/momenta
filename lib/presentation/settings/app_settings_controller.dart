@@ -17,6 +17,9 @@ class AppSettingsController extends GetxController {
   final TextEditingController videoBaseUrlController = TextEditingController();
   final TextEditingController videoApiKeyController = TextEditingController();
   final TextEditingController videoModelController = TextEditingController();
+  final TextEditingController speechBaseUrlController = TextEditingController();
+  final TextEditingController speechApiKeyController = TextEditingController();
+  final TextEditingController speechModelController = TextEditingController();
 
   final RxBool isLoading = false.obs;
   final RxBool isSaving = false.obs;
@@ -37,6 +40,9 @@ class AppSettingsController extends GetxController {
     videoBaseUrlController.dispose();
     videoApiKeyController.dispose();
     videoModelController.dispose();
+    speechBaseUrlController.dispose();
+    speechApiKeyController.dispose();
+    speechModelController.dispose();
     super.onClose();
   }
 
@@ -67,7 +73,7 @@ class AppSettingsController extends GetxController {
       final AppConfigModel remoteConfig =
           await _configRepository.fetchRemoteConfig();
       _apply(remoteConfig);
-      SnackbarHelper.success('已同步最新设置');
+      SnackbarHelper.success('已同步最新配置');
     } catch (error) {
       SnackbarHelper.error(_readError(error, fallback: '同步设置失败'));
     } finally {
@@ -77,7 +83,7 @@ class AppSettingsController extends GetxController {
 
   void restoreDefaults() {
     _apply(AppConfigModel.defaults());
-    SnackbarHelper.info('已恢复默认内容，保存后生效');
+    SnackbarHelper.info('已恢复默认配置，保存后生效');
   }
 
   void switchSection(int index) {
@@ -92,6 +98,9 @@ class AppSettingsController extends GetxController {
       videoBaseUrl: videoBaseUrlController.text.trim(),
       videoApiKey: videoApiKeyController.text.trim(),
       videoModel: videoModelController.text.trim(),
+      speechBaseUrl: speechBaseUrlController.text.trim(),
+      speechApiKey: speechApiKeyController.text.trim(),
+      speechModel: speechModelController.text.trim(),
     );
 
     if (config.llmBaseUrl.isEmpty || config.llmModel.isEmpty) {
@@ -100,6 +109,10 @@ class AppSettingsController extends GetxController {
     }
     if (config.videoBaseUrl.isEmpty || config.videoModel.isEmpty) {
       SnackbarHelper.error('请先完善视频服务配置');
+      return;
+    }
+    if (config.speechBaseUrl.isEmpty || config.speechModel.isEmpty) {
+      SnackbarHelper.error('请先完善语音服务配置');
       return;
     }
 
@@ -123,6 +136,9 @@ class AppSettingsController extends GetxController {
     videoBaseUrlController.text = config.videoBaseUrl;
     videoApiKeyController.text = config.videoApiKey;
     videoModelController.text = config.videoModel;
+    speechBaseUrlController.text = config.speechBaseUrl;
+    speechApiKeyController.text = config.speechApiKey;
+    speechModelController.text = config.speechModel;
   }
 
   String _readError(Object error, {required String fallback}) {

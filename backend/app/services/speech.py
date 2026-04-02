@@ -1,23 +1,15 @@
 from __future__ import annotations
 
-import asyncio
 import base64
-import hashlib
-import hmac
 import io
-import json
 import wave
-from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from email.utils import format_datetime
-from urllib.parse import urlencode
+from typing import Any
+from urllib.parse import urlparse
 
-import websockets
-from websockets.exceptions import WebSocketException
+import httpx
 
-from app.log.log import logger
-from app.settings import settings
+from app.models.app_config import UserAppConfig
 
 
 class SpeechRecognitionError(Exception):
@@ -29,7 +21,7 @@ class SpeechInputError(SpeechRecognitionError):
 
 
 class SpeechConfigError(SpeechRecognitionError):
-    """Raised when the XFYun speech service is not configured."""
+    """Raised when the speech service is not configured."""
 
 
 class SpeechProviderError(SpeechRecognitionError):
@@ -46,37 +38,107 @@ class NormalizedAudio:
     audio_format: str
     duration_seconds: float
 
+    def to_wav_bytes(self) -> bytes:
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            wav_file.setnchannels(self.channels)
+            wav_file.setsampwidth(self.bit_depth // 8)
+            wav_file.setframerate(self.sample_rate)
+            wav_file.writeframes(self.payload)
+        return buffer.getvalue()
+
 
 @dataclass(frozen=True)
 class SpeechTranscriptionResult:
     text: str
     duration_seconds: float
     audio_format: str
+    provider: str
+    model: str
+    language: str
+    accent: str
 
 
 class SpeechRecognitionService:
-    _host = "iat.xf-yun.com"
-    _path = "/v1"
-    _base_ws_url = "wss://iat.xf-yun.com/v1"
-    _frame_size = 1280
-    _frame_interval_seconds = 0.04
+    default_language = "zh"
+    default_accent = "standard"
+
+    @staticmethod
+    def is_configured(config: UserAppConfig) -> bool:
+        return bool(
+            (config.speech_base_url or "").strip()
+            and (config.speech_api_key or "").strip()
+            and (config.speech_model or "").strip()
+        )
+
+    def provider_name(self, config: UserAppConfig | None = None) -> str:
+        base_url = (config.speech_base_url or "").lower() if config else ""
+        if any(host in base_url for host in ("api.99hub.top", "api3.wlai.vip", "api.apiplus.org", "zhongzhuan.chat")):
+            return "hub_relay"
+        return "openai_compatible"
 
     async def transcribe_upload(
         self,
         *,
+        config: UserAppConfig,
         filename: str,
         content: bytes,
     ) -> SpeechTranscriptionResult:
+        if not self.is_configured(config):
+            raise SpeechConfigError("语音识别服务尚未配置，请联系管理员")
         if not content:
-            raise SpeechInputError("\u4e0a\u4f20\u7684\u8bed\u97f3\u6587\u4ef6\u4e3a\u7a7a")
+            raise SpeechInputError("上传的语音文件为空")
 
         audio = self._normalize_audio(filename=filename, content=content)
-        text = await self._transcribe_with_xfyun(audio)
+        text, used_model = await self._transcribe(config=config, audio=audio)
         return SpeechTranscriptionResult(
             text=text,
             duration_seconds=audio.duration_seconds,
             audio_format=audio.audio_format,
+            provider=self.provider_name(config),
+            model=used_model,
+            language=self.default_language,
+            accent=self.default_accent,
         )
+
+    async def _transcribe(
+        self,
+        *,
+        config: UserAppConfig,
+        audio: NormalizedAudio,
+    ) -> tuple[str, str]:
+        model = (config.speech_model or "").strip()
+        if self._prefers_chat_audio(model):
+            try:
+                text = await self._transcribe_with_chat_audio(
+                    config=config,
+                    audio=audio,
+                    model=model,
+                    include_audio_output=False,
+                )
+                return text, model
+            except SpeechProviderError:
+                try:
+                    text = await self._transcribe_with_chat_audio(
+                        config=config,
+                        audio=audio,
+                        model=model,
+                        include_audio_output=True,
+                    )
+                    return text, model
+                except SpeechProviderError:
+                    fallback_model = self._fallback_transcription_model(model)
+                    if fallback_model:
+                        text = await self._transcribe_with_transcriptions(
+                            config=config,
+                            audio=audio,
+                            model=fallback_model,
+                        )
+                        return text, fallback_model
+                    raise
+
+        text = await self._transcribe_with_transcriptions(config=config, audio=audio, model=model)
+        return text, model
 
     def _normalize_audio(self, *, filename: str, content: bytes) -> NormalizedAudio:
         lower_name = filename.lower()
@@ -84,13 +146,13 @@ class SpeechRecognitionService:
             return self._read_wav(content)
         if lower_name.endswith(".pcm"):
             return self._read_pcm(content)
-        raise SpeechInputError("\u4ec5\u652f\u6301 .pcm \u6216 .wav \u8bed\u97f3\u6587\u4ef6")
+        raise SpeechInputError("仅支持 .pcm 或 .wav 语音文件")
 
     def _read_pcm(self, content: bytes) -> NormalizedAudio:
         if len(content) % 2 != 0:
-            raise SpeechInputError("PCM \u97f3\u9891\u6570\u636e\u683c\u5f0f\u4e0d\u6b63\u786e")
+            raise SpeechInputError("PCM 音频数据格式不正确")
 
-        sample_rate = settings.XFYUN_ASR_SAMPLE_RATE
+        sample_rate = 16000
         duration_seconds = len(content) / float(sample_rate * 2)
         self._validate_duration(duration_seconds)
 
@@ -113,14 +175,14 @@ class SpeechRecognitionService:
                 frame_count = wav_file.getnframes()
                 pcm_payload = wav_file.readframes(frame_count)
         except wave.Error as exc:
-            raise SpeechInputError("WAV \u97f3\u9891\u89e3\u6790\u5931\u8d25") from exc
+            raise SpeechInputError("WAV 音频解析失败") from exc
 
         if channels != 1:
-            raise SpeechInputError("\u4ec5\u652f\u6301\u5355\u58f0\u9053\u8bed\u97f3")
+            raise SpeechInputError("仅支持单声道语音")
         if bit_depth != 16:
-            raise SpeechInputError("\u4ec5\u652f\u6301 16 \u4f4d\u6df1\u5ea6\u97f3\u9891")
+            raise SpeechInputError("仅支持 16 位深度音频")
         if sample_rate not in {8000, 16000}:
-            raise SpeechInputError("\u4ec5\u652f\u6301 8k \u6216 16k \u91c7\u6837\u7387\u97f3\u9891")
+            raise SpeechInputError("仅支持 8k 或 16k 采样率音频")
 
         duration_seconds = frame_count / float(sample_rate)
         self._validate_duration(duration_seconds)
@@ -135,258 +197,202 @@ class SpeechRecognitionService:
             duration_seconds=duration_seconds,
         )
 
-    def _validate_duration(self, duration_seconds: float) -> None:
+    @staticmethod
+    def _validate_duration(duration_seconds: float) -> None:
         if duration_seconds <= 0:
-            raise SpeechInputError("\u8bed\u97f3\u65f6\u957f\u65e0\u6548")
-        if duration_seconds > settings.XFYUN_ASR_MAX_SECONDS:
-            raise SpeechInputError(
-                f"\u5f53\u524d\u4ec5\u652f\u6301 {settings.XFYUN_ASR_MAX_SECONDS} "
-                "\u79d2\u4ee5\u5185\u7684\u8bed\u97f3\u6d88\u606f"
-            )
+            raise SpeechInputError("语音时长无效")
+        if duration_seconds > 60:
+            raise SpeechInputError("当前仅支持 60 秒以内的语音消息")
 
-    async def _transcribe_with_xfyun(self, audio: NormalizedAudio) -> str:
-        self._ensure_credentials()
-        request_url = self._build_request_url()
-        fragments: dict[int, str] = {}
-
-        try:
-            async with websockets.connect(
-                request_url,
-                max_size=None,
-                ping_interval=20,
-                ping_timeout=20,
-                close_timeout=5,
-            ) as websocket:
-                receiver = asyncio.create_task(
-                    self._receive_transcription(websocket=websocket, fragments=fragments)
-                )
-                try:
-                    await self._send_audio_frames(websocket=websocket, audio=audio)
-                    await receiver
-                finally:
-                    if not receiver.done():
-                        receiver.cancel()
-                        with suppress(asyncio.CancelledError):
-                            await receiver
-        except SpeechRecognitionError:
-            raise
-        except (WebSocketException, OSError, asyncio.TimeoutError) as exc:
-            logger.exception("xfyun speech websocket failure")
-            raise SpeechProviderError(
-                "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff0c"
-                "\u8bf7\u7a0d\u540e\u91cd\u8bd5"
-            ) from exc
-        except Exception as exc:
-            logger.exception("unexpected xfyun speech failure")
-            raise SpeechProviderError(
-                "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff0c"
-                "\u8bf7\u7a0d\u540e\u91cd\u8bd5"
-            ) from exc
-
-        text = "".join(fragments[index] for index in sorted(fragments)).strip()
-        if not text:
-            raise SpeechInputError(
-                "\u672a\u8bc6\u522b\u5230\u6e05\u6670\u8bed\u97f3\uff0c\u8bf7\u91cd\u8bd5"
-            )
-        return text
-
-    async def _send_audio_frames(self, *, websocket, audio: NormalizedAudio) -> None:
-        chunks = [
-            audio.payload[index : index + self._frame_size]
-            for index in range(0, len(audio.payload), self._frame_size)
-        ]
-
-        if not chunks:
-            raise SpeechInputError("\u4e0a\u4f20\u7684\u8bed\u97f3\u6587\u4ef6\u4e3a\u7a7a")
-
-        for index, chunk in enumerate(chunks, start=1):
-            await websocket.send(
-                json.dumps(
-                    self._build_request_frame(
-                        audio=audio,
-                        chunk=chunk,
-                        status=0 if index == 1 else 1,
-                        seq=index,
-                        include_parameter=index == 1,
-                    )
-                )
-            )
-            await asyncio.sleep(self._frame_interval_seconds)
-
-        await websocket.send(
-            json.dumps(
-                self._build_request_frame(
-                    audio=audio,
-                    chunk=b"",
-                    status=2,
-                    seq=len(chunks) + 1,
-                    include_parameter=False,
-                )
-            )
-        )
-
-    async def _receive_transcription(self, *, websocket, fragments: dict[int, str]) -> None:
-        while True:
-            raw_message = await websocket.recv()
-            response = json.loads(raw_message)
-            header = response.get("header", {})
-            code = int(header.get("code", 0))
-
-            if code != 0:
-                logger.error(
-                    "xfyun speech provider error code={} sid={} message={}",
-                    code,
-                    header.get("sid"),
-                    header.get("message") or response.get("message"),
-                )
-                raise SpeechProviderError(
-                    "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff0c"
-                    "\u8bf7\u7a0d\u540e\u91cd\u8bd5"
-                )
-
-            payload = response.get("payload", {})
-            result = payload.get("result")
-            if isinstance(result, dict):
-                self._merge_result(fragments, result)
-
-            if int(header.get("status", 2)) == 2:
-                break
-
-    def _build_request_frame(
+    async def _transcribe_with_transcriptions(
         self,
         *,
+        config: UserAppConfig,
         audio: NormalizedAudio,
-        chunk: bytes,
-        status: int,
-        seq: int,
-        include_parameter: bool,
-    ) -> dict[str, object]:
-        frame: dict[str, object] = {
-            "header": {
-                "app_id": settings.XFYUN_ASR_APP_ID,
-                "status": status,
-            },
-            "payload": {
-                "audio": {
-                    "encoding": audio.encoding,
-                    "sample_rate": audio.sample_rate,
-                    "channels": audio.channels,
-                    "bit_depth": audio.bit_depth,
-                    "seq": seq,
-                    "status": status,
-                    "audio": base64.b64encode(chunk).decode("utf-8"),
-                }
-            },
-        }
+        model: str,
+    ) -> str:
+        base_url = (config.speech_base_url or "").strip().rstrip("/")
+        timeout = httpx.Timeout(connect=20.0, read=180.0, write=180.0, pool=20.0)
+        wav_bytes = audio.to_wav_bytes()
 
-        if settings.XFYUN_ASR_RES_ID:
-            frame["header"]["res_id"] = settings.XFYUN_ASR_RES_ID
+        files = [
+            ("file", ("speech.wav", wav_bytes, "audio/wav")),
+            ("model", (None, model)),
+            ("language", (None, self.default_language)),
+            ("response_format", (None, "json")),
+        ]
 
-        if include_parameter:
-            iat_parameter: dict[str, object] = {
-                "domain": settings.XFYUN_ASR_DOMAIN,
-                "language": settings.XFYUN_ASR_LANGUAGE,
-                "accent": settings.XFYUN_ASR_ACCENT,
-                "eos": settings.XFYUN_ASR_EOS,
-                "ltc": settings.XFYUN_ASR_LTC,
-                "vinfo": settings.XFYUN_ASR_VINFO,
-                "result": {
-                    "encoding": "utf8",
-                    "compress": "raw",
-                    "format": "json",
-                },
-            }
-            if settings.XFYUN_ASR_DWA:
-                iat_parameter["dwa"] = settings.XFYUN_ASR_DWA
-            if settings.XFYUN_ASR_DHW:
-                iat_parameter["dhw"] = settings.XFYUN_ASR_DHW
-            frame["parameter"] = {"iat": iat_parameter}
-
-        return frame
-
-    def _merge_result(self, fragments: dict[int, str], result: dict[str, object]) -> None:
-        encoded_text = str(result.get("text", "")).strip()
-        if not encoded_text:
-            return
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            try:
+                response = await client.post(
+                    self._build_url(base_url, "/v1/audio/transcriptions"),
+                    headers={"Authorization": f"Bearer {config.speech_api_key}"},
+                    files=files,
+                )
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise SpeechProviderError(self._read_error_detail(exc.response)) from exc
+            except httpx.HTTPError as exc:
+                raise SpeechProviderError("语音识别服务暂时不可用，请稍后重试") from exc
 
         try:
-            decoded = base64.b64decode(encoded_text)
-            payload = json.loads(decoded.decode("utf-8"))
-        except (ValueError, json.JSONDecodeError) as exc:
-            logger.exception("failed to decode xfyun speech result")
-            raise SpeechProviderError(
-                "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff0c"
-                "\u8bf7\u7a0d\u540e\u91cd\u8bd5"
-            ) from exc
+            payload = response.json()
+        except ValueError as exc:
+            raise SpeechProviderError("语音识别服务返回了无效响应") from exc
 
-        if int(payload.get("ret", 0)) != 0:
-            logger.error(
-                "xfyun speech result error ret={} sn={} message={}",
-                payload.get("ret"),
-                payload.get("sn"),
-                payload.get("message"),
-            )
-            raise SpeechProviderError(
-                "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528\uff0c"
-                "\u8bf7\u7a0d\u540e\u91cd\u8bd5"
-            )
+        data = self._payload_data(payload)
+        text = str(data.get("text") or "").strip()
+        if not text:
+            raise SpeechInputError("未识别到清晰语音，请重试")
+        return text
 
-        serial = int(payload.get("sn", len(fragments) + 1))
-        words = payload.get("ws", [])
-        text = "".join(
-            candidate.get("w", "")
-            for item in words
-            if isinstance(item, dict)
-            for candidate in item.get("cw", [])[:1]
-            if isinstance(candidate, dict)
-        )
+    async def _transcribe_with_chat_audio(
+        self,
+        *,
+        config: UserAppConfig,
+        audio: NormalizedAudio,
+        model: str,
+        include_audio_output: bool,
+    ) -> str:
+        base_url = (config.speech_base_url or "").strip().rstrip("/")
+        timeout = httpx.Timeout(connect=20.0, read=180.0, write=180.0, pool=20.0)
+        audio_b64 = base64.b64encode(audio.to_wav_bytes()).decode("utf-8")
 
-        if payload.get("pgs") == "rpl":
-            rg = payload.get("rg") or []
-            if isinstance(rg, list) and len(rg) == 2:
-                start, end = int(rg[0]), int(rg[1])
-                for index in range(start, end + 1):
-                    fragments.pop(index, None)
-
-        fragments[serial] = text
-
-    def _ensure_credentials(self) -> None:
-        if (
-            not settings.XFYUN_ASR_APP_ID
-            or not settings.XFYUN_ASR_API_KEY
-            or not settings.XFYUN_ASR_API_SECRET
-        ):
-            raise SpeechConfigError(
-                "\u8bed\u97f3\u8bc6\u522b\u670d\u52a1\u5c1a\u672a\u914d\u7f6e\uff0c"
-                "\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458"
-            )
-
-    def _build_request_url(self) -> str:
-        date = format_datetime(datetime.now(timezone.utc), usegmt=True)
-        signature_origin = f"host: {self._host}\ndate: {date}\nGET {self._path} HTTP/1.1"
-        digest = hmac.new(
-            settings.XFYUN_ASR_API_SECRET.encode("utf-8"),
-            signature_origin.encode("utf-8"),
-            digestmod=hashlib.sha256,
-        ).digest()
-        signature = base64.b64encode(digest).decode("utf-8")
-        authorization_origin = (
-            f'api_key="{settings.XFYUN_ASR_API_KEY}", '
-            f'algorithm="hmac-sha256", '
-            f'headers="host date request-line", '
-            f'signature="{signature}"'
-        )
-        authorization = base64.b64encode(authorization_origin.encode("utf-8")).decode(
-            "utf-8"
-        )
-        query = urlencode(
-            {
-                "host": self._host,
-                "date": date,
-                "authorization": authorization,
+        payload = {
+            "model": model,
+            "modalities": ["text", "audio"] if include_audio_output else ["text"],
+            "temperature": 0,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "你是语音转写助手，只输出简体中文转写结果，不要补充说明。",
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "请将这段语音准确转写为简体中文，只输出转写文本。",
+                        },
+                        {
+                            "type": "input_audio",
+                            "input_audio": {
+                                "data": audio_b64,
+                                "format": "wav",
+                            },
+                        },
+                    ],
+                },
+            ],
+        }
+        if include_audio_output:
+            payload["audio"] = {
+                "voice": "alloy",
+                "format": "wav",
             }
-        )
-        return f"{self._base_ws_url}?{query}"
+
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            try:
+                response = await client.post(
+                    self._build_url(base_url, "/v1/chat/completions"),
+                    headers={
+                        "Authorization": f"Bearer {config.speech_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise SpeechProviderError(self._read_error_detail(exc.response)) from exc
+            except httpx.HTTPError as exc:
+                raise SpeechProviderError("语音识别服务暂时不可用，请稍后重试") from exc
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise SpeechProviderError("语音识别服务返回了无效响应") from exc
+
+        text = self._extract_chat_text(data)
+        if not text:
+            raise SpeechInputError("未识别到清晰语音，请重试")
+        return text
+
+    @staticmethod
+    def _prefers_chat_audio(model: str) -> bool:
+        return "audio-preview" in model.lower()
+
+    @staticmethod
+    def _fallback_transcription_model(model: str) -> str | None:
+        normalized = model.lower()
+        if normalized == "gpt-4o-mini-audio-preview":
+            return "gpt-4o-mini-transcribe"
+        if normalized == "gpt-4o-audio-preview":
+            return "gpt-4o-transcribe"
+        return None
+
+    @staticmethod
+    def _extract_chat_text(payload: dict[str, Any]) -> str:
+        data = SpeechRecognitionService._payload_data(payload)
+        choices = data.get("choices") or []
+        if not isinstance(choices, list) or not choices:
+            return ""
+
+        message = choices[0].get("message") if isinstance(choices[0], dict) else None
+        if not isinstance(message, dict):
+            return ""
+
+        audio_payload = message.get("audio")
+        if isinstance(audio_payload, dict):
+            for key in ("transcript", "text"):
+                value = audio_payload.get(key)
+                if value:
+                    return str(value).strip()
+
+        content = message.get("content")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            fragments = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text" and item.get("text"):
+                    fragments.append(str(item["text"]))
+            return "".join(fragments).strip()
+        return ""
+
+    @staticmethod
+    def _build_url(base_url: str, versioned_path: str) -> str:
+        normalized_base_url = base_url.rstrip("/")
+        parsed = urlparse(normalized_base_url)
+        if parsed.path.rstrip("/").endswith("/v1") and versioned_path.startswith("/v1/"):
+            return f"{normalized_base_url}{versioned_path.removeprefix('/v1')}"
+        return f"{normalized_base_url}{versioned_path}"
+
+    @staticmethod
+    def _payload_data(payload: dict[str, Any]) -> dict[str, Any]:
+        data = payload.get("data")
+        if isinstance(data, dict):
+            return data
+        return payload
+
+    @staticmethod
+    def _read_error_detail(response: httpx.Response) -> str:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = response.text
+
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                for key in ("message", "detail", "code"):
+                    if error.get(key):
+                        return str(error[key])
+            for key in ("message", "detail", "error"):
+                if payload.get(key):
+                    return str(payload[key])
+        if isinstance(payload, str) and payload.strip():
+            return payload.strip()
+        return f"Configured speech service request failed with status {response.status_code}"
 
 
 speech_service = SpeechRecognitionService()

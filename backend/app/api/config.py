@@ -17,6 +17,9 @@ def _to_schema(config_obj) -> AppConfigOut:
         video_base_url=config_obj.video_base_url,
         video_api_key=config_obj.video_api_key or "",
         video_model=config_obj.video_model,
+        speech_base_url=config_obj.speech_base_url,
+        speech_api_key=config_obj.speech_api_key or "",
+        speech_model=config_obj.speech_model,
     )
 
 
@@ -37,6 +40,9 @@ async def save_config(config_in: AppConfigIn):
     config_obj.video_base_url = config_in.video_base_url
     config_obj.video_api_key = config_in.video_api_key
     config_obj.video_model = config_in.video_model
+    config_obj.speech_base_url = config_in.speech_base_url
+    config_obj.speech_api_key = config_in.speech_api_key
+    config_obj.speech_model = config_in.speech_model
     await config_obj.save()
     return Success(data=_to_schema(config_obj).model_dump(by_alias=True))
 

@@ -179,7 +179,7 @@ class BusinessGatewayService:
                 duration=resolved_duration,
                 size=resolved_size,
             )
-            return "openai_compatible", self._merge_video_request(payload, request_context)
+            return video_gateway_service.provider_name(config), self._merge_video_request(payload, request_context)
 
         payload = await legacy_gateway_service.generate_video(
             prompt=provider_prompt,
@@ -189,10 +189,11 @@ class BusinessGatewayService:
         return "legacy", self._merge_video_request(payload, request_context)
 
     async def sync_video_status(self, task: VideoTask) -> Any:
-        if task.provider == "openai_compatible":
+        if task.provider in {"openai_compatible", "relay_video"}:
             config = await get_or_create_user_app_config(task.user_id)
             return await video_gateway_service.get_video_status(
                 config=config,
+                provider_kind=task.provider,
                 provider_task_id=task.provider_task_id or "",
                 task_id=int(task.id),
             )

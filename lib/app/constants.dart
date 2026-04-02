@@ -11,12 +11,14 @@ class AppConstants {
   static const String authServerBaseUrl = 'http://192.168.101.21:9999';
   static const String serverBaseUrl = authServerBaseUrl;
   static const String legacyServerBaseUrl = 'http://1.15.227.223:3000';
-  static const String defaultLlmBaseUrl = 'https://api.moonshot.cn/v1';
-  static const String defaultLlmModel = 'moonshot-v1-8k';
+  static const String defaultLlmBaseUrl = 'https://api.99hub.top';
+  static const String defaultLlmModel = 'gpt-5.4-mini';
   static const String defaultLlmApiKeyPlaceholder =
       'sk-xxxxxxxxxxxxxxxxxxxxxxxx';
-  static const String defaultVideoBaseUrl = 'https://api.openai.com/v1';
-  static const String defaultVideoModel = 'video-generation';
+  static const String defaultVideoBaseUrl = 'https://api.99hub.top';
+  static const String defaultVideoModel = 'veo_3_1-fast-components-4K';
+  static const String defaultSpeechBaseUrl = 'https://api.99hub.top';
+  static const String defaultSpeechModel = 'gpt-4o-mini-audio-preview';
   static const int maxImages = 3;
   static const int pollingIntervalSeconds = 2;
   static const int maxPollingTimes = 60;

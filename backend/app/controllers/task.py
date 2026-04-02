@@ -285,7 +285,7 @@ class TaskController:
 
     def _read_provider_task_id(self, payload: dict[str, Any]) -> str | None:
         data = self._read_payload(payload)
-        value = data.get("id") or data.get("_id") or data.get("taskId")
+        value = data.get("id") or data.get("_id") or data.get("taskId") or data.get("task_id")
         return str(value) if value else None
 
     def _read_prompt(self, payload: dict[str, Any]) -> str | None:

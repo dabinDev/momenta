@@ -16,7 +16,7 @@ class AppSettingsPage extends GetView<AppSettingsController> {
   Widget build(BuildContext context) {
     return AppPageScaffold(
       title: '应用设置',
-      subtitle: '管理文案服务和视频服务配置',
+      subtitle: '管理文案、视频和语音服务配置',
       accentColor: AppTheme.primary,
       child: RefreshIndicator(
         onRefresh: controller.refreshConfig,
@@ -39,7 +39,7 @@ class AppSettingsPage extends GetView<AppSettingsController> {
             children: <Widget>[
               SectionCard(
                 title: '服务配置',
-                subtitle: '切换文案服务或视频服务，并直接保存到当前账号',
+                subtitle: '分别维护提示词、视频生成和语音识别接口',
                 icon: Icons.tune_rounded,
                 accentColor: AppTheme.primary,
                 child: Column(
@@ -52,7 +52,8 @@ class AppSettingsPage extends GetView<AppSettingsController> {
                             child: _SectionChip(
                               label: '文案服务',
                               icon: Icons.auto_awesome_outlined,
-                              selected: controller.selectedSectionIndex.value == 0,
+                              selected:
+                                  controller.selectedSectionIndex.value == 0,
                               onTap: () => controller.switchSection(0),
                             ),
                           ),
@@ -61,8 +62,19 @@ class AppSettingsPage extends GetView<AppSettingsController> {
                             child: _SectionChip(
                               label: '视频服务',
                               icon: Icons.movie_creation_outlined,
-                              selected: controller.selectedSectionIndex.value == 1,
+                              selected:
+                                  controller.selectedSectionIndex.value == 1,
                               onTap: () => controller.switchSection(1),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _SectionChip(
+                              label: '语音服务',
+                              icon: Icons.keyboard_voice_outlined,
+                              selected:
+                                  controller.selectedSectionIndex.value == 2,
+                              onTap: () => controller.switchSection(2),
                             ),
                           ),
                         ],
@@ -72,20 +84,28 @@ class AppSettingsPage extends GetView<AppSettingsController> {
                     Obx(
                       () => AnimatedSwitcher(
                         duration: const Duration(milliseconds: 220),
-                        child: controller.selectedSectionIndex.value == 0
-                            ? const _LlmSettingsForm(key: ValueKey<String>('llm'))
-                            : const _VideoSettingsForm(
-                                key: ValueKey<String>('video'),
-                              ),
+                        child: switch (controller.selectedSectionIndex.value) {
+                          0 => const _LlmSettingsForm(
+                              key: ValueKey<String>('llm'),
+                            ),
+                          1 => const _VideoSettingsForm(
+                              key: ValueKey<String>('video'),
+                            ),
+                          _ => const _SpeechSettingsForm(
+                              key: ValueKey<String>('speech'),
+                            ),
+                        },
                       ),
                     ),
                     const SizedBox(height: 18),
                     LayoutBuilder(
-                      builder: (BuildContext context, BoxConstraints constraints) {
+                      builder:
+                          (BuildContext context, BoxConstraints constraints) {
                         final List<Widget> buttons = <Widget>[
                           Obx(
                             () => PrimaryButton(
-                              label: controller.isSaving.value ? '保存中...' : '保存设置',
+                              label:
+                                  controller.isSaving.value ? '保存中...' : '保存设置',
                               icon: Icons.save_outlined,
                               onPressed: controller.isSaving.value
                                   ? null
@@ -94,7 +114,9 @@ class AppSettingsPage extends GetView<AppSettingsController> {
                           ),
                           Obx(
                             () => PrimaryButton.outline(
-                              label: controller.isSyncing.value ? '同步中...' : '同步配置',
+                              label: controller.isSyncing.value
+                                  ? '同步中...'
+                                  : '同步配置',
                               icon: Icons.sync_rounded,
                               onPressed: controller.isSyncing.value
                                   ? null
@@ -171,7 +193,7 @@ class _SectionChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
           decoration: BoxDecoration(
             color: selected
                 ? AppTheme.primary.withValues(alpha: 0.14)
@@ -182,11 +204,13 @@ class _SectionChip extends StatelessWidget {
             children: <Widget>[
               Icon(
                 icon,
-                color: selected ? AppTheme.primary : theme.colorScheme.onSurface,
+                color:
+                    selected ? AppTheme.primary : theme.colorScheme.onSurface,
               ),
               const SizedBox(height: 8),
               Text(
                 label,
+                textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: selected ? AppTheme.primary : null,
                 ),
@@ -258,6 +282,39 @@ class _VideoSettingsForm extends GetView<AppSettingsController> {
           controller: controller.videoApiKeyController,
           label: 'API Key',
           hintText: '请输入视频服务密钥',
+          textInputAction: TextInputAction.done,
+        ),
+      ],
+    );
+  }
+}
+
+class _SpeechSettingsForm extends GetView<AppSettingsController> {
+  const _SpeechSettingsForm({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: key,
+      children: <Widget>[
+        LargeTextField(
+          controller: controller.speechBaseUrlController,
+          label: '服务地址',
+          hintText: AppConstants.defaultSpeechBaseUrl,
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: 12),
+        LargeTextField(
+          controller: controller.speechModelController,
+          label: '模型名称',
+          hintText: AppConstants.defaultSpeechModel,
+          textInputAction: TextInputAction.next,
+        ),
+        const SizedBox(height: 12),
+        LargeTextField(
+          controller: controller.speechApiKeyController,
+          label: 'API Key',
+          hintText: '请输入语音服务密钥',
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => controller.save(),
         ),

@@ -20,6 +20,9 @@ class AppConfigController:
         "video_base_url",
         "video_api_key",
         "video_model",
+        "speech_base_url",
+        "speech_api_key",
+        "speech_model",
     )
 
     def defaults(self) -> dict[str, str]:
@@ -30,6 +33,9 @@ class AppConfigController:
             "video_base_url": AppConfigOut.model_fields["video_base_url"].default,
             "video_api_key": AppConfigOut.model_fields["video_api_key"].default,
             "video_model": AppConfigOut.model_fields["video_model"].default,
+            "speech_base_url": AppConfigOut.model_fields["speech_base_url"].default,
+            "speech_api_key": AppConfigOut.model_fields["speech_api_key"].default,
+            "speech_model": AppConfigOut.model_fields["speech_model"].default,
         }
 
     async def list_configs(
@@ -97,6 +103,7 @@ class AppConfigController:
 
         llm_api_key = (values.get("llm_api_key") or "").strip()
         video_api_key = (values.get("video_api_key") or "").strip()
+        speech_api_key = (values.get("speech_api_key") or "").strip()
 
         return {
             "id": str(config.id) if config else None,
@@ -117,8 +124,13 @@ class AppConfigController:
             "video_api_key": video_api_key if include_secrets else "",
             "video_api_key_masked": self._mask_secret(video_api_key),
             "video_model": values["video_model"],
+            "speech_base_url": values["speech_base_url"],
+            "speech_api_key": speech_api_key if include_secrets else "",
+            "speech_api_key_masked": self._mask_secret(speech_api_key),
+            "speech_model": values["speech_model"],
             "llm_configured": bool(llm_api_key),
             "video_configured": bool(video_api_key),
+            "speech_configured": bool(speech_api_key),
             "has_custom_config": config is not None,
             "created_at": self._format_datetime(config.created_at if config else None),
             "updated_at": self._format_datetime(config.updated_at if config else None),
@@ -138,4 +150,3 @@ class AppConfigController:
 
 
 app_config_controller = AppConfigController()
-

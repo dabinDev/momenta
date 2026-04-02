@@ -13,4 +13,6 @@ async def get_or_create_user_app_config(user_id: int) -> UserAppConfig:
         llm_model=AppConfigOut.model_fields["llm_model"].default,
         video_base_url=AppConfigOut.model_fields["video_base_url"].default,
         video_model=AppConfigOut.model_fields["video_model"].default,
+        speech_base_url=AppConfigOut.model_fields["speech_base_url"].default,
+        speech_model=AppConfigOut.model_fields["speech_model"].default,
     )
