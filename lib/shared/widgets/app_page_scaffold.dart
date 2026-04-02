@@ -35,7 +35,7 @@ class AppPageScaffold extends StatelessWidget {
           child: Column(
             children: <Widget>[
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
                 child: Row(
                   children: <Widget>[
                     if (canPop)
@@ -55,7 +55,7 @@ class AppPageScaffold extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleLarge?.copyWith(
-                              fontSize: 23,
+                              fontSize: 24,
                             ),
                           ),
                           if (subtitle?.trim().isNotEmpty == true) ...<Widget>[
@@ -106,8 +106,8 @@ class _NavButton extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.64),
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.white.withValues(alpha: 0.52),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, size: 18, color: AppTheme.text),
         ),

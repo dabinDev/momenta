@@ -18,9 +18,9 @@ class AppTheme {
   static const Color surfaceMuted = Color(0xFFFFEBDD);
   static const Color outline = Color(0xFFF1E2D4);
   static const Color outlineSoft = Color(0xFFF7EEE5);
-  static const Color fieldSurface = Color(0xFFFFFEFC);
-  static const Color fieldBorder = Color(0xFFDCC9B8);
-  static const Color secondaryButtonSurface = Color(0xFFFFF3E9);
+  static const Color fieldSurface = Color(0xFFFFFBF7);
+  static const Color fieldBorder = Color(0xFFE6D6C7);
+  static const Color secondaryButtonSurface = Color(0xFFFFF7F0);
   static const Color text = Color(0xFF2E2118);
   static const Color muted = Color(0xFF7E6B5C);
 
@@ -116,38 +116,38 @@ class AppTheme {
         prefixIconColor: primaryDeep,
         suffixIconColor: muted,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(
             color: fieldBorder,
-            width: 1.2,
+            width: 1,
           ),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(
             color: fieldBorder,
-            width: 1.2,
+            width: 1,
           ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(
             color: primaryDeep,
-            width: 1.8,
+            width: 1.5,
           ),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(
             color: Color(0xFFD1534A),
-            width: 1.3,
+            width: 1.1,
           ),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(
             color: Color(0xFFD1534A),
-            width: 1.6,
+            width: 1.4,
           ),
         ),
         contentPadding:
@@ -167,12 +167,8 @@ class AppTheme {
             fontWeight: FontWeight.w700,
             letterSpacing: -0.1,
           ),
-          side: const BorderSide(
-            color: primaryDark,
-            width: 1.1,
-          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ),
@@ -191,12 +187,8 @@ class AppTheme {
             fontWeight: FontWeight.w700,
             letterSpacing: -0.1,
           ),
-          side: const BorderSide(
-            color: primaryDark,
-            width: 1.1,
-          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ),
@@ -208,8 +200,8 @@ class AppTheme {
           backgroundColor: secondaryButtonSurface,
           foregroundColor: primaryDeep,
           side: BorderSide(
-            color: primaryDeep.withValues(alpha: 0.28),
-            width: 1.2,
+            color: primaryDeep.withValues(alpha: 0.12),
+            width: 0.8,
           ),
           textStyle: const TextStyle(
             fontSize: 17,
@@ -217,7 +209,7 @@ class AppTheme {
             letterSpacing: -0.1,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ),
@@ -235,12 +227,12 @@ class AppTheme {
         disabledColor: surfaceSoft,
         selectedColor: primary.withValues(alpha: 0.18),
         secondarySelectedColor: primary.withValues(alpha: 0.18),
-        side: const BorderSide(
-          color: fieldBorder,
-          width: 1,
+        side: BorderSide(
+          color: primaryDeep.withValues(alpha: 0.12),
+          width: 0.8,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
         ),
         labelStyle: const TextStyle(
           fontSize: 16,

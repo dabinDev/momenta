@@ -24,8 +24,8 @@ class SectionCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.76),
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
@@ -37,11 +37,11 @@ class SectionCard extends StatelessWidget {
               children: <Widget>[
                 if (icon != null)
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(11),
                     ),
                     alignment: Alignment.center,
                     child: Icon(icon, color: accent, size: 18),
@@ -62,12 +62,7 @@ class SectionCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Divider(
-              height: 1,
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.75),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             child,
           ],
         ),

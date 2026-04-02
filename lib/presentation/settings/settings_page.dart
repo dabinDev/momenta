@@ -85,18 +85,14 @@ class _ProfileHero extends StatelessWidget {
         : '请先登录账号';
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(28),
-      ),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
       child: Row(
         children: <Widget>[
           Container(
             width: 68,
             height: 68,
             decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.12),
+              color: Colors.white.withValues(alpha: 0.72),
               borderRadius: BorderRadius.circular(24),
             ),
             child: ClipRRect(

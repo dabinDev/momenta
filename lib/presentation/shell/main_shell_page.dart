@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../app/theme.dart';
 import '../../shared/widgets/app_backdrop.dart';
+import '../../shared/widgets/app_brand_mark.dart';
 import '../create/create_page.dart';
 import '../history/history_page.dart';
 import '../settings/settings_page.dart';
@@ -84,16 +85,7 @@ class MainShellPage extends GetView<MainShellController> {
                           ),
                         ),
                       ),
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.62),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(tab.icon, color: tab.tint, size: 20),
-                      ),
+                      const AppBrandMark(size: 34, radius: 10),
                     ],
                   ),
                 ),
@@ -113,7 +105,7 @@ class MainShellPage extends GetView<MainShellController> {
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(22),
             ),
             child: NavigationBar(
               selectedIndex: index,

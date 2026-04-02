@@ -282,7 +282,6 @@ class _MetaTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.7),
-        border: Border.all(color: AppTheme.outline),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -324,11 +323,6 @@ class _ActionChipButton extends StatelessWidget {
             color: enabled
                 ? tint.withValues(alpha: 0.12)
                 : Colors.white.withValues(alpha: 0.46),
-            border: Border.all(
-              color: enabled
-                  ? tint.withValues(alpha: 0.24)
-                  : AppTheme.outline.withValues(alpha: 0.9),
-            ),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(

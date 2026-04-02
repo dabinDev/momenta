@@ -65,7 +65,7 @@ class _LargeTextFieldState extends State<LargeTextField> {
           child: Text(
             widget.label,
             style: theme.textTheme.titleMedium?.copyWith(
-              fontSize: 16,
+              fontSize: 15,
               color: AppTheme.text,
               fontWeight: FontWeight.w700,
             ),
@@ -89,6 +89,7 @@ class _LargeTextFieldState extends State<LargeTextField> {
           decoration: InputDecoration(
             hintText: widget.hintText,
             alignLabelWithHint: widget.maxLines > 1,
+            isDense: true,
             prefixIcon: widget.prefixIcon == null
                 ? null
                 : Padding(

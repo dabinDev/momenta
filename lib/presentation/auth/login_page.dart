@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../app/constants.dart';
 import '../../app/theme.dart';
 import '../../shared/widgets/app_backdrop.dart';
+import '../../shared/widgets/app_brand_mark.dart';
 import '../../shared/widgets/large_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import 'login_controller.dart';
@@ -42,7 +43,7 @@ class LoginPage extends GetView<LoginController> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: <Widget>[
                                   Expanded(child: hero),
-                                  const SizedBox(width: 22),
+                                  const SizedBox(width: 26),
                                   SizedBox(width: 400, child: form),
                                 ],
                               ),
@@ -76,34 +77,19 @@ class _LoginHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(30),
-      ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(4, wideLayout ? 18 : 4, 4, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment:
+            wideLayout ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: <Widget>[
-          Container(
-            width: 58,
-            height: 6,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: <Color>[
-                  AppTheme.primary,
-                  AppTheme.amber,
-                  AppTheme.jade,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          const SizedBox(height: 22),
+          const AppBrandMark(size: 82, radius: 24),
+          const SizedBox(height: 24),
           Text(
             AppConstants.appTitle,
             style: theme.textTheme.headlineLarge?.copyWith(
-              fontSize: wideLayout ? 38 : 32,
+              fontSize: wideLayout ? 40 : 33,
             ),
           ),
           const SizedBox(height: 8),
@@ -114,27 +100,21 @@ class _LoginHero extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const Row(
+          const Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: <Widget>[
-              Expanded(
-                child: _HeroPill(
-                  label: '语音输入',
-                  tint: AppTheme.coral,
-                ),
+              _HeroPill(
+                label: '语音输入',
+                tint: AppTheme.coral,
               ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _HeroPill(
-                  label: '一键生成',
-                  tint: AppTheme.sky,
-                ),
+              _HeroPill(
+                label: '一键生成',
+                tint: AppTheme.sky,
               ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _HeroPill(
-                  label: '历史可查',
-                  tint: AppTheme.jade,
-                ),
+              _HeroPill(
+                label: '历史可查',
+                tint: AppTheme.jade,
               ),
             ],
           ),
@@ -157,17 +137,13 @@ class _HeroPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
         color: tint.withValues(alpha: 0.12),
-        border: Border.all(color: tint.withValues(alpha: 0.24)),
         borderRadius: BorderRadius.circular(999),
       ),
-      alignment: Alignment.center,
       child: Text(
         label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppTheme.text,
               fontWeight: FontWeight.w700,
@@ -188,8 +164,8 @@ class _LoginForm extends GetView<LoginController> {
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(30),
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(26),
       ),
       child: AutofillGroup(
         child: Column(

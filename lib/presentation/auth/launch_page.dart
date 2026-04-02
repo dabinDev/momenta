@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../app/routes.dart';
 import '../../app/theme.dart';
 import '../../shared/widgets/app_backdrop.dart';
+import '../../shared/widgets/app_brand_mark.dart';
 import 'auth_controller.dart';
 
 class LaunchPage extends StatefulWidget {
@@ -49,30 +50,17 @@ class _LaunchPageState extends State<LaunchPage> {
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.76),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(24),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 34,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
+                const AppBrandMark(size: 76, radius: 24),
                 const SizedBox(height: 16),
                 Text('正在进入', style: theme.textTheme.titleLarge),
                 const SizedBox(height: 6),
                 Text(
-                  '正在同步账户状态',
+                  '正在同步账号状态',
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 16),
