@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+import asyncio
+from datetime import datetime, timedelta
 from typing import Any
 
 from app.models.admin import User
@@ -8,8 +9,24 @@ from app.models.video_task import VideoTask, VideoTaskAsset, VoiceTranscriptionL
 from app.services.business_gateway import business_gateway_service
 
 
+class VideoGenerationRateLimitError(Exception):
+    def __init__(self, *, wait_seconds: int, message: str | None = None) -> None:
+        self.wait_seconds = max(wait_seconds, 1)
+        super().__init__(
+            message
+            or (
+                "当前已有视频正在处理中，请等待当前任务完成或失败后再试。"
+                f"若 5 分钟内仍未结束，可在 {self.wait_seconds} 秒后重试。"
+            )
+        )
+
+
 class TaskController:
     final_statuses = {"completed", "failed", "cancelled"}
+    processing_statuses = {"queued", "processing"}
+    auto_retry_enabled = False
+    generation_cooldown = timedelta(minutes=5)
+    generation_request_hold = timedelta(seconds=30)
     retryable_failure_markers = (
         "high_traffic",
         "high traffic",
@@ -33,6 +50,10 @@ class TaskController:
         "鉴权",
     )
     transient_failure_retry_limit = 2
+
+    def __init__(self) -> None:
+        self._generation_attempt_lock = asyncio.Lock()
+        self._pending_generation_attempts: dict[int, datetime] = {}
 
     async def create_task(
         self,
@@ -108,7 +129,11 @@ class TaskController:
 
         status = self._read_status(provider_payload, fallback=task.status)
         progress = self._read_progress(provider_payload, fallback=task.progress)
-        if status == "failed" and await self._should_auto_retry(task=task, payload=provider_payload):
+        if (
+            self.auto_retry_enabled
+            and status == "failed"
+            and await self._should_auto_retry(task=task, payload=provider_payload)
+        ):
             return await self._retry_task_from_request_context(task=task, payload=provider_payload)
 
         task.status = status
@@ -128,6 +153,60 @@ class TaskController:
 
         await task.save()
         return task
+
+    async def claim_generation_slot(self, *, user_id: int) -> None:
+        async with self._generation_attempt_lock:
+            now = datetime.now()
+            pending_attempt = self._pending_generation_attempts.get(user_id)
+            if pending_attempt is not None:
+                remaining = int(
+                    (pending_attempt + self.generation_request_hold - now).total_seconds()
+                )
+                if remaining > 0:
+                    raise VideoGenerationRateLimitError(
+                        wait_seconds=remaining,
+                        message=(
+                            "当前发布请求正在提交，请勿重复点击。"
+                            f"若 {remaining} 秒后仍无反馈，请刷新记录后重试。"
+                        ),
+                    )
+                self._pending_generation_attempts.pop(user_id, None)
+
+            cooldown_started_at = now - self.generation_cooldown
+
+            latest_task = await (
+                VideoTask.filter(
+                    user_id=user_id,
+                    created_at__gte=cooldown_started_at,
+                    is_deleted=False,
+                    status__in=list(self.processing_statuses),
+                )
+                .order_by("-created_at")
+                .first()
+            )
+            if latest_task is not None and latest_task.provider_task_id:
+                try:
+                    latest_task = await self.sync_task_status(latest_task, force=True)
+                except Exception:
+                    pass
+
+            if latest_task is not None and latest_task.status in self.processing_statuses:
+                comparable_now = self._align_datetime(now, latest_task.created_at)
+                remaining = int(
+                    (
+                        latest_task.created_at
+                        + self.generation_cooldown
+                        - comparable_now
+                    ).total_seconds()
+                )
+                if remaining > 0:
+                    raise VideoGenerationRateLimitError(wait_seconds=remaining)
+
+            self._pending_generation_attempts[user_id] = now
+
+    async def release_generation_slot(self, *, user_id: int) -> None:
+        async with self._generation_attempt_lock:
+            self._pending_generation_attempts.pop(user_id, None)
 
     async def _should_auto_retry(self, *, task: VideoTask, payload: dict[str, Any]) -> bool:
         if task.provider not in {"openai_compatible", "relay_video"}:
@@ -211,11 +290,26 @@ class TaskController:
         }
         return merged_payload
 
-    async def get_user_task(self, *, task_id: int, user_id: int) -> VideoTask:
-        return await VideoTask.get(id=task_id, user_id=user_id)
+    async def get_user_task(
+        self,
+        *,
+        task_id: int,
+        user_id: int,
+        include_deleted: bool = False,
+    ) -> VideoTask:
+        filters: dict[str, Any] = {
+            "id": task_id,
+            "user_id": user_id,
+        }
+        if not include_deleted:
+            filters["is_deleted"] = False
+        return await VideoTask.get(**filters)
 
-    async def get_task(self, *, task_id: int) -> VideoTask:
-        return await VideoTask.get(id=task_id)
+    async def get_task(self, *, task_id: int, include_deleted: bool = True) -> VideoTask:
+        filters: dict[str, Any] = {"id": task_id}
+        if not include_deleted:
+            filters["is_deleted"] = False
+        return await VideoTask.get(**filters)
 
     async def list_user_tasks(
         self,
@@ -273,10 +367,15 @@ class TaskController:
         }
 
     async def mark_deleted(self, *, task_id: int, user_id: int | None = None) -> None:
-        filters = {"id": task_id}
+        filters: dict[str, Any] = {
+            "id": task_id,
+            "is_deleted": False,
+        }
         if user_id is not None:
             filters["user_id"] = user_id
-        task = await VideoTask.get(**filters)
+        task = await VideoTask.get_or_none(**filters)
+        if task is None:
+            return
         task.is_deleted = True
         task.deleted_at = datetime.now()
         await task.save()
@@ -343,7 +442,8 @@ class TaskController:
     async def serialize_task(self, task: VideoTask, *, include_assets: bool = True, include_user: bool = False) -> dict[str, Any]:
         data = await task.to_dict()
         data["id"] = str(task.id)
-        data["prompt"] = task.prompt or task.polished_text or task.input_text or ""
+        data["prompt"] = task.prompt or ""
+        data["display_text"] = self._display_text(task)
         data["video_url"] = task.video_url or ""
         data["error_message"] = task.error_message or ""
         data["provider_task_id"] = task.provider_task_id or ""
@@ -386,12 +486,29 @@ class TaskController:
                 {
                     "id": str(task.id),
                     "status": task.status,
-                    "prompt": task.prompt or task.polished_text or task.input_text or "",
+                    "prompt": task.prompt or "",
+                    "display_text": self._display_text(task),
                 }
                 if task
                 else None
             )
         return data
+
+    @staticmethod
+    def _display_text(task: VideoTask) -> str:
+        for value in (task.input_text, task.polished_text, task.prompt):
+            text = str(value or "").strip()
+            if text:
+                return text
+        return ""
+
+    @staticmethod
+    def _align_datetime(value: datetime, reference: datetime) -> datetime:
+        if reference.tzinfo is not None and value.tzinfo is None:
+            return value.replace(tzinfo=reference.tzinfo)
+        if reference.tzinfo is None and value.tzinfo is not None:
+            return value.replace(tzinfo=None)
+        return value
 
     @staticmethod
     def _read_payload(payload: dict[str, Any]) -> dict[str, Any]:

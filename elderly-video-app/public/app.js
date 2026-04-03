@@ -19,6 +19,8 @@ const DEFAULT_AI_CONFIG = Object.freeze({
   speechModel: 'gpt-4o-mini-audio-preview',
 });
 
+const BrowserSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
 const FALLBACK_MODES = {
   simple: {
     code: 'simple',
@@ -26,7 +28,7 @@ const FALLBACK_MODES = {
     title: 'AI快速创作',
     subtitle: '输入内容后，完成语音转文字、AI校验、英文提示词生成和视频生成。',
     highlights: ['语音转文字', 'AI校验', '少参数'],
-    default_prompt_template_key: 'family_memory',
+    default_prompt_template_key: '',
     default_video_template_key: 'warm_album',
   },
   starter: {
@@ -35,7 +37,7 @@ const FALLBACK_MODES = {
     title: '链接入门创作',
     subtitle: '在简单模式基础上增加链接地址，结合图片快速生成相关视频。',
     highlights: ['视频链接', '上传图片', '快速跟做'],
-    default_prompt_template_key: 'family_memory',
+    default_prompt_template_key: '',
     default_video_template_key: 'warm_album',
   },
   custom: {
@@ -97,15 +99,13 @@ const state = {
   lastCorrectedText: '',
   recording: {
     active: false,
-    stream: null,
-    audioContext: null,
-    source: null,
-    processor: null,
-    gainNode: null,
-    chunks: [],
-    sampleRate: 0,
+    recognition: null,
     seconds: 0,
     timer: null,
+    finalText: '',
+    interimText: '',
+    shouldTranscribe: false,
+    errorMessage: '',
   },
 };
 
@@ -536,7 +536,14 @@ function defaultTemplateKey(items) {
   return items.find((item) => item.is_default)?.key || items[0]?.key || '';
 }
 
+function modeSupportsPromptTemplate(mode = state.activeCreateMode) {
+  return mode === 'custom';
+}
+
 function defaultPromptTemplateKey(mode = state.activeCreateMode) {
+  if (!modeSupportsPromptTemplate(mode)) {
+    return '';
+  }
   return String(getModeInfo(mode).default_prompt_template_key || defaultTemplateKey(promptTemplates()) || '');
 }
 
@@ -549,7 +556,9 @@ function findVideoTemplate(key) {
 }
 
 function ensureSelections(mode = state.activeCreateMode) {
-  state.selectedPromptTemplateKey = defaultPromptTemplateKey(mode) || state.selectedPromptTemplateKey;
+  if (!state.selectedPromptTemplateKey || !modeSupportsPromptTemplate(mode)) {
+    state.selectedPromptTemplateKey = state.selectedPromptTemplateKey || defaultPromptTemplateKey('custom');
+  }
   if (!findVideoTemplate(state.selectedVideoTemplateKey)) {
     state.selectedVideoTemplateKey = defaultVideoTemplateKey(mode) || defaultVideoTemplateKey('simple');
   }
@@ -904,7 +913,9 @@ async function generatePrompt() {
       method: 'POST',
       body: compactPayload({
         text: rawText,
-        promptTemplateKey: state.selectedPromptTemplateKey || defaultPromptTemplateKey(state.activeCreateMode),
+        promptTemplateKey: modeSupportsPromptTemplate(state.activeCreateMode)
+          ? (state.selectedPromptTemplateKey || defaultPromptTemplateKey(state.activeCreateMode))
+          : '',
       }),
     });
     const prompt = String(result.prompt || '').trim();
@@ -1032,11 +1043,11 @@ function resolveCorrectedText(currentText) {
 function simplePayload() {
   const prompt = $('promptText').value.trim();
   if (!prompt) {
-    throw new Error('Please prepare the prompt before generating a video.');
+    throw new Error('请先生成或输入视频提示词。');
   }
 
   if (!state.uploadedImages.length) {
-    throw new Error('Please upload at least 1 reference image before generating a video.');
+    throw new Error('请至少上传 1 张参考图片。');
   }
 
   const currentText = $('inputText').value.trim();
@@ -1048,7 +1059,6 @@ function simplePayload() {
     prompt,
     images: state.uploadedImages.map((item) => item.url),
     duration: state.selectedDuration,
-    promptTemplateKey: state.selectedPromptTemplateKey || defaultPromptTemplateKey('simple'),
     videoTemplateKey: state.selectedVideoTemplateKey || defaultVideoTemplateKey('simple'),
   });
 }
@@ -1069,7 +1079,6 @@ function starterPayload() {
     images: state.uploadedImages.map((item) => item.url),
     duration: state.selectedDuration,
     referenceLink,
-    promptTemplateKey: state.selectedPromptTemplateKey || defaultPromptTemplateKey('starter'),
     videoTemplateKey: state.selectedVideoTemplateKey || defaultVideoTemplateKey('starter'),
   });
 }
@@ -1201,6 +1210,30 @@ function setSubmitting(nextSubmitting) {
   renderTaskStatusPanel();
 }
 
+function isProcessingLimitMessage(message) {
+  const normalized = String(message || '').trim();
+  return normalized.includes('当前已有视频正在处理')
+    || normalized.includes('等待当前任务完成或失败后再试')
+    || normalized.includes('当前发布请求正在提交')
+    || normalized.includes('请勿重复点击');
+}
+
+async function restoreCurrentTaskFromHistory() {
+  try {
+    const result = await apiFetch('/api/history?page=1&limit=10');
+    const records = Array.isArray(result.records) ? result.records : [];
+    const processingTask = records.find((item) =>
+      item && ['queued', 'processing'].includes(String(item.status || '').toLowerCase()));
+    const latestTask = processingTask || records[0] || null;
+    if (latestTask) {
+      state.currentTask = latestTask;
+      renderTaskStatusPanel();
+    }
+  } catch (_) {
+    // Ignore follow-up refresh failures and keep the original feedback toast.
+  }
+}
+
 function previewCurrentTask() {
   if (state.currentTask?.status !== 'completed' || !state.currentTask?.videoUrl) {
     return;
@@ -1318,6 +1351,9 @@ function startTaskPolling(taskId) {
 }
 
 async function generateVideo() {
+  if (state.isSubmitting) {
+    return;
+  }
   let payload;
   try {
     payload = buildGeneratePayload();
@@ -1327,7 +1363,9 @@ async function generateVideo() {
   }
 
   stopTaskPolling();
-  state.currentTask = null;
+  if (!state.currentTask || !['queued', 'processing'].includes(String(state.currentTask.status || '').toLowerCase())) {
+    state.currentTask = null;
+  }
   state.pollingCount = 0;
   setSubmitting(true);
 
@@ -1349,7 +1387,13 @@ async function generateVideo() {
     startTaskPolling(state.currentTask.id);
   } catch (error) {
     setSubmitting(false);
-    showToast(error.message || '视频生成失败。', 'error');
+    const message = error.message || '视频生成失败。';
+    if (isProcessingLimitMessage(message)) {
+      showToast(message, 'info');
+      await restoreCurrentTaskFromHistory();
+    } else {
+      showToast(message, 'error');
+    }
   }
 }
 
@@ -1368,7 +1412,7 @@ function renderHistory(records, totalPages) {
           ${item.videoUrl ? `<video src="${escapeAttr(item.videoUrl)}" muted playsinline></video>` : '<div class="empty-state">暂无视频</div>'}
         </div>
         <div class="history-info">
-          <div class="history-title">${escapeHtml(item.prompt || '无提示词')}</div>
+          <div class="history-title">${escapeHtml(item.displayText || item.prompt || '无提示词')}</div>
           <div class="history-meta">
             <span class="${descriptor.className}">${escapeHtml(descriptor.label)}</span>
             <span>${escapeHtml(item.duration || 0)} 秒</span>
@@ -1451,10 +1495,119 @@ function formatRecordingClock(seconds) {
   return `${mins}:${secs}`;
 }
 
+function combineRecognitionText(finalText, interimText) {
+  return [finalText, interimText]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('');
+}
+
+function friendlyBrowserSpeechError(code) {
+  const normalized = String(code || '').trim().toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+  if (normalized.includes('not-allowed') || normalized.includes('service-not-allowed')) {
+    return '请先允许浏览器使用麦克风和语音识别权限。';
+  }
+  if (normalized.includes('audio-capture')) {
+    return '没有检测到可用麦克风，请检查设备后重试。';
+  }
+  if (normalized.includes('network')) {
+    return '浏览器语音识别暂时不可用，请检查网络后重试。';
+  }
+  if (normalized.includes('no-speech')) {
+    return '没有检测到清晰语音，请重试。';
+  }
+  if (normalized.includes('aborted')) {
+    return '';
+  }
+  return '浏览器语音识别失败，请稍后重试。';
+}
+
+function ensureRecordingDialogExtras() {
+  const dialogCard = $('recordingDialog')?.querySelector('.dialog-card');
+  const actionStack = $('recordingDialog')?.querySelector('.action-stack');
+  if (!dialogCard || !actionStack || $('recordingPreviewText')) {
+    return;
+  }
+
+  const previewPanel = document.createElement('div');
+  previewPanel.className = 'note-panel recording-preview';
+  previewPanel.innerHTML = `
+    <strong>实时识别预览</strong>
+    <div class="recording-preview__text" id="recordingPreviewText">请直接说话，识别结果会实时显示在这里。</div>
+  `;
+
+  const hint = document.createElement('p');
+  hint.className = 'field-tip recording-hint';
+  hint.id = 'recordingHint';
+  hint.textContent = '说完后点“识别文字”，系统会直接写入输入框。';
+
+  dialogCard.insertBefore(previewPanel, actionStack);
+  dialogCard.insertBefore(hint, actionStack);
+}
+
+function applySpeechUxCopy() {
+  const settingsPage = $('page-settings');
+  if (settingsPage) {
+    const heading = settingsPage.querySelector('.page-head h2');
+    const copy = settingsPage.querySelector('.page-head .page-copy');
+    if (heading) {
+      heading.textContent = '应用设置';
+    }
+    if (copy) {
+      copy.textContent = '管理文案、视频与后台备用语音配置，并维护当前 H5 的代理环境。';
+    }
+  }
+
+  const serviceCards = $$('#page-settings .section-card');
+  const configCard = serviceCards[1] || null;
+  if (configCard) {
+    const title = configCard.querySelector('.section-head h3');
+    const desc = configCard.querySelector('.section-head p');
+    if (title) {
+      title.textContent = '服务配置';
+    }
+    if (desc) {
+      desc.textContent = '分别维护提示词、视频生成和后台备用语音配置。当前 App/H5 创作页语音转文字优先使用系统原生识别，这里的语音配置仅用于后端备用调试。';
+    }
+  }
+
+  const speechChip = document.querySelector('[data-settings-section="speech"]');
+  if (speechChip) {
+    speechChip.textContent = '语音备用';
+  }
+
+  const speechSection = $('settingsSection-speech');
+  if (speechSection && !speechSection.querySelector('[data-speech-native-tip]')) {
+    const tip = document.createElement('p');
+    tip.className = 'field-tip';
+    tip.dataset.speechNativeTip = 'true';
+    tip.textContent = '当前 H5 和 App 的创作页不会调用这里做语音转文字，仅保留给后端备用转写和日志排查使用。';
+    speechSection.prepend(tip);
+  }
+}
+
 function updateRecordingDialog() {
   $('recordingTime').textContent = `${formatRecordingClock(state.recording.seconds)} / 01:00`;
   const ratio = Math.min(1, state.recording.seconds / APP_LIMITS.maxSpeechSeconds);
   $('recordingProgressFill').style.width = `${Math.round(ratio * 100)}%`;
+  const previewText = $('recordingPreviewText');
+  const hint = $('recordingHint');
+  if (previewText) {
+    const value = combineRecognitionText(
+      state.recording.finalText,
+      state.recording.interimText,
+    );
+    previewText.textContent = value || '请直接说话，识别结果会实时显示在这里。';
+  }
+  if (hint) {
+    hint.textContent = state.recording.errorMessage
+      || (state.recording.active
+        ? '说完后点“识别文字”，系统会直接写入输入框。'
+        : '识别完成后会自动写入输入框。');
+  }
 }
 
 function showTranscribeState(active, text = '正在识别语音内容...') {
@@ -1472,35 +1625,17 @@ function renderVoiceButton() {
 }
 
 async function cleanupRecordingResources() {
-  const { processor, source, gainNode, audioContext, stream, timer } = state.recording;
+  const { recognition, timer } = state.recording;
   if (timer) {
     clearInterval(timer);
   }
-  if (processor) {
-    processor.onaudioprocess = null;
+  if (recognition) {
+    recognition.onstart = null;
+    recognition.onresult = null;
+    recognition.onerror = null;
+    recognition.onend = null;
     try {
-      processor.disconnect();
-    } catch (_) {
-    }
-  }
-  if (source) {
-    try {
-      source.disconnect();
-    } catch (_) {
-    }
-  }
-  if (gainNode) {
-    try {
-      gainNode.disconnect();
-    } catch (_) {
-    }
-  }
-  if (stream) {
-    stream.getTracks().forEach((track) => track.stop());
-  }
-  if (audioContext) {
-    try {
-      await audioContext.close();
+      recognition.abort();
     } catch (_) {
     }
   }
@@ -1509,15 +1644,13 @@ async function cleanupRecordingResources() {
 function resetRecordingState() {
   state.recording = {
     active: false,
-    stream: null,
-    audioContext: null,
-    source: null,
-    processor: null,
-    gainNode: null,
-    chunks: [],
-    sampleRate: 0,
+    recognition: null,
     seconds: 0,
     timer: null,
+    finalText: '',
+    interimText: '',
+    shouldTranscribe: false,
+    errorMessage: '',
   };
   updateRecordingDialog();
   renderVoiceButton();
@@ -1527,54 +1660,21 @@ async function startRecording() {
   if (state.recording.active || state.isTranscribing) {
     return;
   }
-  if (!navigator.mediaDevices?.getUserMedia) {
-    showToast('当前浏览器不支持录音，请直接手动输入文字。', 'error');
-    return;
-  }
-
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) {
-    showToast('当前浏览器不支持音频处理，请直接手动输入文字。', 'error');
+  if (!BrowserSpeechRecognition) {
+    showToast('\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u8bed\u97f3\u8bc6\u522b\uff0c\u8bf7\u76f4\u63a5\u624b\u52a8\u8f93\u5165\u6587\u5b57\u3002', 'error');
     return;
   }
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
-    const audioContext = new AudioContextClass();
-    await audioContext.resume();
-    const source = audioContext.createMediaStreamSource(stream);
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
-    const gainNode = audioContext.createGain();
-    gainNode.gain.value = 0;
-
-    const chunks = [];
-    processor.onaudioprocess = (event) => {
-      if (!state.recording.active) {
-        return;
-      }
-      chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-    };
-
-    source.connect(processor);
-    processor.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    const recognition = new BrowserSpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
 
     state.recording = {
       active: true,
-      stream,
-      audioContext,
-      source,
-      processor,
-      gainNode,
-      chunks,
-      sampleRate: audioContext.sampleRate,
+      recognition,
       seconds: 0,
       timer: setInterval(() => {
         state.recording.seconds += 1;
@@ -1583,134 +1683,81 @@ async function startRecording() {
           finishRecording();
         }
       }, 1000),
+      finalText: '',
+      interimText: '',
+      shouldTranscribe: true,
+      errorMessage: '',
     };
 
+    recognition.onresult = (event) => {
+      let finalText = state.recording.finalText || '';
+      let interimText = '';
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = String(event.results[index][0]?.transcript || '');
+        if (event.results[index].isFinal) {
+          finalText += transcript;
+        } else {
+          interimText += transcript;
+        }
+      }
+      state.recording.finalText = finalText;
+      state.recording.interimText = interimText;
+      updateRecordingDialog();
+    };
+
+    recognition.onerror = (event) => {
+      state.recording.errorMessage = friendlyBrowserSpeechError(event.error);
+      updateRecordingDialog();
+    };
+
+    recognition.onend = () => {
+      finalizeRecording();
+    };
+
+    ensureRecordingDialogExtras();
     updateRecordingDialog();
     renderVoiceButton();
     setHidden($('recordingDialog'), false);
+    recognition.start();
   } catch (_) {
-    showToast('未授予麦克风权限，仍可手动输入文字。', 'error');
+    showToast('\u672a\u6388\u4e88\u9ea6\u514b\u98ce\u6743\u9650\uff0c\u4ecd\u53ef\u624b\u52a8\u8f93\u5165\u6587\u5b57\u3002', 'error');
     await cleanupRecordingResources();
     resetRecordingState();
   }
 }
 
-function mergeFloat32Chunks(chunks) {
-  const totalLength = chunks.reduce((sum, item) => sum + item.length, 0);
-  const merged = new Float32Array(totalLength);
-  let offset = 0;
-  chunks.forEach((item) => {
-    merged.set(item, offset);
-    offset += item.length;
-  });
-  return merged;
-}
-
-function downsampleBuffer(buffer, inputSampleRate, outputSampleRate) {
-  if (outputSampleRate >= inputSampleRate) {
-    return buffer;
-  }
-  const sampleRateRatio = inputSampleRate / outputSampleRate;
-  const newLength = Math.round(buffer.length / sampleRateRatio);
-  const result = new Float32Array(newLength);
-  let offsetResult = 0;
-  let offsetBuffer = 0;
-
-  while (offsetResult < result.length) {
-    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-    let accum = 0;
-    let count = 0;
-    for (let index = offsetBuffer; index < nextOffsetBuffer && index < buffer.length; index += 1) {
-      accum += buffer[index];
-      count += 1;
-    }
-    result[offsetResult] = count ? accum / count : 0;
-    offsetResult += 1;
-    offsetBuffer = nextOffsetBuffer;
-  }
-  return result;
-}
-
-function writeWavString(view, offset, text) {
-  for (let index = 0; index < text.length; index += 1) {
-    view.setUint8(offset + index, text.charCodeAt(index));
-  }
-}
-
-function encodeWav(samples, sampleRate) {
-  const buffer = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(buffer);
-
-  writeWavString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  writeWavString(view, 8, 'WAVE');
-  writeWavString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeWavString(view, 36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-
-  let offset = 44;
-  samples.forEach((sample) => {
-    const value = Math.max(-1, Math.min(1, sample));
-    view.setInt16(offset, value < 0 ? value * 0x8000 : value * 0x7fff, true);
-    offset += 2;
-  });
-  return buffer;
-}
-
-async function stopRecording({ shouldTranscribe }) {
-  if (!state.recording.active) {
-    setHidden($('recordingDialog'), true);
-    return;
-  }
-
-  const merged = mergeFloat32Chunks(state.recording.chunks);
-  const inputSampleRate = state.recording.sampleRate || APP_LIMITS.speechSampleRate;
+async function finalizeRecording() {
+  const shouldTranscribe = state.recording.shouldTranscribe === true;
+  const text = combineRecognitionText(
+    state.recording.finalText,
+    state.recording.interimText,
+  ).trim();
+  const errorMessage = state.recording.errorMessage;
   await cleanupRecordingResources();
   setHidden($('recordingDialog'), true);
   resetRecordingState();
 
   if (!shouldTranscribe) {
+    state.isTranscribing = false;
+    renderVoiceButton();
+    showTranscribeState(false);
     return;
   }
-
-  if (!merged.length) {
-    showToast('没有识别到有效录音，请重试。', 'error');
-    return;
-  }
-
-  const downsampled = downsampleBuffer(merged, inputSampleRate, APP_LIMITS.speechSampleRate);
-  const wavBlob = new Blob([encodeWav(downsampled, APP_LIMITS.speechSampleRate)], {
-    type: 'audio/wav',
-  });
-  const formData = new FormData();
-  formData.append('audio', wavBlob, `speech-${Date.now()}.wav`);
 
   state.isTranscribing = true;
   renderVoiceButton();
-  showTranscribeState(true, '正在识别语音内容...');
+  showTranscribeState(true, '\u6b63\u5728\u6574\u7406\u8bed\u97f3\u6587\u5b57...');
 
   try {
-    const result = await apiFetch('/api/speech-to-text', {
-      method: 'POST',
-      body: formData,
-    });
-    const text = String(result.text || '').trim();
     if (!text) {
-      throw new Error('没有识别到清晰语音，请重试。');
+      throw new Error(errorMessage || '\u6ca1\u6709\u8bc6\u522b\u5230\u6e05\u6670\u8bed\u97f3\uff0c\u8bf7\u91cd\u8bd5\u3002');
     }
     const currentText = $('inputText').value.trim();
     $('inputText').value = currentText ? `${currentText}\n${text}` : text;
     clearCorrectionState();
-    showToast('语音已转成文字。', 'success');
+    showToast('\u8bed\u97f3\u5df2\u8f6c\u6210\u6587\u5b57\u3002', 'success');
   } catch (error) {
-    showToast(error.message || '语音识别失败。', 'error');
+    showToast(error.message || '\u8bed\u97f3\u8bc6\u522b\u5931\u8d25\u3002', 'error');
   } finally {
     state.isTranscribing = false;
     renderVoiceButton();
@@ -1719,11 +1766,31 @@ async function stopRecording({ shouldTranscribe }) {
 }
 
 function finishRecording() {
-  stopRecording({ shouldTranscribe: true });
+  if (!state.recording.active) {
+    return;
+  }
+  state.recording.shouldTranscribe = true;
+  state.isTranscribing = true;
+  renderVoiceButton();
+  showTranscribeState(true, '\u6b63\u5728\u6574\u7406\u8bed\u97f3\u6587\u5b57...');
+  try {
+    state.recording.recognition?.stop();
+  } catch (_) {
+    finalizeRecording();
+  }
 }
 
 function cancelRecording() {
-  stopRecording({ shouldTranscribe: false });
+  if (!state.recording.active) {
+    setHidden($('recordingDialog'), true);
+    return;
+  }
+  state.recording.shouldTranscribe = false;
+  try {
+    state.recording.recognition?.abort();
+  } catch (_) {
+    finalizeRecording();
+  }
 }
 function switchPage(name) {
   state.activePage = name;
@@ -2174,7 +2241,7 @@ function renderHistory(records, totalPages) {
           ${item.videoUrl ? `<video src="${escapeAttr(item.videoUrl)}" muted playsinline></video>` : '<div class="empty-state">暂无视频</div>'}
         </div>
         <div class="history-info">
-          <div class="history-title">${escapeHtml(item.prompt || '无提示词')}</div>
+          <div class="history-title">${escapeHtml(item.displayText || item.prompt || '无提示词')}</div>
           <div class="history-meta">
             <span class="${descriptor.className}">${escapeHtml(descriptor.label)}</span>
             <span>${escapeHtml(item.duration || 0)} 秒</span>
@@ -2407,6 +2474,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderCreatePage();
   fillAiConfigForm(DEFAULT_AI_CONFIG);
   switchSettingsSection('llm');
+  applySpeechUxCopy();
+  ensureRecordingDialogExtras();
   updateRecordingDialog();
   showTranscribeState(false);
   await loadProxySettings();

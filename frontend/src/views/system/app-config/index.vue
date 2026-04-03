@@ -353,7 +353,7 @@ function shortHost(url = '') {
     <template #header>
       <div class="config-header">
         <div class="config-header__copy">
-          <p class="config-header__eyebrow">APP CONFIG</p>
+          <p class="config-header__eyebrow">应用配置</p>
           <h2>用户应用配置</h2>
           <p>统一维护 App、H5 和后端共用的文案、视频、语音三类 AI 配置，保证接口字段和默认值完全一致。</p>
         </div>

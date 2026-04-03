@@ -3,6 +3,7 @@ class HistoryItemModel {
     required this.id,
     required this.status,
     this.prompt,
+    this.displayText,
     this.videoUrl,
     this.errorMessage,
     this.duration,
@@ -12,6 +13,7 @@ class HistoryItemModel {
   final String id;
   final String status;
   final String? prompt;
+  final String? displayText;
   final String? videoUrl;
   final String? errorMessage;
   final int? duration;
@@ -22,7 +24,7 @@ class HistoryItemModel {
   bool get isFailed => status == 'failed';
 
   String get displayTitle {
-    final String value = prompt?.trim() ?? '';
+    final String value = (displayText ?? prompt)?.trim() ?? '';
     return value.isEmpty ? '未命名视频任务' : value;
   }
 
@@ -30,6 +32,7 @@ class HistoryItemModel {
     String? id,
     String? status,
     String? prompt,
+    String? displayText,
     String? videoUrl,
     String? errorMessage,
     int? duration,
@@ -39,6 +42,7 @@ class HistoryItemModel {
       id: id ?? this.id,
       status: status ?? this.status,
       prompt: prompt ?? this.prompt,
+      displayText: displayText ?? this.displayText,
       videoUrl: videoUrl ?? this.videoUrl,
       errorMessage: errorMessage ?? this.errorMessage,
       duration: duration ?? this.duration,
@@ -51,6 +55,8 @@ class HistoryItemModel {
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       status: (json['status'] ?? 'processing').toString(),
       prompt: json['prompt']?.toString(),
+      displayText:
+          json['displayText']?.toString() ?? json['display_text']?.toString(),
       videoUrl: json['videoUrl']?.toString() ?? json['video_url']?.toString(),
       errorMessage:
           json['errorMessage']?.toString() ??
@@ -67,6 +73,7 @@ class HistoryItemModel {
       'id': id,
       'status': status,
       'prompt': prompt,
+      'displayText': displayText,
       'videoUrl': videoUrl,
       'errorMessage': errorMessage,
       'duration': duration,

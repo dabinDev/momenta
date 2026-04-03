@@ -15,7 +15,7 @@
                 <icon-custom-logo text-42 color-white />
               </div>
               <div>
-                <p class="login-poster__eyebrow">Momenta Admin</p>
+                <p class="login-poster__eyebrow">拾光视频后台</p>
                 <h1>{{ $t('app_name') }}</h1>
               </div>
             </div>

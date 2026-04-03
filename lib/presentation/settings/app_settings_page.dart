@@ -16,7 +16,7 @@ class AppSettingsPage extends GetView<AppSettingsController> {
   Widget build(BuildContext context) {
     return AppPageScaffold(
       title: '应用设置',
-      subtitle: '管理文案、视频和语音服务配置',
+      subtitle: '管理文案、视频与后台备用语音配置',
       accentColor: AppTheme.primary,
       child: RefreshIndicator(
         onRefresh: controller.refreshConfig,
@@ -39,7 +39,7 @@ class AppSettingsPage extends GetView<AppSettingsController> {
             children: <Widget>[
               SectionCard(
                 title: '服务配置',
-                subtitle: '分别维护提示词、视频生成和语音识别接口',
+                subtitle: '分别维护提示词、视频生成和后台备用语音配置',
                 icon: Icons.tune_rounded,
                 accentColor: AppTheme.primary,
                 child: Column(
@@ -297,6 +297,13 @@ class _SpeechSettingsForm extends GetView<AppSettingsController> {
     return Column(
       key: key,
       children: <Widget>[
+        Text(
+          '\u5f53\u524d App \u521b\u4f5c\u9875\u7684\u8bed\u97f3\u8f6c\u6587\u5b57\u4f18\u5148\u4f7f\u7528\u7cfb\u7edf\u539f\u751f\u8bc6\u522b\uff0c\u8fd9\u91cc\u7684\u914d\u7f6e\u4ec5\u4f9b\u540e\u7aef\u5907\u7528\u8f6c\u5199\u548c\u65e5\u5fd7\u6392\u67e5\u4f7f\u7528\u3002',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
         LargeTextField(
           controller: controller.speechBaseUrlController,
           label: '服务地址',

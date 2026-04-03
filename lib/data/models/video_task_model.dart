@@ -3,6 +3,7 @@ class VideoTaskModel {
     required this.id,
     required this.status,
     this.prompt,
+    this.displayText,
     this.videoUrl,
     this.progress,
     this.errorMessage,
@@ -12,6 +13,7 @@ class VideoTaskModel {
   final String id;
   final String status;
   final String? prompt;
+  final String? displayText;
   final String? videoUrl;
   final double? progress;
   final String? errorMessage;
@@ -29,6 +31,8 @@ class VideoTaskModel {
       id: (data['id'] ?? data['_id'] ?? data['taskId'] ?? '').toString(),
       status: (data['status'] ?? 'processing').toString(),
       prompt: data['prompt']?.toString(),
+      displayText:
+          data['displayText']?.toString() ?? data['display_text']?.toString(),
       videoUrl: data['videoUrl']?.toString() ?? data['video_url']?.toString(),
       progress: _asDouble(data['progress']),
       errorMessage:

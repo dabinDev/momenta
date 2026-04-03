@@ -45,6 +45,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>用于录音并转写成视频文案。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>&#x7528;&#x4E8E;&#x5C06;&#x8BED;&#x97F3;&#x5185;&#x5BB9;&#x5B9E;&#x65F6;&#x8BC6;&#x522B;&#x6210;&#x6587;&#x5B57;&#xFF0C;&#x8F85;&#x52A9;&#x586B;&#x5199;&#x89C6;&#x9891;&#x6587;&#x6848;&#x3002;</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>用于选择参考图片辅助视频生成。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

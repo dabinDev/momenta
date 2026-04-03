@@ -57,7 +57,7 @@ class BusinessGatewayService:
         return await llm_gateway_service.polish_text(config=config, text=text)
 
     async def generate_prompt(self, *, user_id: int, text: str, prompt_template_key: str | None = None) -> Any:
-        prompt_template = ai_template_registry_service.get_prompt_template(prompt_template_key)
+        prompt_template = ai_template_registry_service.find_prompt_template(prompt_template_key)
         config = await get_or_create_user_app_config(user_id)
         if not llm_gateway_service.is_configured(config):
             raise LLMGatewayError("文案模型未配置，请先在应用设置中填写 LLM 服务地址、模型和 API Key")
@@ -66,11 +66,11 @@ class BusinessGatewayService:
             config=config,
             text=text,
             prompt_template_instruction=ai_template_registry_service.build_prompt_system_prompt(
-                prompt_template_key=prompt_template.key,
+                prompt_template_key=prompt_template_key,
             ),
         )
 
-        if isinstance(payload, dict):
+        if isinstance(payload, dict) and prompt_template is not None:
             payload.setdefault("prompt_template_key", prompt_template.key)
             payload.setdefault("prompt_template_name", prompt_template.name)
         return payload

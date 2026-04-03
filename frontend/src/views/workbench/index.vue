@@ -14,7 +14,7 @@
             </n-avatar>
 
             <div>
-              <p class="workbench-hero__eyebrow">Control Center</p>
+              <p class="workbench-hero__eyebrow">运营中心</p>
               <h1>{{ userStore.displayName || userStore.name || '用户' }}，欢迎回来</h1>
             </div>
           </div>
@@ -51,7 +51,7 @@
             </article>
             <article class="workbench-aside__note">
               <span>系统边界</span>
-              <strong>App / Backend / Admin</strong>
+              <strong>App / H5 / 后端 / 管理端</strong>
             </article>
             <article class="workbench-aside__note">
               <span>建议入口</span>
@@ -65,7 +65,7 @@
         <section class="workbench-panel">
           <div class="workbench-panel__header">
             <div>
-              <p class="workbench-panel__eyebrow">Quick Access</p>
+              <p class="workbench-panel__eyebrow">快捷入口</p>
               <h3>常用入口</h3>
             </div>
             <span class="workbench-panel__hint">高频操作一眼直达</span>
@@ -94,7 +94,7 @@
         <section class="workbench-panel workbench-panel--soft">
           <div class="workbench-panel__header">
             <div>
-              <p class="workbench-panel__eyebrow">Workspace Scope</p>
+              <p class="workbench-panel__eyebrow">管理范围</p>
               <h3>工作范围</h3>
             </div>
           </div>

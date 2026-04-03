@@ -10,100 +10,103 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --brand-primary: #ff6900;
-  --brand-primary-hover: #ff7f1c;
-  --brand-secondary: #ffb65d;
-  --brand-soft: rgba(255, 105, 0, 0.12);
-  --brand-soft-strong: rgba(255, 105, 0, 0.2);
-  --brand-gradient: linear-gradient(135deg, #ff6a00 0%, #ff8b28 60%, #ffb04f 100%);
+  --brand-primary: #f06b42;
+  --brand-primary-hover: #ff8760;
+  --brand-secondary: #5f8ef7;
+  --brand-soft: rgba(240, 107, 66, 0.12);
+  --brand-soft-strong: rgba(240, 107, 66, 0.2);
+  --brand-gradient: linear-gradient(135deg, #f06b42 0%, #f6b14c 46%, #5f8ef7 100%);
   --brand-gradient-soft: linear-gradient(
     135deg,
-    rgba(255, 118, 30, 0.18),
-    rgba(255, 201, 120, 0.2)
+    rgba(240, 107, 66, 0.16),
+    rgba(246, 177, 76, 0.15),
+    rgba(95, 142, 247, 0.14)
   );
-  --app-text: #27170e;
-  --app-muted: #7d6557;
+  --app-text: #2c1d18;
+  --app-muted: #756255;
   --app-bg:
-    radial-gradient(circle at 12% 10%, rgba(255, 142, 52, 0.18), transparent 24%),
-    radial-gradient(circle at 88% 10%, rgba(255, 196, 104, 0.22), transparent 28%),
-    radial-gradient(circle at 70% 84%, rgba(255, 124, 66, 0.14), transparent 24%),
-    linear-gradient(180deg, #fff8f4 0%, #fff3eb 48%, #fdf2ea 100%);
-  --surface-card: rgba(255, 255, 255, 0.72);
-  --surface-card-strong: rgba(255, 255, 255, 0.88);
-  --surface-overlay: rgba(255, 255, 255, 0.6);
-  --surface-muted: #fff4ec;
-  --surface-raised: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 247, 240, 0.92));
-  --shell-sidebar-bg: linear-gradient(180deg, rgba(255, 251, 248, 0.96), rgba(255, 244, 235, 0.92));
-  --shell-header-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34));
-  --shell-workspace-bg: linear-gradient(180deg, rgba(255, 252, 249, 0.86), rgba(255, 248, 244, 0.84));
-  --shell-border: rgba(144, 92, 41, 0.12);
-  --shell-divider: rgba(123, 93, 62, 0.12);
-  --menu-hover-bg: rgba(255, 105, 0, 0.08);
-  --menu-active-bg: linear-gradient(90deg, rgba(255, 105, 0, 0.14), rgba(255, 188, 104, 0.08));
+    radial-gradient(circle at 12% 10%, rgba(240, 107, 66, 0.18), transparent 24%),
+    radial-gradient(circle at 86% 12%, rgba(95, 142, 247, 0.14), transparent 28%),
+    radial-gradient(circle at 72% 82%, rgba(88, 168, 126, 0.12), transparent 22%),
+    radial-gradient(circle at 28% 88%, rgba(246, 177, 76, 0.12), transparent 24%),
+    linear-gradient(180deg, #fff9f5 0%, #fff4ee 46%, #f7f7fb 100%);
+  --surface-card: rgba(255, 255, 255, 0.76);
+  --surface-card-strong: rgba(255, 255, 255, 0.9);
+  --surface-overlay: rgba(255, 255, 255, 0.62);
+  --surface-muted: #fff6f1;
+  --surface-raised: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(251, 247, 244, 0.93));
+  --shell-sidebar-bg: linear-gradient(180deg, rgba(255, 251, 248, 0.97), rgba(247, 244, 251, 0.93));
+  --shell-header-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.36));
+  --shell-workspace-bg: linear-gradient(180deg, rgba(255, 252, 249, 0.88), rgba(248, 247, 251, 0.84));
+  --shell-border: rgba(121, 86, 62, 0.12);
+  --shell-divider: rgba(121, 86, 62, 0.1);
+  --menu-hover-bg: rgba(95, 142, 247, 0.08);
+  --menu-active-bg: linear-gradient(90deg, rgba(240, 107, 66, 0.14), rgba(95, 142, 247, 0.12));
   --soft-shadow: 0 8px 24px rgba(64, 33, 12, 0.05);
-  --panel-shadow: 0 14px 36px rgba(64, 33, 12, 0.07);
-  --sidebar-mark-bg: linear-gradient(135deg, #ff6a00 0%, #ff8f2f 58%, #ffc96f 100%);
+  --panel-shadow: 0 16px 38px rgba(64, 33, 12, 0.08);
+  --sidebar-mark-bg: linear-gradient(135deg, #f06b42 0%, #f6b14c 52%, #5f8ef7 100%);
   --sidebar-mark-ring: rgba(255, 255, 255, 0.42);
   --control-bg: rgba(255, 255, 255, 0.96);
   --control-bg-focus: #ffffff;
-  --control-text: #27170e;
-  --control-muted: #9a806e;
-  --scrollbar-color: rgba(255, 105, 0, 0.18);
-  --scrollbar-color-hover: rgba(255, 105, 0, 0.32);
-  --ambient-amber: rgba(255, 129, 46, 0.18);
-  --ambient-jade: rgba(255, 201, 138, 0.28);
-  --selection-bg: rgba(255, 105, 0, 0.92);
+  --control-text: #2c1d18;
+  --control-muted: #947d6c;
+  --scrollbar-color: rgba(95, 142, 247, 0.2);
+  --scrollbar-color-hover: rgba(240, 107, 66, 0.28);
+  --ambient-amber: rgba(240, 107, 66, 0.18);
+  --ambient-jade: rgba(95, 142, 247, 0.18);
+  --selection-bg: rgba(240, 107, 66, 0.9);
   --selection-text: #ffffff;
-  --page-line: rgba(143, 108, 74, 0.12);
+  --page-line: rgba(121, 86, 62, 0.12);
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --brand-primary: #ff8a3d;
-  --brand-primary-hover: #ff9c58;
-  --brand-secondary: #ffc06d;
-  --brand-soft: rgba(255, 138, 61, 0.16);
-  --brand-soft-strong: rgba(255, 138, 61, 0.26);
-  --brand-gradient: linear-gradient(135deg, #ff8a3d 0%, #ffae63 56%, #ffd08d 100%);
+  --brand-primary: #ff9462;
+  --brand-primary-hover: #ffab7e;
+  --brand-secondary: #7ea7ff;
+  --brand-soft: rgba(255, 148, 98, 0.16);
+  --brand-soft-strong: rgba(255, 148, 98, 0.26);
+  --brand-gradient: linear-gradient(135deg, #ff9462 0%, #ffc46d 54%, #7ea7ff 100%);
   --brand-gradient-soft: linear-gradient(
     135deg,
-    rgba(255, 138, 61, 0.24),
-    rgba(255, 198, 112, 0.18)
+    rgba(255, 148, 98, 0.24),
+    rgba(126, 167, 255, 0.16),
+    rgba(100, 187, 143, 0.14)
   );
-  --app-text: #fff4eb;
-  --app-muted: #c9b09b;
+  --app-text: #fff4ed;
+  --app-muted: #ccb4a0;
   --app-bg:
-    radial-gradient(circle at 10% 8%, rgba(255, 138, 61, 0.16), transparent 24%),
-    radial-gradient(circle at 90% 10%, rgba(255, 195, 122, 0.12), transparent 24%),
-    radial-gradient(circle at 72% 84%, rgba(255, 158, 95, 0.1), transparent 24%),
-    linear-gradient(180deg, #16100d 0%, #1b1310 46%, #211713 100%);
-  --surface-card: rgba(39, 27, 21, 0.72);
-  --surface-card-strong: rgba(42, 29, 23, 0.88);
-  --surface-overlay: rgba(41, 28, 22, 0.62);
-  --surface-muted: rgba(53, 37, 29, 0.92);
-  --surface-raised: linear-gradient(180deg, rgba(46, 32, 25, 0.96), rgba(34, 24, 19, 0.94));
-  --shell-sidebar-bg: linear-gradient(180deg, rgba(30, 21, 16, 0.96), rgba(23, 17, 13, 0.94));
-  --shell-header-bg: linear-gradient(180deg, rgba(46, 32, 25, 0.68), rgba(46, 32, 25, 0.26));
-  --shell-workspace-bg: linear-gradient(180deg, rgba(34, 24, 19, 0.88), rgba(25, 18, 14, 0.9));
-  --shell-border: rgba(255, 168, 104, 0.14);
-  --shell-divider: rgba(255, 168, 104, 0.12);
-  --menu-hover-bg: rgba(255, 138, 61, 0.1);
-  --menu-active-bg: linear-gradient(90deg, rgba(255, 138, 61, 0.18), rgba(255, 195, 112, 0.08));
+    radial-gradient(circle at 10% 8%, rgba(255, 148, 98, 0.16), transparent 24%),
+    radial-gradient(circle at 88% 10%, rgba(126, 167, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 72% 84%, rgba(100, 187, 143, 0.12), transparent 24%),
+    linear-gradient(180deg, #16100d 0%, #1b1412 42%, #171c24 100%);
+  --surface-card: rgba(38, 28, 24, 0.74);
+  --surface-card-strong: rgba(42, 31, 26, 0.88);
+  --surface-overlay: rgba(42, 30, 26, 0.62);
+  --surface-muted: rgba(54, 40, 35, 0.92);
+  --surface-raised: linear-gradient(180deg, rgba(47, 35, 31, 0.96), rgba(33, 27, 31, 0.94));
+  --shell-sidebar-bg: linear-gradient(180deg, rgba(30, 22, 19, 0.96), rgba(22, 18, 23, 0.94));
+  --shell-header-bg: linear-gradient(180deg, rgba(47, 35, 31, 0.68), rgba(47, 35, 31, 0.26));
+  --shell-workspace-bg: linear-gradient(180deg, rgba(35, 27, 24, 0.88), rgba(24, 21, 28, 0.9));
+  --shell-border: rgba(255, 182, 122, 0.12);
+  --shell-divider: rgba(164, 189, 255, 0.1);
+  --menu-hover-bg: rgba(126, 167, 255, 0.1);
+  --menu-active-bg: linear-gradient(90deg, rgba(255, 148, 98, 0.18), rgba(126, 167, 255, 0.14));
   --soft-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
-  --panel-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
-  --sidebar-mark-bg: linear-gradient(135deg, #ff8a3d 0%, #ffae63 56%, #ffd08d 100%);
+  --panel-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
+  --sidebar-mark-bg: linear-gradient(135deg, #ff9462 0%, #ffc46d 52%, #7ea7ff 100%);
   --sidebar-mark-ring: rgba(255, 255, 255, 0.18);
-  --control-bg: rgba(46, 32, 25, 0.96);
-  --control-bg-focus: rgba(55, 38, 30, 1);
-  --control-text: #fff4eb;
-  --control-muted: #b39279;
-  --scrollbar-color: rgba(255, 138, 61, 0.2);
-  --scrollbar-color-hover: rgba(255, 138, 61, 0.34);
-  --ambient-amber: rgba(255, 138, 61, 0.16);
-  --ambient-jade: rgba(255, 191, 118, 0.16);
-  --selection-bg: rgba(255, 138, 61, 0.88);
+  --control-bg: rgba(46, 34, 31, 0.96);
+  --control-bg-focus: rgba(56, 40, 37, 1);
+  --control-text: #fff4ed;
+  --control-muted: #b99783;
+  --scrollbar-color: rgba(126, 167, 255, 0.22);
+  --scrollbar-color-hover: rgba(255, 148, 98, 0.34);
+  --ambient-amber: rgba(255, 148, 98, 0.18);
+  --ambient-jade: rgba(126, 167, 255, 0.16);
+  --selection-bg: rgba(255, 148, 98, 0.88);
   --selection-text: #180e08;
-  --page-line: rgba(255, 168, 104, 0.12);
+  --page-line: rgba(164, 189, 255, 0.12);
 }
 
 * {

@@ -4,9 +4,9 @@
       <icon-custom-logo text-30 color-primary />
     </div>
     <div v-show="!appStore.collapsed" class="side-logo__copy">
-      <p class="side-logo__eyebrow">Momenta</p>
+      <p class="side-logo__eyebrow">拾光视频</p>
       <h2>{{ title }}</h2>
-      <span>Admin Center</span>
+      <span>管理后台</span>
     </div>
   </router-link>
 </template>

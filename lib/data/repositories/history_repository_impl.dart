@@ -91,6 +91,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
         id: item.id,
         status: item.status,
         prompt: _firstNonEmpty(item.prompt, existing.prompt),
+        displayText: _firstNonEmpty(item.displayText, existing.displayText),
         videoUrl: _firstNonEmpty(item.videoUrl, existing.videoUrl),
         errorMessage: _firstNonEmpty(item.errorMessage, existing.errorMessage),
         duration: item.duration ?? existing.duration,
@@ -109,6 +110,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
 
   @override
   Future<void> remove(String id) async {
+    // The backend only marks the task deleted in our own history records.
     await _apiService.deleteHistory(id);
     final List<HistoryItemModel> items = _readLocalItems();
     items.removeWhere((HistoryItemModel item) => item.id == id);
@@ -117,6 +119,7 @@ class HistoryRepositoryImpl implements HistoryRepository {
 
   @override
   Future<void> clear() async {
+    // Clearing history is also a local soft-delete on the backend side.
     await _apiService.clearHistory();
     await _localStorageService.remove(_storageKey);
   }

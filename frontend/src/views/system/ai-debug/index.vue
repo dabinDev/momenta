@@ -330,7 +330,7 @@ function shortHost(url = '') {
     <template #header>
       <div class="debug-header">
         <div class="debug-header__copy">
-          <p class="debug-header__eyebrow">AI DEBUG</p>
+          <p class="debug-header__eyebrow">AI调试</p>
           <h2>AI 调试台</h2>
           <p>把 app 里的上传、润色、提示词生成、建任务和语音识别统一放到 web 后台调试。</p>
         </div>

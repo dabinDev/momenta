@@ -238,7 +238,7 @@ function readText(value) {
     <template #header>
       <div class="voice-header">
         <div>
-          <p class="voice-header__eyebrow">VOICE LOGS</p>
+          <p class="voice-header__eyebrow">语音日志</p>
           <h2>语音日志</h2>
           <p>每次语音识别都会留下审计记录，方便排查识别率、失败原因和用户使用情况。</p>
         </div>
@@ -295,7 +295,7 @@ function readText(value) {
       <template #header>
         <div v-if="activeLog" class="voice-detail__header">
           <div>
-            <p class="voice-detail__eyebrow">VOICE DETAIL</p>
+            <p class="voice-detail__eyebrow">日志详情</p>
             <h3>{{ activeLog.user?.alias || activeLog.user?.username || '未绑定用户' }}</h3>
             <p>{{ activeLog.file_name || '未提供文件名' }}</p>
           </div>

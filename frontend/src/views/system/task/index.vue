@@ -140,8 +140,8 @@ const columns = [
     },
   },
   {
-    title: '提示词',
-    key: 'prompt',
+    title: '用户输入',
+    key: 'display_text',
     minWidth: 320,
     ellipsis: { tooltip: true },
   },
@@ -345,7 +345,7 @@ async function handleTaskVideoDownload(task) {
     <template #header>
       <div class="task-header">
         <div>
-          <p class="task-header__eyebrow">TASK CENTER</p>
+          <p class="task-header__eyebrow">任务中心</p>
           <h2>视频任务</h2>
           <p>App 端生成的视频任务统一沉淀到这里，后台可以直接查看状态、用户与失败原因。</p>
         </div>
@@ -399,7 +399,7 @@ async function handleTaskVideoDownload(task) {
       <template #header>
         <div v-if="activeTask" class="task-detail__header">
           <div>
-            <p class="task-detail__eyebrow">TASK DETAIL</p>
+            <p class="task-detail__eyebrow">任务详情</p>
             <h3>{{ activeTask.user?.alias || activeTask.user?.username || '未绑定用户' }}</h3>
             <p>
               {{ resolveTaskTypeLabel(activeTask.task_type) }} ·

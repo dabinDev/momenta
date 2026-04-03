@@ -111,11 +111,6 @@ class AppSettingsController extends GetxController {
       SnackbarHelper.error('请先完善视频服务配置');
       return;
     }
-    if (config.speechBaseUrl.isEmpty || config.speechModel.isEmpty) {
-      SnackbarHelper.error('请先完善语音服务配置');
-      return;
-    }
-
     isSaving.value = true;
     try {
       final AppConfigModel savedConfig =

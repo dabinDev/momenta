@@ -225,7 +225,7 @@ class AITemplateRegistryService:
                 title="AI快速创作",
                 subtitle="输入内容后，完成语音转文字、AI校验、英文提示词生成和视频生成。",
                 highlights=("语音转文字", "AI校验", "少参数"),
-                default_prompt_template_key="family_memory",
+                default_prompt_template_key=None,
                 default_video_template_key="warm_album",
                 supports_voice_input=True,
                 supports_text_correction=True,
@@ -238,7 +238,7 @@ class AITemplateRegistryService:
                 title="链接入门创作",
                 subtitle="在简单模式基础上增加链接地址，结合图片快速生成相关视频。",
                 highlights=("视频链接", "上传图片", "快速跟做"),
-                default_prompt_template_key="family_memory",
+                default_prompt_template_key=None,
                 default_video_template_key="warm_album",
                 supports_voice_input=True,
                 supports_text_correction=True,
@@ -288,12 +288,18 @@ class AITemplateRegistryService:
                     return mode
         return self._workbench_modes[0]
 
-    def get_prompt_template(self, key: str | None) -> PromptTemplate:
+    def find_prompt_template(self, key: str | None) -> PromptTemplate | None:
         if key:
             normalized = key.strip().lower()
             for template in self._prompt_templates:
                 if template.key == normalized:
                     return template
+        return None
+
+    def get_prompt_template(self, key: str | None) -> PromptTemplate:
+        template = self.find_prompt_template(key)
+        if template is not None:
+            return template
         return self._prompt_templates[0]
 
     def get_video_template(self, key: str | None) -> VideoTemplate:
@@ -305,16 +311,28 @@ class AITemplateRegistryService:
         return self._video_templates[0]
 
     def build_prompt_system_prompt(self, *, prompt_template_key: str | None) -> str:
-        template = self.get_prompt_template(prompt_template_key)
-        return (
+        template = self.find_prompt_template(prompt_template_key)
+        parts = [
             "You are an expert prompt writer for vertical AI video generation. "
             "Convert the user's Chinese requirement into one polished English prompt that can be used directly "
             "by a video model. The prompt should be vivid, concise, and production-ready. "
             "Cover subject, scene, action, camera language, lighting, composition, emotion, subtitle style when useful, "
-            "and pacing. Follow this creative direction first: "
-            f"{template.generation_instruction} "
+            "and pacing. Keep the result elderly-friendly with warm, natural visuals, stable framing, readable hierarchy, "
+            "and comfortable pacing. If subtitles or on-screen text are needed, they must be in Simplified Chinese. "
+            "Preserve every concrete user detail that is provided, including people, location, expression, action, "
+            "camera intent, and mood. Never replace explicit content with generic placeholders like 'no specific story "
+            "content provided'. Follow the user's requested content first and do not force a fixed preset story, "
+            "family-memory framing, or other template unless it is explicitly requested."
+        ]
+        if template is not None:
+            parts.append(
+                "When it helps the user's request, you may also apply this optional creative direction: "
+                f"{template.generation_instruction}"
+            )
+        parts.append(
             "Return only the final English prompt with no title, list, explanation, or quotation marks."
         )
+        return " ".join(parts)
 
     def compose_simple_video_request(
         self,
@@ -428,21 +446,48 @@ class AITemplateRegistryService:
         reference_video_path: str | None = None,
         supplemental_text: str | None = None,
     ) -> dict[str, Any]:
-        prompt_template = self.get_prompt_template(prompt_template_key)
+        prompt_template = self.find_prompt_template(prompt_template_key)
         video_template = self.get_video_template(video_template_key)
 
         segments = [
             f"Core request: {prompt.strip()}",
-            f"Prompt direction: {prompt_template.render_instruction}",
-            f"Visual style: {video_template.style_hint}",
-            f"Camera rhythm: {video_template.shot_hint}",
-            f"Subtitle guidance: {video_template.subtitle_hint}",
             (
-                "Keep the result suitable for elderly viewers: clean subtitles, natural expressions, "
-                "stable framing, and easy-to-follow pacing."
+                "Follow the user's requested subject and story first, and do not force any unrelated preset template, "
+                "fixed copy, or stock narrative."
+            ),
+            (
+                "Keep the result suitable for elderly viewers: warm and natural visuals, natural expressions, "
+                "stable framing, clean composition, and easy-to-follow pacing."
+            ),
+            (
+                "If subtitles or any on-screen text are used, they must be in Simplified Chinese with large, "
+                "clear, high-contrast typography."
             ),
             "Generate a vertical short video and avoid distracting flashy effects.",
         ]
+        if prompt_template is not None:
+            segments.append(f"Prompt direction: {prompt_template.render_instruction}")
+        if creation_mode == "custom":
+            segments.extend(
+                [
+                    f"Visual style: {video_template.style_hint}",
+                    f"Camera rhythm: {video_template.shot_hint}",
+                    f"Subtitle guidance: {video_template.subtitle_hint}",
+                ]
+            )
+        else:
+            segments.extend(
+                [
+                    (
+                        "Visual style: realistic daily-life scenes, natural lighting, and a friendly vertical-video look "
+                        "that stays grounded in the user's request."
+                    ),
+                    (
+                        "Camera rhythm: gentle movement, stable medium and close framing, and smooth transitions that support "
+                        "the story without becoming flashy."
+                    ),
+                ]
+            )
         if has_images:
             segments.append(
                 "Use the uploaded images as references for subject identity, clothing details, and scene elements."
@@ -480,7 +525,7 @@ class AITemplateRegistryService:
             "provider_prompt": provider_prompt,
             "duration": duration if duration > 0 else video_template.default_duration,
             "size": video_template.size,
-            "prompt_template": prompt_template.to_dict(),
+            "prompt_template": prompt_template.to_dict() if prompt_template is not None else None,
             "video_template": video_template.to_dict(),
             "creation_mode": creation_mode or "simple",
             "reference_link": (reference_link or "").strip(),

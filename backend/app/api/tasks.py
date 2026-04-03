@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
-from app.controllers.task import task_controller
+from app.controllers.task import VideoGenerationRateLimitError, task_controller
 from app.core.ctx import CTX_USER_ID
 from app.core.dependency import DependAuth
 from app.schemas.base import Success
@@ -150,8 +150,11 @@ async def get_create_workbench():
 @router.post("/tasks", summary="Create a simple video task", dependencies=[DependAuth])
 async def create_task(req_in: VideoTaskCreateIn):
     user_id = CTX_USER_ID.get()
+    slot_claimed = False
 
     try:
+        await task_controller.claim_generation_slot(user_id=user_id)
+        slot_claimed = True
         provider, payload = await business_gateway_service.generate_video(
             user_id=user_id,
             prompt=req_in.prompt,
@@ -160,26 +163,33 @@ async def create_task(req_in: VideoTaskCreateIn):
             prompt_template_key=req_in.prompt_template_key,
             video_template_key=req_in.video_template_key,
         )
+        return await _build_task_response(
+            user_id=user_id,
+            provider=provider,
+            payload=payload,
+            input_text=req_in.input_text,
+            polished_text=req_in.polished_text,
+            prompt=req_in.prompt,
+            duration=req_in.duration,
+            images=req_in.images,
+        )
+    except VideoGenerationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    return await _build_task_response(
-        user_id=user_id,
-        provider=provider,
-        payload=payload,
-        input_text=req_in.input_text,
-        polished_text=req_in.polished_text,
-        prompt=req_in.prompt,
-        duration=req_in.duration,
-        images=req_in.images,
-    )
+    finally:
+        if slot_claimed:
+            await task_controller.release_generation_slot(user_id=user_id)
 
 
 @router.post("/starter-tasks", summary="Create a starter video task", dependencies=[DependAuth])
 async def create_starter_task(req_in: StarterVideoTaskCreateIn):
     user_id = CTX_USER_ID.get()
+    slot_claimed = False
 
     try:
+        await task_controller.claim_generation_slot(user_id=user_id)
+        slot_claimed = True
         provider, payload = await business_gateway_service.generate_starter_video(
             user_id=user_id,
             prompt=req_in.prompt,
@@ -191,26 +201,33 @@ async def create_starter_task(req_in: StarterVideoTaskCreateIn):
             video_template_key=req_in.video_template_key,
             supplemental_text=req_in.supplemental_text,
         )
+        return await _build_task_response(
+            user_id=user_id,
+            provider=provider,
+            payload=payload,
+            input_text=req_in.input_text,
+            polished_text=None,
+            prompt=req_in.prompt,
+            duration=req_in.duration,
+            images=req_in.images,
+        )
+    except VideoGenerationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    return await _build_task_response(
-        user_id=user_id,
-        provider=provider,
-        payload=payload,
-        input_text=req_in.input_text,
-        polished_text=None,
-        prompt=req_in.prompt,
-        duration=req_in.duration,
-        images=req_in.images,
-    )
+    finally:
+        if slot_claimed:
+            await task_controller.release_generation_slot(user_id=user_id)
 
 
 @router.post("/custom-tasks", summary="Create a custom video task", dependencies=[DependAuth])
 async def create_custom_task(req_in: CustomVideoTaskCreateIn):
     user_id = CTX_USER_ID.get()
+    slot_claimed = False
 
     try:
+        await task_controller.claim_generation_slot(user_id=user_id)
+        slot_claimed = True
         provider, payload = await business_gateway_service.generate_custom_video(
             user_id=user_id,
             prompt=req_in.prompt,
@@ -223,19 +240,23 @@ async def create_custom_task(req_in: CustomVideoTaskCreateIn):
             reference_video_path=req_in.reference_video_path,
             supplemental_text=req_in.supplemental_text,
         )
+        return await _build_task_response(
+            user_id=user_id,
+            provider=provider,
+            payload=payload,
+            input_text=req_in.input_text,
+            polished_text=None,
+            prompt=req_in.prompt,
+            duration=req_in.duration,
+            images=req_in.images,
+        )
+    except VideoGenerationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    return await _build_task_response(
-        user_id=user_id,
-        provider=provider,
-        payload=payload,
-        input_text=req_in.input_text,
-        polished_text=None,
-        prompt=req_in.prompt,
-        duration=req_in.duration,
-        images=req_in.images,
-    )
+    finally:
+        if slot_claimed:
+            await task_controller.release_generation_slot(user_id=user_id)
 
 
 @router.get("/tasks", summary="List current user tasks", dependencies=[DependAuth])
@@ -290,14 +311,14 @@ async def get_task(task_id: int):
 async def delete_task(task_id: int):
     user_id = CTX_USER_ID.get()
     await task_controller.mark_deleted(task_id=task_id, user_id=user_id)
-    return Success(msg="Task removed from history")
+    return Success(msg="Task marked deleted in local history")
 
 
 @router.delete("/tasks", summary="Clear current user history", dependencies=[DependAuth])
 async def clear_tasks():
     user_id = CTX_USER_ID.get()
     await task_controller.mark_all_deleted(user_id=user_id)
-    return Success(msg="History cleared")
+    return Success(msg="History items marked deleted in local history")
 
 
 tasks_router = router

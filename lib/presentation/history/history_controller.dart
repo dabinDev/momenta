@@ -44,6 +44,9 @@ class HistoryController extends GetxController {
   }
 
   Future<void> refreshList() async {
+    if (isLoading.value) {
+      return;
+    }
     await loadHistory(reset: true);
   }
 
@@ -198,6 +201,9 @@ class HistoryController extends GetxController {
               prompt: (status.prompt?.trim().isNotEmpty ?? false)
                   ? status.prompt
                   : item.prompt,
+              displayText: (status.displayText?.trim().isNotEmpty ?? false)
+                  ? status.displayText
+                  : item.displayText,
               videoUrl: status.videoUrl ?? item.videoUrl,
               errorMessage: status.errorMessage ?? item.errorMessage,
               duration: status.duration ?? item.duration,

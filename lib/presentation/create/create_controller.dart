@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../app/constants.dart';
 import '../../app/routes.dart';
@@ -135,7 +135,7 @@ class CreateController extends GetxController {
   final HistoryRepository _historyRepository;
   final ApiService _apiService;
   final ImagePicker _imagePicker = ImagePicker();
-  final AudioRecorder _audioRecorder = AudioRecorder();
+  final SpeechToText _speechToText = SpeechToText();
 
   final TextEditingController textController = TextEditingController();
   final TextEditingController promptController = TextEditingController();
@@ -167,14 +167,18 @@ class CreateController extends GetxController {
   final RxInt pollingCount = 0.obs;
   final RxDouble generationProgress = 0.0.obs;
   final RxString transcribedText = ''.obs;
+  final RxString liveSpeechText = ''.obs;
   final Rxn<VideoTaskModel> currentTask = Rxn<VideoTaskModel>();
 
   bool _isSpeechDialogVisible = false;
   bool _isApplyingTextChange = false;
   Timer? _recordingTimer;
   Completer<bool>? _speechDecisionCompleter;
+  Completer<String?>? _speechResultCompleter;
   String? _lastRawTextBeforeCorrection;
   String? _lastCorrectedText;
+  String? _speechErrorMessage;
+  String _speechDraftText = '';
 
   @override
   void onInit() {
@@ -186,10 +190,10 @@ class CreateController extends GetxController {
   @override
   void onClose() {
     _recordingTimer?.cancel();
-    _audioRecorder.dispose();
     textController.dispose();
     promptController.dispose();
     starterLinkController.dispose();
+    unawaited(_speechToText.cancel());
     super.onClose();
   }
 
@@ -373,47 +377,55 @@ class CreateController extends GetxController {
       return;
     }
 
-    final bool hasPermission = await _audioRecorder.hasPermission();
-    if (!hasPermission) {
-      SnackbarHelper.error('未授予麦克风权限，仍可手动输入文字');
+    final bool initialized = await _initializeSpeechRecognizer();
+    if (!initialized) {
+      SnackbarHelper.error(
+        '\u5f53\u524d\u8bbe\u5907\u6682\u4e0d\u652f\u6301\u7cfb\u7edf\u8bed\u97f3\u8bc6\u522b\uff0c\u8bf7\u76f4\u63a5\u624b\u52a8\u8f93\u5165\u6587\u5b57',
+      );
       return;
     }
 
     _speechDecisionCompleter = Completer<bool>();
+    _speechResultCompleter = Completer<String?>();
+    _speechErrorMessage = null;
+    _speechDraftText = '';
+    liveSpeechText.value = '';
     _showSpeechDialog();
 
-    File? audioFile;
     try {
-      await _startSpeechRecording();
+      await _startSpeechRecognition();
       final bool shouldTranscribe = await _speechDecisionCompleter!.future;
-      audioFile = await _stopSpeechRecording(shouldSave: shouldTranscribe);
-      if (audioFile == null) {
+      if (!shouldTranscribe) {
+        await _cancelSpeechRecognition();
         return;
       }
 
       isTranscribing.value = true;
-      final String recognizedText =
-          (await _videoRepository.transcribeAudio(audioFile)).trim();
+      final String recognizedText = (await _finishSpeechRecognition()).trim();
       if (recognizedText.isEmpty) {
-        SnackbarHelper.error('没有识别到清晰语音，请重试');
+        SnackbarHelper.error(
+          _speechErrorMessage ??
+              '\u6ca1\u6709\u8bc6\u522b\u5230\u6e05\u6670\u8bed\u97f3\uff0c\u8bf7\u91cd\u8bd5',
+        );
         return;
       }
 
       transcribedText.value = recognizedText;
       _appendRecognizedText(recognizedText);
-      SnackbarHelper.success('语音已转成文字');
+      SnackbarHelper.success('\u8bed\u97f3\u5df2\u8f6c\u6362\u6210\u6587\u5b57');
     } catch (error) {
-      SnackbarHelper.error(_readError(error, fallback: '语音识别失败'));
+      SnackbarHelper.error(
+        _readError(error, fallback: '\u8bed\u97f3\u8bc6\u522b\u5931\u8d25'),
+      );
     } finally {
       _recordingTimer?.cancel();
       _speechDecisionCompleter = null;
+      _speechResultCompleter = null;
       recordingSeconds.value = 0;
       isRecording.value = false;
       isTranscribing.value = false;
+      liveSpeechText.value = '';
       _closeSpeechDialog();
-      if (audioFile != null) {
-        await _clearSpeechTempFile(audioFile.path);
-      }
     }
   }
 
@@ -421,6 +433,9 @@ class CreateController extends GetxController {
     final Completer<bool>? completer = _speechDecisionCompleter;
     if (completer != null && !completer.isCompleted) {
       completer.complete(false);
+    }
+    if (_speechResultCompleter != null && !_speechResultCompleter!.isCompleted) {
+      _speechResultCompleter!.complete(null);
     }
     _closeSpeechDialog();
   }
@@ -469,7 +484,7 @@ class CreateController extends GetxController {
     try {
       final String prompt = await _videoRepository.generatePrompt(
         rawText,
-        promptTemplateKey: selectedPromptTemplateKey.value,
+        promptTemplateKey: _activePromptTemplateKeyFor(mode),
       );
       promptController.text = prompt;
       SnackbarHelper.success('创作提示词已生成，可继续修改');
@@ -483,14 +498,17 @@ class CreateController extends GetxController {
   Future<void> generateVideo() => generateSimpleVideo();
 
   Future<void> generateSimpleVideo() async {
+    if (isSubmitting.value) {
+      return;
+    }
     final String prompt = promptController.text.trim();
     if (prompt.isEmpty) {
-      SnackbarHelper.error('??????????????');
+      SnackbarHelper.error('\u8bf7\u5148\u751f\u6210\u6216\u8f93\u5165\u89c6\u9891\u63d0\u793a\u8bcd');
       return;
     }
 
     if (selectedImages.isEmpty) {
-      SnackbarHelper.error('????????????? 1 ????');
+      SnackbarHelper.error('\u8bf7\u81f3\u5c11\u4e0a\u4f20 1 \u5f20\u56fe\u7247');
       return;
     }
 
@@ -505,12 +523,15 @@ class CreateController extends GetxController {
       prompt: prompt,
       inputText: inputText,
       polishedText: correctedText,
-      promptTemplateKey: selectedPromptTemplateKey.value,
+      promptTemplateKey: null,
       videoTemplateKey: selectedVideoTemplateKey.value,
     );
   }
 
   Future<void> generateStarterVideo() async {
+    if (isSubmitting.value) {
+      return;
+    }
     final String link = starterLinkController.text.trim();
     if (!_looksLikeVideoUrl(link)) {
       SnackbarHelper.error('请先输入可访问的视频链接');
@@ -528,8 +549,7 @@ class CreateController extends GetxController {
       prompt: _normalizeNullableText(prompt),
       inputText: _normalizeNullableText(note),
       polishedText: null,
-      promptTemplateKey:
-          _modeDefaultPromptTemplateKey(CreateWorkbenchMode.starter),
+      promptTemplateKey: null,
       videoTemplateKey:
           _modeDefaultVideoTemplateKey(CreateWorkbenchMode.starter),
       referenceLink: link,
@@ -537,6 +557,9 @@ class CreateController extends GetxController {
   }
 
   Future<void> generateCustomVideo() async {
+    if (isSubmitting.value) {
+      return;
+    }
     final AiTemplateModel? template = selectedCustomTemplate;
     if (template == null) {
       SnackbarHelper.error('请先选择一个热门模板');
@@ -555,8 +578,7 @@ class CreateController extends GetxController {
       prompt: _normalizeNullableText(prompt),
       inputText: _normalizeNullableText(note),
       polishedText: null,
-      promptTemplateKey:
-          _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom),
+      promptTemplateKey: _activePromptTemplateKeyFor(CreateWorkbenchMode.custom),
       videoTemplateKey: template.key,
       referenceLink: _normalizeNullableText(link),
       includeReferenceVideo: true,
@@ -574,10 +596,16 @@ class CreateController extends GetxController {
     String? supplementalText,
     bool includeReferenceVideo = false,
   }) async {
+    if (isSubmitting.value) {
+      return;
+    }
+    final bool keepCurrentTaskVisible = currentTask.value?.isProcessing ?? false;
     isSubmitting.value = true;
     generationProgress.value = 0;
     pollingCount.value = 0;
-    currentTask.value = null;
+    if (!keepCurrentTaskVisible) {
+      currentTask.value = null;
+    }
 
     try {
       final List<String> images = await _prepareImagesIfNeeded();
@@ -660,7 +688,13 @@ class CreateController extends GetxController {
         ),
       );
     } catch (error) {
-      SnackbarHelper.error(_readError(error, fallback: '视频生成失败'));
+      final String message = _readError(error, fallback: '视频生成失败');
+      if (_isProcessingLimitMessage(message)) {
+        SnackbarHelper.info(message);
+        await _refreshLatestTaskFeedback();
+      } else {
+        SnackbarHelper.error(message);
+      }
     } finally {
       isSubmitting.value = false;
     }
@@ -804,6 +838,9 @@ class CreateController extends GetxController {
         status: task.status,
         prompt: (task.prompt?.trim().isNotEmpty ?? false)
             ? task.prompt!.trim()
+            : null,
+        displayText: (task.displayText?.trim().isNotEmpty ?? false)
+            ? task.displayText!.trim()
             : fallbackPrompt,
         videoUrl: task.videoUrl,
         errorMessage: task.errorMessage,
@@ -813,29 +850,17 @@ class CreateController extends GetxController {
     );
   }
 
-  Future<void> _startSpeechRecording() async {
-    final Directory directory = await getTemporaryDirectory();
-    final String filePath = p.join(
-      directory.path,
-      'speech_${DateTime.now().millisecondsSinceEpoch}.pcm',
+  Future<bool> _initializeSpeechRecognizer() async {
+    final bool available = await _speechToText.initialize(
+      onStatus: _handleSpeechStatus,
+      onError: _handleSpeechError,
+      debugLogging: false,
     );
+    return available;
+  }
 
+  Future<void> _startSpeechRecognition() async {
     recordingSeconds.value = 0;
-    await _audioRecorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: AppConstants.speechSampleRate,
-        numChannels: 1,
-        autoGain: true,
-        echoCancel: true,
-        noiseSuppress: true,
-        androidConfig: AndroidRecordConfig(
-          audioSource: AndroidAudioSource.voiceRecognition,
-        ),
-      ),
-      path: filePath,
-    );
-
     isRecording.value = true;
     _recordingTimer?.cancel();
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
@@ -846,32 +871,96 @@ class CreateController extends GetxController {
         finishSpeechRecognition();
       }
     });
+
+    await _speechToText.listen(
+      onResult: _handleSpeechResult,
+      listenFor: const Duration(seconds: AppConstants.maxSpeechSeconds),
+      pauseFor: const Duration(seconds: 2),
+      localeId: 'zh_CN',
+      listenOptions: SpeechListenOptions(
+        partialResults: true,
+        cancelOnError: true,
+      ),
+    );
   }
 
-  Future<File?> _stopSpeechRecording({required bool shouldSave}) async {
+  Future<void> _cancelSpeechRecognition() async {
     _recordingTimer?.cancel();
     isRecording.value = false;
-    if (!shouldSave) {
-      await _audioRecorder.cancel();
-      return null;
-    }
-
-    final String? path = await _audioRecorder.stop();
-    if (path == null || path.isEmpty) {
-      throw const AppException('录音文件保存失败，请重试');
-    }
-    return File(path);
+    await _speechToText.cancel();
   }
 
-  Future<void> _clearSpeechTempFile(String path) async {
-    final File file = File(path);
-    if (await file.exists()) {
-      try {
-        await file.delete();
-      } catch (_) {
-        // Ignore local temp file cleanup failures.
+  Future<String> _finishSpeechRecognition() async {
+    _recordingTimer?.cancel();
+    isRecording.value = false;
+    await _speechToText.stop();
+    if (_speechResultCompleter == null) {
+      return _speechDraftText.trim();
+    }
+    final String? result = await _speechResultCompleter!.future.timeout(
+      const Duration(seconds: 2),
+      onTimeout: () => _speechDraftText,
+    );
+    return (result ?? _speechDraftText).trim();
+  }
+
+  void _handleSpeechResult(SpeechRecognitionResult result) {
+    final String recognizedWords = result.recognizedWords.trim();
+    if (recognizedWords.isEmpty) {
+      return;
+    }
+    _speechDraftText = recognizedWords;
+    liveSpeechText.value = recognizedWords;
+    if (result.finalResult &&
+        _speechResultCompleter != null &&
+        !_speechResultCompleter!.isCompleted) {
+      _speechResultCompleter!.complete(recognizedWords);
+    }
+  }
+
+  void _handleSpeechStatus(String status) {
+    final String normalized = status.trim().toLowerCase();
+    if (normalized == 'done' ||
+        normalized == 'notlistening' ||
+        normalized == 'not listening') {
+      if (_speechDecisionCompleter != null &&
+          !_speechDecisionCompleter!.isCompleted &&
+          isRecording.value) {
+        _speechDecisionCompleter!.complete(true);
+        _closeSpeechDialog();
+      }
+      if (_speechResultCompleter != null && !_speechResultCompleter!.isCompleted) {
+        _speechResultCompleter!.complete(_speechDraftText.trim());
       }
     }
+  }
+
+  void _handleSpeechError(SpeechRecognitionError error) {
+    _speechErrorMessage = _friendlySpeechError(error.errorMsg);
+    if (_speechDecisionCompleter != null && !_speechDecisionCompleter!.isCompleted) {
+      _speechDecisionCompleter!.complete(true);
+      _closeSpeechDialog();
+    }
+    if (_speechResultCompleter != null && !_speechResultCompleter!.isCompleted) {
+      _speechResultCompleter!.complete(_speechDraftText.trim());
+    }
+  }
+
+  String _friendlySpeechError(String errorCode) {
+    final String normalized = errorCode.trim().toLowerCase();
+    if (normalized.contains('permission')) {
+      return '\u8bf7\u5148\u5141\u8bb8\u9ea6\u514b\u98ce\u548c\u8bed\u97f3\u8bc6\u522b\u6743\u9650';
+    }
+    if (normalized.contains('no match') || normalized.contains('error_no_match')) {
+      return '\u6ca1\u6709\u8bc6\u522b\u5230\u6e05\u6670\u8bed\u97f3\uff0c\u8bf7\u91cd\u8bd5';
+    }
+    if (normalized.contains('network')) {
+      return '\u7cfb\u7edf\u8bed\u97f3\u8bc6\u522b\u6682\u65f6\u4e0d\u53ef\u7528\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u540e\u91cd\u8bd5';
+    }
+    if (normalized.contains('timeout')) {
+      return '\u957f\u65f6\u95f4\u672a\u68c0\u6d4b\u5230\u8bf4\u8bdd\u5185\u5bb9\uff0c\u8bf7\u91cd\u65b0\u5f55\u5165';
+    }
+    return '\u7cfb\u7edf\u8bed\u97f3\u8bc6\u522b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5';
   }
 
   void _appendRecognizedText(String recognizedText) {
@@ -955,11 +1044,11 @@ class CreateController extends GetxController {
   }
 
   void _ensureTemplateSelection() {
-    final String? promptTemplateKey = _modeDefaultPromptTemplateKey(mode) ??
-        _defaultTemplateKey(promptTemplates);
     final String? videoTemplateKey = _defaultTemplateKey(videoTemplates);
 
-    selectedPromptTemplateKey.value ??= promptTemplateKey;
+    selectedPromptTemplateKey.value ??=
+        _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom) ??
+            _defaultTemplateKey(promptTemplates);
     selectedVideoTemplateKey.value ??=
         _modeDefaultVideoTemplateKey(CreateWorkbenchMode.simple) ??
             videoTemplateKey;
@@ -981,13 +1070,20 @@ class CreateController extends GetxController {
     final String? modePromptTemplateKey = _modeDefaultPromptTemplateKey(mode);
     final String? modeVideoTemplateKey = _modeDefaultVideoTemplateKey(mode);
 
-    if (modePromptTemplateKey != null &&
-        mode != CreateWorkbenchMode.simple &&
-        selectedPromptTemplateKey.value != modePromptTemplateKey) {
-      selectedPromptTemplateKey.value = modePromptTemplateKey;
+    if (_supportsPromptTemplate(mode)) {
+      if (modePromptTemplateKey != null &&
+          selectedPromptTemplateKey.value != modePromptTemplateKey) {
+        selectedPromptTemplateKey.value = modePromptTemplateKey;
+      } else {
+        selectedPromptTemplateKey.value ??=
+            modePromptTemplateKey ??
+                _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom) ??
+                _defaultTemplateKey(promptTemplates);
+      }
     } else {
       selectedPromptTemplateKey.value ??=
-          modePromptTemplateKey ?? _defaultTemplateKey(promptTemplates);
+          _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom) ??
+              _defaultTemplateKey(promptTemplates);
     }
 
     switch (mode) {
@@ -1068,6 +1164,18 @@ class CreateController extends GetxController {
   String? _modeDefaultVideoTemplateKey(CreateWorkbenchMode mode) =>
       _findModeConfig(mode.code)?.defaultVideoTemplateKey;
 
+  bool _supportsPromptTemplate(CreateWorkbenchMode mode) =>
+      mode == CreateWorkbenchMode.custom;
+
+  String? _activePromptTemplateKeyFor(CreateWorkbenchMode mode) {
+    if (!_supportsPromptTemplate(mode)) {
+      return null;
+    }
+    return selectedPromptTemplateKey.value ??
+        _modeDefaultPromptTemplateKey(mode) ??
+        _defaultTemplateKey(promptTemplates);
+  }
+
   bool _looksLikeVideoUrl(String value) {
     final Uri? uri = Uri.tryParse(value.trim());
     return uri != null &&
@@ -1089,6 +1197,45 @@ class CreateController extends GetxController {
       return normalizedInput;
     }
     return titleForMode(mode);
+  }
+
+  bool _isProcessingLimitMessage(String message) {
+    final String normalized = message.trim();
+    return normalized.contains('当前已有视频正在处理') ||
+        normalized.contains('等待当前任务完成或失败后再试') ||
+        normalized.contains('当前发布请求正在提交') ||
+        normalized.contains('请勿重复点击');
+  }
+
+  Future<void> _refreshLatestTaskFeedback() async {
+    if (Get.isRegistered<HistoryController>()) {
+      await Get.find<HistoryController>().refreshList();
+    }
+
+    try {
+      final history = await _videoRepository.history(page: 1, limit: 10);
+      HistoryItemModel? latest;
+      for (final HistoryItemModel item in history.items) {
+        if (item.isProcessing) {
+          latest = item;
+          break;
+        }
+      }
+      latest ??= history.items.isEmpty ? null : history.items.first;
+      if (latest != null) {
+        currentTask.value = VideoTaskModel(
+          id: latest.id,
+          status: latest.status,
+          prompt: latest.prompt,
+          displayText: latest.displayText,
+          videoUrl: latest.videoUrl,
+          errorMessage: latest.errorMessage,
+          duration: latest.duration,
+        );
+      }
+    } catch (_) {
+      // Ignore follow-up refresh failures and keep the original feedback message.
+    }
   }
 
   String _readError(Object error, {required String fallback}) {
@@ -1178,6 +1325,30 @@ class _SpeechRecordingDialog extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        '\u5b9e\u65f6\u8bc6\u522b\u9884\u89c8',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        controller.liveSpeechText.value.trim().isEmpty
+                            ? '\u8bf7\u76f4\u63a5\u8bf4\u8bdd\uff0c\u8bc6\u522b\u7ed3\u679c\u4f1a\u5b9e\u65f6\u663e\u793a\u5728\u8fd9\u91cc\u3002'
+                            : controller.liveSpeechText.value.trim(),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
                 Column(
                   children: <Widget>[
                     ElevatedButton.icon(

@@ -4,31 +4,32 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color primary = Color(0xFFFF6A1A);
-  static const Color primaryDeep = Color(0xFFE65712);
-  static const Color primaryDark = Color(0xFFBE470C);
-  static const Color amber = Color(0xFFFFB446);
-  static const Color jade = Color(0xFF5E9A75);
-  static const Color sky = Color(0xFF6D95F4);
-  static const Color coral = Color(0xFFF38765);
-  static const Color canvas = Color(0xFFFFF8F2);
-  static const Color canvasWarm = Color(0xFFFFF0E4);
+  static const Color primary = Color(0xFFF06E42);
+  static const Color primaryDeep = Color(0xFFD95C35);
+  static const Color primaryDark = Color(0xFFB84A2C);
+  static const Color amber = Color(0xFFF4B651);
+  static const Color jade = Color(0xFF58A87E);
+  static const Color sky = Color(0xFF5D8DF7);
+  static const Color coral = Color(0xFFF09473);
+  static const Color canvas = Color(0xFFFFF9F4);
+  static const Color canvasWarm = Color(0xFFFFF1E6);
   static const Color surface = Color(0xFFFFFCFA);
-  static const Color surfaceSoft = Color(0xFFFFF4E9);
-  static const Color surfaceMuted = Color(0xFFFFEBDD);
-  static const Color outline = Color(0xFFF1E2D4);
-  static const Color outlineSoft = Color(0xFFF7EEE5);
-  static const Color fieldSurface = Color(0xFFFFFBF7);
-  static const Color fieldBorder = Color(0xFFE6D6C7);
-  static const Color secondaryButtonSurface = Color(0xFFFFF7F0);
-  static const Color text = Color(0xFF2E2118);
-  static const Color muted = Color(0xFF7E6B5C);
+  static const Color surfaceSoft = Color(0xFFFFF5EC);
+  static const Color surfaceMuted = Color(0xFFF8EEE6);
+  static const Color outline = Color(0xFFEEDFD3);
+  static const Color outlineSoft = Color(0xFFF6EEE8);
+  static const Color fieldSurface = Color(0xFFFFFCF8);
+  static const Color fieldBorder = Color(0xFFE7D9D1);
+  static const Color secondaryButtonSurface = Color(0xFFF6FAFF);
+  static const Color text = Color(0xFF302219);
+  static const Color muted = Color(0xFF7F6A5A);
 
   static const LinearGradient warmBackground = LinearGradient(
     colors: <Color>[
       Color(0xFFFFFCF8),
-      Color(0xFFFFF4EA),
-      Color(0xFFFFF9F4),
+      Color(0xFFFFF3E9),
+      Color(0xFFF4F8FF),
+      Color(0xFFF2FAF6),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -37,7 +38,7 @@ class AppTheme {
   static ThemeData get lightTheme {
     const ColorScheme colorScheme = ColorScheme.light(
       primary: primaryDeep,
-      secondary: amber,
+      secondary: sky,
       tertiary: jade,
       surface: surface,
       onPrimary: Colors.white,
@@ -86,7 +87,7 @@ class AppTheme {
       ),
       textSelectionTheme: const TextSelectionThemeData(
         cursorColor: primaryDeep,
-        selectionColor: Color(0x33FF8B4B),
+        selectionColor: Color(0x33F08B62),
         selectionHandleColor: primaryDeep,
       ),
       appBarTheme: const AppBarTheme(
@@ -257,7 +258,7 @@ class AppTheme {
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: primaryDeep,
-        linearTrackColor: Color(0xFFFFE7D3),
+        linearTrackColor: Color(0xFFDDE6FF),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

@@ -211,6 +211,7 @@ function normalizeTask(task) {
   return {
     id: String(task?.id || ''),
     prompt: String(task?.prompt || ''),
+    displayText: String(task?.display_text || task?.input_text || task?.polished_text || task?.prompt || ''),
     originalImages: images,
     duration: Number(task?.duration || 5),
     status: String(task?.status || 'processing'),
@@ -227,6 +228,8 @@ function normalizeTask(task) {
     promptTemplateName: String(requestContext?.prompt_template?.name || ''),
     videoTemplateKey: String(requestContext?.video_template?.key || ''),
     videoTemplateName: String(requestContext?.video_template?.name || ''),
+    inputText: String(task?.input_text || ''),
+    polishedText: String(task?.polished_text || ''),
     rawTask: task,
   };
 }
@@ -807,6 +810,7 @@ app.get('/api/history-summary', requireToken, (req, res) =>
 app.delete('/api/history', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     method: 'DELETE',
+    // The backend only soft-deletes local history rows and does not delete upstream provider tasks.
     targetPath: '/api/tasks',
     successMapper: () => ({
       success: true,
@@ -818,6 +822,7 @@ app.delete('/api/history', requireToken, (req, res) =>
 app.delete('/api/history/:id', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     method: 'DELETE',
+    // The backend only soft-deletes local history rows and does not delete upstream provider tasks.
     targetPath: `/api/tasks/${encodeURIComponent(req.params.id)}`,
     successMapper: () => ({
       success: true,

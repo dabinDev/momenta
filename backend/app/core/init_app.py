@@ -80,7 +80,7 @@ async def init_menus():
     if not parent_menu:
         parent_menu = await Menu.create(
             menu_type=MenuType.CATALOG,
-            name="System",
+            name="系统管理",
             path="/system",
             order=1,
             parent_id=0,
@@ -90,80 +90,89 @@ async def init_menus():
             keepalive=False,
             redirect="/system/user",
         )
+    else:
+        parent_menu.name = "系统管理"
+        parent_menu.order = 1
+        parent_menu.icon = "carbon:gui-management"
+        parent_menu.is_hidden = False
+        parent_menu.component = "Layout"
+        parent_menu.keepalive = False
+        parent_menu.redirect = "/system/user"
+        await parent_menu.save()
 
     desired_children = [
         {
-            "name": "Users",
+            "name": "用户管理",
             "path": "user",
             "order": 1,
             "icon": "material-symbols:person-outline-rounded",
             "component": "/system/user",
         },
         {
-            "name": "Roles",
+            "name": "角色管理",
             "path": "role",
             "order": 2,
             "icon": "carbon:user-role",
             "component": "/system/role",
         },
         {
-            "name": "Menus",
+            "name": "菜单管理",
             "path": "menu",
             "order": 3,
             "icon": "material-symbols:list-alt-outline",
             "component": "/system/menu",
         },
         {
-            "name": "APIs",
+            "name": "接口管理",
             "path": "api",
             "order": 4,
             "icon": "ant-design:api-outlined",
             "component": "/system/api",
         },
         {
-            "name": "Departments",
+            "name": "部门管理",
             "path": "dept",
             "order": 5,
             "icon": "mingcute:department-line",
             "component": "/system/dept",
         },
         {
-            "name": "Audit Logs",
+            "name": "审计日志",
             "path": "auditlog",
             "order": 6,
             "icon": "ph:clipboard-text-bold",
             "component": "/system/auditlog",
         },
         {
-            "name": "Video Tasks",
+            "name": "视频任务",
             "path": "task",
             "order": 7,
             "icon": "material-symbols:movie-outline-rounded",
             "component": "/system/task",
         },
         {
-            "name": "Voice Logs",
+            "name": "语音日志",
             "path": "voice-log",
             "order": 8,
             "icon": "material-symbols:graphic-eq-rounded",
             "component": "/system/voice-log",
         },
         {
-            "name": "App Releases",
+            "name": "版本发布",
             "path": "app-release",
             "order": 9,
             "icon": "material-symbols:system-update-alt-rounded",
             "component": "/system/app-release",
         },
         {
-            "name": "App Config",
+            "name": "应用配置",
             "path": "app-config",
             "order": 10,
             "icon": "material-symbols:tune-rounded",
             "component": "/system/app-config",
         },
         {
-            "name": "AI Debug",
+            "name": "AI调试",
             "path": "ai-debug",
             "order": 11,
             "icon": "material-symbols:experiment-outline-rounded",
@@ -199,7 +208,7 @@ async def init_menus():
     if not top_menu:
         await Menu.create(
             menu_type=MenuType.MENU,
-            name="Top Menu",
+            name="顶部菜单",
             path="/top-menu",
             order=2,
             parent_id=0,
@@ -209,6 +218,15 @@ async def init_menus():
             keepalive=False,
             redirect="",
         )
+    else:
+        top_menu.name = "顶部菜单"
+        top_menu.order = 2
+        top_menu.icon = "material-symbols:featured-play-list-outline"
+        top_menu.is_hidden = False
+        top_menu.component = "/top-menu"
+        top_menu.keepalive = False
+        top_menu.redirect = ""
+        await top_menu.save()
 
 
 async def init_apis():
