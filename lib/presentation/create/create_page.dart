@@ -50,7 +50,7 @@ class CreatePage extends GetView<CreateController> {
 
       return AppPageScaffold(
         title: 'AI创作',
-        subtitle: controller.modeSubtitle,
+        subtitle: controller.modeLabel,
         accentColor: mode.tint,
         actions: <Widget>[
           _ModeSwitchAction(

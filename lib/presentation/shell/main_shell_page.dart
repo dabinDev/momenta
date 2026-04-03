@@ -63,7 +63,7 @@ class MainShellPage extends GetView<MainShellController> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
                   child: Row(
                     children: <Widget>[
                       if (isCreateTab)
@@ -97,23 +97,11 @@ class MainShellPage extends GetView<MainShellController> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.headlineMedium?.copyWith(
-                            fontSize: 28,
+                            fontSize: 26,
                           ),
                         ),
                       ),
-                      if (isCreateTab) const SizedBox(width: 8),
-                      if (isCreateTab)
-                        Expanded(
-                          child: Text(
-                            createController.labelForMode(createMode),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.right,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: AppTheme.muted,
-                            ),
-                          ),
-                        ),
+                      if (isCreateTab) const SizedBox(width: 10),
                       const AppBrandMark(size: 34, radius: 10),
                     ],
                   ),
@@ -197,8 +185,22 @@ class _HeaderModeButton extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.72),
+            gradient: const LinearGradient(
+              colors: <Color>[
+                AppTheme.surface,
+                AppTheme.surfaceSky,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(14),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppTheme.sky.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

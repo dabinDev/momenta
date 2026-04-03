@@ -62,7 +62,7 @@ class SettingsPage extends GetView<SettingsController> {
 
     return AppPageScaffold(
       title: '个人中心',
-      subtitle: '查看账号基础信息',
+      subtitle: '账号信息与常用设置',
       accentColor: AppTheme.primary,
       child: content,
     );
@@ -148,7 +148,7 @@ class _BasicInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SectionCard(
       title: '个人基础信息',
-      subtitle: '其他功能已放到二级页面',
+      subtitle: '关键信息收纳在这里',
       icon: Icons.badge_outlined,
       accentColor: AppTheme.sky,
       child: Column(

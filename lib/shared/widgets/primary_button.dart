@@ -25,6 +25,7 @@ class PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool enabled = onPressed != null;
+    final BorderRadius borderRadius = BorderRadius.circular(18);
     final Color foreground = _outlined
         ? (enabled ? AppTheme.primaryDeep : AppTheme.muted)
         : Colors.white;
@@ -45,15 +46,68 @@ class PrimaryButton extends StatelessWidget {
     );
 
     if (_outlined) {
-      return OutlinedButton(
-        onPressed: onPressed,
-        child: child,
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: <Color>[
+              AppTheme.surfaceSky,
+              AppTheme.surface,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: borderRadius,
+          boxShadow: enabled
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: AppTheme.sky.withValues(alpha: 0.12),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : const <BoxShadow>[],
+        ),
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: borderRadius),
+          ),
+          child: child,
+        ),
       );
     }
 
-    return ElevatedButton(
-      onPressed: onPressed,
-      child: child,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: <Color>[
+            AppTheme.primary,
+            AppTheme.coral,
+            AppTheme.amber,
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: borderRadius,
+        boxShadow: enabled
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: AppTheme.primaryDeep.withValues(alpha: 0.24),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ]
+            : const <BoxShadow>[],
+      ),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: borderRadius),
+        ),
+        child: child,
+      ),
     );
   }
 }

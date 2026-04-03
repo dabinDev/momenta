@@ -195,26 +195,26 @@ const overviewStats = computed(() => [
 <style scoped>
 .workbench-page {
   display: grid;
-  gap: 24px;
+  gap: 20px;
 }
 
 .workbench-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.24fr) 320px;
   gap: 22px;
-  padding: 24px;
+  padding: 22px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 20px;
   background:
     radial-gradient(circle at top right, rgba(255, 210, 150, 0.18), transparent 26%),
-    linear-gradient(135deg, #ff6a00 0%, #ff8421 54%, #ffad48 100%);
+    linear-gradient(135deg, #f06b42 0%, #f39a58 48%, #79a3ff 100%);
   color: #ffffff;
   box-shadow: 0 14px 34px rgba(255, 112, 25, 0.14);
 }
 
 .workbench-hero__main {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .workbench-hero__brand {
@@ -230,8 +230,8 @@ const overviewStats = computed(() => [
 
 .workbench-hero__eyebrow,
 .workbench-panel__eyebrow {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -239,15 +239,15 @@ const overviewStats = computed(() => [
 
 .workbench-hero__brand h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: 30px;
   line-height: 1.08;
 }
 
 .workbench-hero__summary {
-  max-width: 640px;
+  max-width: 520px;
   margin: 0;
-  font-size: 16px;
-  line-height: 1.72;
+  font-size: 14px;
+  line-height: 1.65;
   color: rgba(255, 255, 255, 0.9);
 }
 
@@ -338,16 +338,16 @@ const overviewStats = computed(() => [
   display: grid;
   gap: 18px;
   min-width: 0;
-  padding: 20px;
+  padding: 18px;
   border: 1px solid var(--shell-border);
   border-radius: 18px;
-  background: rgba(255, 251, 248, 0.72);
+  background: linear-gradient(135deg, rgba(255, 251, 248, 0.78), rgba(247, 249, 255, 0.74));
   box-shadow: var(--soft-shadow);
   backdrop-filter: blur(20px);
 }
 
 .workbench-panel--soft {
-  background: rgba(255, 247, 242, 0.66);
+  background: linear-gradient(135deg, rgba(255, 247, 242, 0.8), rgba(242, 250, 246, 0.7));
 }
 
 .workbench-panel__header {
@@ -383,7 +383,7 @@ const overviewStats = computed(() => [
   padding: 16px;
   border: 1px solid rgba(255, 105, 0, 0.08);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.58);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(249, 250, 255, 0.66));
   color: inherit;
   text-align: left;
   box-shadow: none;
@@ -395,6 +395,7 @@ const overviewStats = computed(() => [
 .workbench-shortcut:hover {
   transform: translateY(-1px);
   border-color: rgba(255, 105, 0, 0.18);
+  box-shadow: 0 14px 28px rgba(94, 128, 212, 0.1);
 }
 
 .workbench-shortcut__icon {
@@ -403,7 +404,7 @@ const overviewStats = computed(() => [
   height: 46px;
   place-items: center;
   border-radius: 14px;
-  background: rgba(255, 105, 0, 0.1);
+  background: linear-gradient(135deg, rgba(240, 107, 66, 0.16), rgba(126, 167, 255, 0.12));
   color: var(--brand-primary);
 }
 
@@ -431,7 +432,7 @@ const overviewStats = computed(() => [
   padding: 14px 16px;
   border: 1px solid rgba(255, 105, 0, 0.08);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.48);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.64), rgba(255, 248, 241, 0.66));
 }
 
 @media (max-width: 1180px) {

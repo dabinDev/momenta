@@ -55,11 +55,11 @@ class AppPageScaffold extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleLarge?.copyWith(
-                              fontSize: 24,
+                              fontSize: 23,
                             ),
                           ),
                           if (subtitle?.trim().isNotEmpty == true) ...<Widget>[
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 2),
                             Text(
                               subtitle!,
                               style: theme.textTheme.bodyMedium,
@@ -106,8 +106,22 @@ class _NavButton extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.52),
+            gradient: LinearGradient(
+              colors: <Color>[
+                Colors.white.withValues(alpha: 0.92),
+                AppTheme.surfaceSky.withValues(alpha: 0.82),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(12),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppTheme.sky.withValues(alpha: 0.1),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Icon(icon, size: 18, color: AppTheme.text),
         ),

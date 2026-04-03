@@ -16,6 +16,9 @@ class AppTheme {
   static const Color surface = Color(0xFFFFFCFA);
   static const Color surfaceSoft = Color(0xFFFFF5EC);
   static const Color surfaceMuted = Color(0xFFF8EEE6);
+  static const Color surfaceSky = Color(0xFFF4F8FF);
+  static const Color surfaceJade = Color(0xFFF1FAF5);
+  static const Color surfaceAmber = Color(0xFFFFF6E8);
   static const Color outline = Color(0xFFEEDFD3);
   static const Color outlineSoft = Color(0xFFF6EEE8);
   static const Color fieldSurface = Color(0xFFFFFCF8);
@@ -161,6 +164,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
           backgroundColor: primaryDeep,
           foregroundColor: Colors.white,
+          shadowColor: primaryDeep.withValues(alpha: 0.22),
           disabledBackgroundColor: const Color(0xFFD8C5B6),
           disabledForegroundColor: const Color(0xFF8F7E71),
           textStyle: const TextStyle(
@@ -183,6 +187,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           disabledBackgroundColor: const Color(0xFFD8C5B6),
           disabledForegroundColor: const Color(0xFF8F7E71),
+          overlayColor: primaryDark.withValues(alpha: 0.08),
           textStyle: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -198,11 +203,11 @@ class AppTheme {
           elevation: 0,
           minimumSize: const Size.fromHeight(56),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          backgroundColor: secondaryButtonSurface,
+          backgroundColor: const Color(0xFFF8FBFF),
           foregroundColor: primaryDeep,
           side: BorderSide(
-            color: primaryDeep.withValues(alpha: 0.12),
-            width: 0.8,
+            color: const Color(0xFFD6E1F7),
+            width: 1,
           ),
           textStyle: const TextStyle(
             fontSize: 17,
@@ -217,6 +222,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primaryDark,
+          overlayColor: primary.withValues(alpha: 0.08),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
