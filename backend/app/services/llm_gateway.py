@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 from urllib.parse import urlparse
@@ -26,7 +26,7 @@ class OpenAICompatibleLLMService:
             config=config,
             system_prompt=(
                 "你是中文输入纠错助手。"
-                "请修正用户文本中的错别字、同音字、缺字漏字、标点问题和明显的语义识别错误。"
+                "请修正用户文本中的错别字、同音字、漏字、标点问题，以及语音识别导致的明显错误。"
                 "保持原意，不要扩写，不要解释，只输出修正后的正文。"
             ),
             user_prompt=text,
@@ -39,7 +39,7 @@ class OpenAICompatibleLLMService:
             config=config,
             system_prompt=(
                 "你是资深中文短视频文案编辑。"
-                "请在不改变核心意思的前提下，将用户输入润色成更自然、更适合中老年用户表达的中文文案。"
+                "请在不改变核心意思的前提下，将用户输入润色成更自然、更适合中老年用户观看的中文文案。"
                 "只输出润色后的正文，不要添加解释、标题或引号。"
             ),
             user_prompt=text,

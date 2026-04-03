@@ -14,7 +14,7 @@ import {
 } from 'naive-ui'
 
 import CommonPage from '@/components/page/CommonPage.vue'
-import { formatDate } from '@/utils'
+import { formatDate, getToken } from '@/utils'
 import api from '@/api'
 
 const loading = ref(false)
@@ -286,6 +286,58 @@ function readText(value) {
   const text = `${value ?? ''}`.trim()
   return text || '未提供'
 }
+function buildTaskDownloadUrl(taskId) {
+  const baseUrl = `${import.meta.env.VITE_BASE_API || ''}`.replace(/\/$/, '')
+  return `${baseUrl}/task/download?${new URLSearchParams({ task_id: String(taskId) }).toString()}`
+}
+
+function openTaskVideo(task) {
+  if (!task?.video_url) {
+    window.$message?.error('当前任务还没有可预览的视频')
+    return
+  }
+  window.open(task.video_url, '_blank', 'noopener,noreferrer')
+}
+
+async function downloadTaskVideo(task) {
+  if (!task?.id || !task?.video_url) {
+    window.$message?.error('当前任务还没有可保存的视频')
+    return
+  }
+
+  const token = getToken()
+  const response = await fetch(buildTaskDownloadUrl(task.id), {
+    headers: token ? { token } : {},
+  })
+
+  if (!response.ok) {
+    let message = '保存视频失败'
+    try {
+      const payload = JSON.parse(await response.text())
+      message = payload?.detail || payload?.msg || payload?.message || message
+    } catch (_) {
+      // Keep fallback message.
+    }
+    throw new Error(message)
+  }
+
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = `task_${task.id}.mp4`
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  window.$message?.success('视频已开始保存到本地')
+}
+
+async function handleTaskVideoDownload(task) {
+  try {
+    await downloadTaskVideo(task)
+  } catch (error) {
+    window.$message?.error(error?.message || '保存视频失败')
+  }
+}
 </script>
 
 <template>
@@ -437,6 +489,27 @@ function readText(value) {
             </article>
           </div>
           <NEmpty v-else description="未上传参考图" />
+        </section>
+
+        <section v-if="activeTask.video_url" class="task-detail__section">
+          <h4>视频预览与下载</h4>
+          <article class="task-detail__card task-detail__card--wide">
+            <video
+              class="task-detail__video"
+              :src="activeTask.video_url"
+              controls
+              playsinline
+              preload="metadata"
+            ></video>
+            <div class="task-detail__video-actions">
+              <NButton type="primary" secondary @click="openTaskVideo(activeTask)">
+                新窗口预览
+              </NButton>
+              <NButton quaternary type="primary" @click="handleTaskVideoDownload(activeTask)">
+                保存到本地
+              </NButton>
+            </div>
+          </article>
         </section>
       </div>
     </NDrawerContent>
@@ -653,6 +726,20 @@ function readText(value) {
   margin-top: 8px;
   color: var(--brand-primary);
   font-weight: 700;
+}
+
+.task-detail__video {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 14px;
+  background: rgba(16, 12, 9, 0.92);
+}
+
+.task-detail__video-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 @media (max-width: 1024px) {

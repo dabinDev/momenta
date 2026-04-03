@@ -92,7 +92,11 @@ class HybridVideoService:
             "aspect_ratio": self._size_to_aspect_ratio(size),
         }
         if images:
-            payload["images"] = [image for image in images if image]
+            payload["images"] = [
+                await local_media_service.ensure_public_image_url(image)
+                for image in images
+                if image
+            ]
 
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:
@@ -314,6 +318,8 @@ class HybridVideoService:
     def _uses_relay_api(config: UserAppConfig) -> bool:
         base_url = (config.video_base_url or "").strip().lower()
         model = (config.video_model or "").strip().lower()
+        if "components" in model:
+            return True
         if model.startswith("veo_"):
             return False
         if model.startswith(("veo3", "veo-")):

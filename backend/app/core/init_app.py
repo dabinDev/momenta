@@ -43,6 +43,7 @@ def make_middlewares():
                 "/api/v1/base/access_token",
                 "/docs",
                 "/openapi.json",
+                "/media",
             ],
         ),
     ]
@@ -217,6 +218,29 @@ async def init_apis():
 async def init_db():
     await Tortoise.init(config=settings.TORTOISE_ORM)
     await Tortoise.generate_schemas(safe=True)
+    await ensure_sqlite_compat_schema()
+
+
+async def ensure_sqlite_compat_schema():
+    default_connection = settings.TORTOISE_ORM["apps"]["models"]["default_connection"]
+    connection = Tortoise.get_connection(default_connection)
+    if connection.capabilities.dialect != "sqlite":
+        return
+
+    columns = await connection.execute_query_dict("PRAGMA table_info('user_app_config')")
+    existing_columns = {str(item.get("name") or "").strip() for item in columns}
+    missing_columns = {
+        "speech_base_url": "VARCHAR(255) NOT NULL DEFAULT 'https://api.99hub.top'",
+        "speech_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "speech_model": "VARCHAR(100) NOT NULL DEFAULT 'gpt-4o-mini-audio-preview'",
+    }
+    statements = [
+        f'ALTER TABLE "user_app_config" ADD COLUMN "{column}" {definition};'
+        for column, definition in missing_columns.items()
+        if column not in existing_columns
+    ]
+    if statements:
+        await connection.execute_script("".join(statements))
 
 
 async def init_roles():

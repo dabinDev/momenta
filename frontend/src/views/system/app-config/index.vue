@@ -19,6 +19,15 @@ import api from '@/api'
 
 defineOptions({ name: '应用配置' })
 
+const DEFAULTS = {
+  llm_base_url: 'https://api.99hub.top',
+  llm_model: 'gpt-5.4-mini',
+  video_base_url: 'https://api.99hub.top',
+  video_model: 'veo_3_1-fast-components-4K',
+  speech_base_url: 'https://api.99hub.top',
+  speech_model: 'gpt-4o-mini-audio-preview',
+}
+
 const loading = ref(false)
 const rows = ref([])
 const keyword = ref('')
@@ -39,19 +48,24 @@ const vPermission = resolveDirective('permission')
 
 const summaryItems = computed(() => [
   {
-    label: '当前分页',
+    label: '当前页用户',
     value: rows.value.length,
     hint: `共 ${pagination.value.itemCount} 位用户`,
   },
   {
-    label: '文本服务已配置',
+    label: '文案服务已配置',
     value: rows.value.filter(item => item.llm_configured).length,
-    hint: '已填写模型和密钥',
+    hint: '提示词生成与文案校验',
   },
   {
     label: '视频服务已配置',
     value: rows.value.filter(item => item.video_configured).length,
-    hint: '支持独立视频通道',
+    hint: '简单 / 入门 / 自定义生成',
+  },
+  {
+    label: '语音服务已配置',
+    value: rows.value.filter(item => item.speech_configured).length,
+    hint: '语音转文字接口',
   },
 ])
 
@@ -61,10 +75,12 @@ const drawerTitle = computed(() => {
 })
 
 const rules = {
-  llm_base_url: [{ required: true, message: '请输入文本服务地址', trigger: ['input', 'blur'] }],
-  llm_model: [{ required: true, message: '请输入文本模型名称', trigger: ['input', 'blur'] }],
+  llm_base_url: [{ required: true, message: '请输入文案服务地址', trigger: ['input', 'blur'] }],
+  llm_model: [{ required: true, message: '请输入文案模型名称', trigger: ['input', 'blur'] }],
   video_base_url: [{ required: true, message: '请输入视频服务地址', trigger: ['input', 'blur'] }],
   video_model: [{ required: true, message: '请输入视频模型名称', trigger: ['input', 'blur'] }],
+  speech_base_url: [{ required: true, message: '请输入语音服务地址', trigger: ['input', 'blur'] }],
+  speech_model: [{ required: true, message: '请输入语音模型名称', trigger: ['input', 'blur'] }],
 }
 
 const columns = [
@@ -80,9 +96,9 @@ const columns = [
     },
   },
   {
-    title: '文本服务',
+    title: '文案服务',
     key: 'llm',
-    minWidth: 280,
+    minWidth: 250,
     render(row) {
       return h('div', { class: 'config-provider' }, [
         h('strong', {}, row.llm_model || '--'),
@@ -98,7 +114,7 @@ const columns = [
   {
     title: '视频服务',
     key: 'video',
-    minWidth: 280,
+    minWidth: 250,
     render(row) {
       return h('div', { class: 'config-provider' }, [
         h('strong', {}, row.video_model || '--'),
@@ -107,6 +123,22 @@ const columns = [
           NTag,
           { size: 'small', type: row.video_configured ? 'warning' : 'default', round: false },
           { default: () => (row.video_configured ? row.video_api_key_masked : '未配置密钥') }
+        ),
+      ])
+    },
+  },
+  {
+    title: '语音服务',
+    key: 'speech',
+    minWidth: 250,
+    render(row) {
+      return h('div', { class: 'config-provider' }, [
+        h('strong', {}, row.speech_model || '--'),
+        h('span', {}, shortHost(row.speech_base_url)),
+        h(
+          NTag,
+          { size: 'small', type: row.speech_configured ? 'info' : 'default', round: false },
+          { default: () => (row.speech_configured ? row.speech_api_key_masked : '未配置密钥') }
         ),
       ])
     },
@@ -182,7 +214,7 @@ const columns = [
                 ),
                 [[vPermission, 'post/api/v1/app_config/reset']]
               ),
-            default: () => '确认恢复该用户的应用默认配置？',
+            default: () => '确认恢复该用户的默认 AI 配置？',
           }
         ),
       ])
@@ -279,24 +311,30 @@ function handlePageChange(page) {
 function createEmptyForm() {
   return {
     user_id: null,
-    llm_base_url: '',
+    llm_base_url: DEFAULTS.llm_base_url,
     llm_api_key: '',
-    llm_model: '',
-    video_base_url: '',
+    llm_model: DEFAULTS.llm_model,
+    video_base_url: DEFAULTS.video_base_url,
     video_api_key: '',
-    video_model: '',
+    video_model: DEFAULTS.video_model,
+    speech_base_url: DEFAULTS.speech_base_url,
+    speech_api_key: '',
+    speech_model: DEFAULTS.speech_model,
   }
 }
 
 function toForm(item = {}) {
   return {
     user_id: item.user_id ?? null,
-    llm_base_url: item.llm_base_url || '',
+    llm_base_url: item.llm_base_url || DEFAULTS.llm_base_url,
     llm_api_key: item.llm_api_key || '',
-    llm_model: item.llm_model || '',
-    video_base_url: item.video_base_url || '',
+    llm_model: item.llm_model || DEFAULTS.llm_model,
+    video_base_url: item.video_base_url || DEFAULTS.video_base_url,
     video_api_key: item.video_api_key || '',
-    video_model: item.video_model || '',
+    video_model: item.video_model || DEFAULTS.video_model,
+    speech_base_url: item.speech_base_url || DEFAULTS.speech_base_url,
+    speech_api_key: item.speech_api_key || '',
+    speech_model: item.speech_model || DEFAULTS.speech_model,
   }
 }
 
@@ -317,13 +355,13 @@ function shortHost(url = '') {
         <div class="config-header__copy">
           <p class="config-header__eyebrow">APP CONFIG</p>
           <h2>用户应用配置</h2>
-          <p>集中维护每个用户的文案模型、视频模型和密钥来源，web 与 app 读写同一套配置。</p>
+          <p>统一维护 App、H5 和后端共用的文案、视频、语音三类 AI 配置，保证接口字段和默认值完全一致。</p>
         </div>
         <div class="config-header__actions">
           <NInput
             v-model:value="keyword"
             clearable
-            placeholder="搜索用户名、昵称或邮箱"
+            placeholder="搜索用户名、别名或邮箱"
             @keyup.enter="handleSearch"
           />
           <NButton type="primary" @click="handleSearch">查询</NButton>
@@ -347,9 +385,9 @@ function shortHost(url = '') {
         <section class="config-rail__section">
           <p class="config-rail__label">使用说明</p>
           <ul class="config-rail__list">
-            <li>未落库的用户会直接使用默认模板。</li>
-            <li>填写密钥后，app 的文案和视频生成会优先走该用户独立通道。</li>
-            <li>恢复默认不会影响历史任务，只影响后续请求。</li>
+            <li>未落库的用户会直接使用统一默认模板。</li>
+            <li>填写密钥后，App 与 H5 会优先使用该用户独立的 AI 通道。</li>
+            <li>恢复默认不会影响历史任务，只影响后续新请求。</li>
           </ul>
         </section>
       </aside>
@@ -357,8 +395,8 @@ function shortHost(url = '') {
       <section class="config-table">
         <div class="config-table__header">
           <div>
-            <p class="config-table__eyebrow">按用户管理</p>
-            <h3>统一查看每个账号的生成通道</h3>
+            <p class="config-table__eyebrow">PER USER</p>
+            <h3>统一查看每个账号的 AI 通道</h3>
           </div>
           <NButton quaternary @click="fetchList">刷新列表</NButton>
         </div>
@@ -367,7 +405,7 @@ function shortHost(url = '') {
           :loading="loading"
           :columns="columns"
           :data="rows"
-          :scroll-x="1220"
+          :scroll-x="1480"
           remote
         />
 
@@ -394,10 +432,13 @@ function shortHost(url = '') {
           </div>
           <div v-if="activeItem" class="config-drawer__tags">
             <NTag :type="activeItem.llm_configured ? 'success' : 'default'" :round="false">
-              {{ activeItem.llm_configured ? '文本服务已启用' : '文本服务默认' }}
+              {{ activeItem.llm_configured ? '文案服务已启用' : '文案服务默认' }}
             </NTag>
             <NTag :type="activeItem.video_configured ? 'warning' : 'default'" :round="false">
               {{ activeItem.video_configured ? '视频服务已启用' : '视频服务默认' }}
+            </NTag>
+            <NTag :type="activeItem.speech_configured ? 'info' : 'default'" :round="false">
+              {{ activeItem.speech_configured ? '语音服务已启用' : '语音服务默认' }}
             </NTag>
           </div>
         </div>
@@ -426,33 +467,49 @@ function shortHost(url = '') {
         >
           <section class="config-form__group">
             <div class="config-form__heading">
-              <p>文本生成服务</p>
-              <span>用于润色文案和生成提示词</span>
+              <p>文案服务</p>
+              <span>用于输入纠错、文本校准和提示词生成。</span>
             </div>
             <NFormItem label="服务地址" path="llm_base_url">
-              <NInput v-model:value="form.llm_base_url" placeholder="https://api.moonshot.cn/v1" />
+              <NInput v-model:value="form.llm_base_url" :placeholder="DEFAULTS.llm_base_url" />
             </NFormItem>
             <NFormItem label="API Key" path="llm_api_key">
               <NInput v-model:value="form.llm_api_key" type="password" show-password-on="mousedown" />
             </NFormItem>
             <NFormItem label="模型名称" path="llm_model">
-              <NInput v-model:value="form.llm_model" placeholder="moonshot-v1-8k" />
+              <NInput v-model:value="form.llm_model" :placeholder="DEFAULTS.llm_model" />
             </NFormItem>
           </section>
 
           <section class="config-form__group">
             <div class="config-form__heading">
-              <p>视频生成服务</p>
-              <span>用于图生视频和文生视频任务</span>
+              <p>视频服务</p>
+              <span>用于简单、入门、自定义三种视频生成任务。</span>
             </div>
             <NFormItem label="服务地址" path="video_base_url">
-              <NInput v-model:value="form.video_base_url" placeholder="https://api.openai.com/v1" />
+              <NInput v-model:value="form.video_base_url" :placeholder="DEFAULTS.video_base_url" />
             </NFormItem>
             <NFormItem label="API Key" path="video_api_key">
               <NInput v-model:value="form.video_api_key" type="password" show-password-on="mousedown" />
             </NFormItem>
             <NFormItem label="模型名称" path="video_model">
-              <NInput v-model:value="form.video_model" placeholder="video-generation" />
+              <NInput v-model:value="form.video_model" :placeholder="DEFAULTS.video_model" />
+            </NFormItem>
+          </section>
+
+          <section class="config-form__group">
+            <div class="config-form__heading">
+              <p>语音服务</p>
+              <span>用于音频上传转文字，与 App 的语音识别设置保持一致。</span>
+            </div>
+            <NFormItem label="服务地址" path="speech_base_url">
+              <NInput v-model:value="form.speech_base_url" :placeholder="DEFAULTS.speech_base_url" />
+            </NFormItem>
+            <NFormItem label="API Key" path="speech_api_key">
+              <NInput v-model:value="form.speech_api_key" type="password" show-password-on="mousedown" />
+            </NFormItem>
+            <NFormItem label="模型名称" path="speech_model">
+              <NInput v-model:value="form.speech_model" :placeholder="DEFAULTS.speech_model" />
             </NFormItem>
           </section>
         </NForm>
@@ -491,7 +548,7 @@ function shortHost(url = '') {
 }
 
 .config-header__copy {
-  max-width: 620px;
+  max-width: 660px;
 }
 
 .config-header__eyebrow,
@@ -499,11 +556,11 @@ function shortHost(url = '') {
 .config-table__eyebrow,
 .config-drawer__eyebrow {
   margin: 0 0 8px;
+  color: var(--brand-primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--brand-primary);
 }
 
 .config-header h2,
@@ -529,7 +586,7 @@ function shortHost(url = '') {
 
 .config-page {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: 22px;
 }
 
@@ -543,7 +600,6 @@ function shortHost(url = '') {
 .config-rail {
   display: grid;
   align-content: start;
-  gap: 0;
 }
 
 .config-rail__section {
@@ -568,14 +624,14 @@ function shortHost(url = '') {
 .config-drawer__meta span,
 .config-provider span,
 .config-user span {
-  font-size: 12px;
   color: var(--app-muted);
+  font-size: 12px;
 }
 
 .config-stat strong {
+  color: var(--app-text);
   font-size: 28px;
   line-height: 1;
-  color: var(--app-text);
 }
 
 .config-stat small {
@@ -619,6 +675,7 @@ function shortHost(url = '') {
 .config-user strong,
 .config-provider strong {
   color: var(--app-text);
+  font-size: 14px;
 }
 
 .config-status,
@@ -626,7 +683,12 @@ function shortHost(url = '') {
 .config-drawer__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
+}
+
+.config-drawer {
+  display: grid;
+  gap: 18px;
 }
 
 .config-drawer__header {
@@ -637,98 +699,81 @@ function shortHost(url = '') {
 }
 
 .config-drawer__loading {
+  padding: 28px 0;
   color: var(--app-muted);
-}
-
-.config-drawer {
-  display: grid;
-  gap: 20px;
 }
 
 .config-drawer__meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--shell-divider);
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface-2);
 }
 
 .config-drawer__meta strong {
-  display: block;
-  margin-top: 6px;
   color: var(--app-text);
+  font-size: 14px;
 }
 
 .config-form {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .config-form__group {
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--shell-divider);
-}
-
-.config-form__group:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+  padding: 16px;
+  border: 1px solid var(--shell-divider);
+  background: var(--surface-2);
 }
 
 .config-form__heading {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .config-form__heading p {
   margin: 0;
-  font-weight: 700;
   color: var(--app-text);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .config-form__heading span {
   display: block;
   margin-top: 6px;
   color: var(--app-muted);
+  line-height: 1.6;
 }
 
 .config-drawer__footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
 }
 
-:deep(.n-data-table-th) {
-  background: var(--surface-muted);
-}
-
-:deep(.n-data-table-td) {
-  vertical-align: middle;
-}
-
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .config-page {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 840px) {
-  .config-header {
+@media (max-width: 900px) {
+  .config-header,
+  .config-table__header,
+  .config-drawer__header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
 
   .config-header__actions {
-    width: 100%;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr;
   }
-}
 
-@media (max-width: 640px) {
-  .config-header__actions,
   .config-drawer__meta {
     grid-template-columns: 1fr;
   }
 
-  .config-drawer__header {
+  .config-drawer__footer {
     flex-direction: column;
   }
 }

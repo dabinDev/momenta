@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import Any
@@ -137,6 +137,7 @@ class BusinessGatewayService:
         duration: int,
         video_template_key: str,
         prompt_template_key: str | None = None,
+        reference_link: str | None = None,
         reference_video_path: str | None = None,
         supplemental_text: str | None = None,
     ) -> tuple[str, Any]:
@@ -147,6 +148,7 @@ class BusinessGatewayService:
             video_template_key=video_template_key,
             duration=duration,
             has_images=bool(images),
+            reference_link=reference_link,
             reference_video_path=reference_video_path,
             supplemental_text=supplemental_text,
         )

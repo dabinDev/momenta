@@ -91,6 +91,11 @@ class CustomVideoTaskCreateIn(BaseModel):
         min_length=1,
         max_length=100,
     )
+    reference_link: str | None = Field(
+        default=None,
+        description="Optional public video link",
+        max_length=2000,
+    )
     reference_video_path: str | None = Field(
         default=None,
         description="Uploaded reference video URL",

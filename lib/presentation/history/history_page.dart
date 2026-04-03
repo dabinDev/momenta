@@ -63,7 +63,7 @@ class HistoryPage extends GetView<HistoryController> {
                                     )
                                 : null,
                             onDownload: controller.items[index].isCompleted
-                                ? () => controller.downloadItem(
+                                ? () => controller.saveItem(
                                       controller.items[index],
                                     )
                                 : null,
@@ -254,7 +254,7 @@ class _HistoryListItem extends StatelessWidget {
               ),
               _ActionChipButton(
                 icon: Icons.download_outlined,
-                label: '下载',
+                label: '保存到相册',
                 onTap: onDownload,
               ),
               _ActionChipButton(

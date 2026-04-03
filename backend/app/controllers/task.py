@@ -78,6 +78,10 @@ class TaskController:
         provider_payload = await business_gateway_service.sync_video_status(task)
         if not isinstance(provider_payload, dict):
             provider_payload = {"data": provider_payload}
+        provider_payload = self._merge_request_context(
+            existing_payload=task.provider_payload or {},
+            next_payload=provider_payload,
+        )
 
         status = self._read_status(provider_payload, fallback=task.status)
         progress = self._read_progress(provider_payload, fallback=task.progress)
@@ -98,6 +102,24 @@ class TaskController:
 
         await task.save()
         return task
+
+    def _merge_request_context(
+        self,
+        *,
+        existing_payload: dict[str, Any],
+        next_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        existing_request = self._read_request_context(existing_payload)
+        if not existing_request:
+            return next_payload
+
+        merged_payload = dict(next_payload)
+        next_request = self._read_request_context(next_payload)
+        merged_payload["request"] = {
+            **existing_request,
+            **next_request,
+        }
+        return merged_payload
 
     async def get_user_task(self, *, task_id: int, user_id: int) -> VideoTask:
         return await VideoTask.get(id=task_id, user_id=user_id)
@@ -238,6 +260,11 @@ class TaskController:
         data["progress"] = float(task.progress or 0)
         data["is_deleted"] = task.is_deleted
         data["cover_image_url"] = task.cover_image_url or ""
+        request_context = self._read_request_context(task.provider_payload or {})
+        data["request_context"] = request_context
+        data["creation_mode"] = str(request_context.get("creation_mode") or "simple")
+        data["reference_link"] = str(request_context.get("reference_link") or "")
+        data["reference_video_path"] = str(request_context.get("reference_video_path") or "")
 
         if include_assets:
             assets = await VideoTaskAsset.filter(task_id=task.id).order_by("sort_order")
@@ -344,6 +371,12 @@ class TaskController:
         data = self._read_payload(payload)
         value = data.get("error_message") or data.get("errorMessage") or data.get("error") or data.get("msg")
         return str(value) if value else None
+
+    def _read_request_context(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+        request = payload.get("request")
+        return request if isinstance(request, dict) else {}
 
     @staticmethod
     def _file_name(path: str) -> str:

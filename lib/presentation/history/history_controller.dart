@@ -9,6 +9,7 @@ import '../../app/routes.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/file_utils.dart';
 import '../../core/utils/snackbar_helper.dart';
+import '../../core/utils/video_save_helper.dart';
 import '../../data/api/api_service.dart';
 import '../../data/models/history_item_model.dart';
 import '../../domain/repositories/history_repository.dart';
@@ -133,6 +134,26 @@ class HistoryController extends GetxController {
         'title': '历史视频播放',
       },
     );
+  }
+
+  Future<void> saveItem(HistoryItemModel item) async {
+    final String videoUrl =
+        FileUtils.resolveUrl(AppConstants.serverBaseUrl, item.videoUrl);
+    if (videoUrl.isEmpty) {
+      SnackbarHelper.error('该记录没有可保存的视频');
+      return;
+    }
+
+    try {
+      await VideoSaveHelper.saveRemoteVideoToGallery(
+        apiService: _apiService,
+        videoUrl: videoUrl,
+        fileNamePrefix: '历史视频',
+      );
+      SnackbarHelper.success('视频已保存到系统相册的“拾光视频”中');
+    } catch (error) {
+      SnackbarHelper.error(_readError(error, fallback: '保存视频失败'));
+    }
   }
 
   Future<void> downloadItem(HistoryItemModel item) async {

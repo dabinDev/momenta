@@ -14,6 +14,8 @@ import '../../app/theme.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/file_utils.dart';
 import '../../core/utils/snackbar_helper.dart';
+import '../../core/utils/video_save_helper.dart';
+import '../../data/api/api_service.dart';
 import '../../data/models/ai_template_model.dart';
 import '../../data/models/create_mode_model.dart';
 import '../../data/models/create_workbench_model.dart';
@@ -125,19 +127,19 @@ class CreateController extends GetxController {
   CreateController()
       : _mediaRepository = Get.find<MediaRepository>(),
         _videoRepository = Get.find<VideoRepository>(),
-        _historyRepository = Get.find<HistoryRepository>();
+        _historyRepository = Get.find<HistoryRepository>(),
+        _apiService = Get.find<ApiService>();
 
   final MediaRepository _mediaRepository;
   final VideoRepository _videoRepository;
   final HistoryRepository _historyRepository;
+  final ApiService _apiService;
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorder _audioRecorder = AudioRecorder();
 
   final TextEditingController textController = TextEditingController();
   final TextEditingController promptController = TextEditingController();
   final TextEditingController starterLinkController = TextEditingController();
-  final TextEditingController starterNoteController = TextEditingController();
-  final TextEditingController customNoteController = TextEditingController();
 
   final Rx<CreateWorkbenchMode> currentMode = CreateWorkbenchMode.simple.obs;
   final RxList<CreateModeModel> modeConfigs = <CreateModeModel>[].obs;
@@ -160,6 +162,7 @@ class CreateController extends GetxController {
   final RxBool isGeneratingPrompt = false.obs;
   final RxBool isSubmitting = false.obs;
   final RxBool isUploadingReferenceVideo = false.obs;
+  final RxBool isSavingCurrentVideo = false.obs;
   final RxInt recordingSeconds = 0.obs;
   final RxInt pollingCount = 0.obs;
   final RxDouble generationProgress = 0.0.obs;
@@ -187,8 +190,6 @@ class CreateController extends GetxController {
     textController.dispose();
     promptController.dispose();
     starterLinkController.dispose();
-    starterNoteController.dispose();
-    customNoteController.dispose();
     super.onClose();
   }
 
@@ -515,10 +516,11 @@ class CreateController extends GetxController {
       return;
     }
 
-    final String note = starterNoteController.text.trim();
+    final String prompt = promptController.text.trim();
+    final String note = textController.text.trim();
     await _submitVideoTask(
       mode: CreateWorkbenchMode.starter,
-      prompt: null,
+      prompt: _normalizeNullableText(prompt),
       inputText: _normalizeNullableText(note),
       polishedText: null,
       promptTemplateKey:
@@ -540,15 +542,18 @@ class CreateController extends GetxController {
       return;
     }
 
-    final String note = customNoteController.text.trim();
+    final String prompt = promptController.text.trim();
+    final String note = textController.text.trim();
+    final String link = starterLinkController.text.trim();
     await _submitVideoTask(
       mode: CreateWorkbenchMode.custom,
-      prompt: null,
+      prompt: _normalizeNullableText(prompt),
       inputText: _normalizeNullableText(note),
       polishedText: null,
       promptTemplateKey:
           _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom),
       videoTemplateKey: template.key,
+      referenceLink: _normalizeNullableText(link),
       includeReferenceVideo: true,
     );
   }
@@ -617,6 +622,7 @@ class CreateController extends GetxController {
             duration: selectedDuration.value,
             videoTemplateKey: normalizedVideoTemplateKey,
             promptTemplateKey: promptTemplateKey,
+            referenceLink: _normalizeNullableText(referenceLink),
             referenceVideoPath: referenceVideoPath,
             supplementalText: supplementalText,
           );
@@ -740,6 +746,35 @@ class CreateController extends GetxController {
         'title': '生成结果预览',
       },
     );
+  }
+
+  Future<void> saveCurrentVideo() async {
+    final String videoUrl = FileUtils.resolveUrl(
+      AppConstants.serverBaseUrl,
+      currentTask.value?.videoUrl,
+    );
+    if (videoUrl.isEmpty) {
+      SnackbarHelper.error('当前没有可保存的视频');
+      return;
+    }
+    if (isSavingCurrentVideo.value) {
+      return;
+    }
+
+    isSavingCurrentVideo.value = true;
+    try {
+      await VideoSaveHelper.saveRemoteVideoToGallery(
+        apiService: _apiService,
+        videoUrl: videoUrl,
+      );
+      SnackbarHelper.success('视频已保存到系统相册的“拾光视频”中');
+    } catch (error) {
+      SnackbarHelper.error(
+        AppException.resolveMessage(error, fallback: '保存视频失败'),
+      );
+    } finally {
+      isSavingCurrentVideo.value = false;
+    }
   }
 
   void _handleCompleted() {

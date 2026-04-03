@@ -33,14 +33,19 @@ migrate_working_dir/
 .pub/
 /build/
 backend/.venv/
+backend/.env
 backend/db.sqlite3
 backend/db.sqlite3-journal
 backend/db.sqlite3-shm
 backend/db.sqlite3-wal
+backend/media/
 frontend/node_modules/
 frontend/dist/
 frontend/build/
 frontend/stats.html
+elderly-video-app/node_modules/
+elderly-video-app/*.log
+.codex-test/
 
 # Symbolication related
 app.*.symbols

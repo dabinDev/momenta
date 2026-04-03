@@ -94,6 +94,7 @@ class VideoRepositoryImpl implements VideoRepository {
     required int duration,
     required String videoTemplateKey,
     String? promptTemplateKey,
+    String? referenceLink,
     String? referenceVideoPath,
     String? supplementalText,
   }) {
@@ -104,6 +105,7 @@ class VideoRepositoryImpl implements VideoRepository {
       duration: duration,
       videoTemplateKey: videoTemplateKey,
       promptTemplateKey: promptTemplateKey,
+      referenceLink: referenceLink,
       referenceVideoPath: referenceVideoPath,
       supplementalText: supplementalText,
     );
@@ -116,9 +118,6 @@ class VideoRepositoryImpl implements VideoRepository {
   }) {
     return _apiService.history(page: page, limit: limit);
   }
-
-  @override
-  Future<String> polishText(String text) => _apiService.polishText(text);
 
   @override
   Future<VideoTaskModel> videoStatus(String id) => _apiService.videoStatus(id);

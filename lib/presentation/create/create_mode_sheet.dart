@@ -50,7 +50,7 @@ class _CreateModeSheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '简单适合快速生成，入门适合链接跟做，自定义适合模板复刻。',
+              '简单适合快速生成，入门适合链接跟做，自定义适合模板创作。',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 18),

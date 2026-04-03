@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -102,14 +102,16 @@ class AITemplateRegistryService:
             PromptTemplate(
                 key="family_memory",
                 name="家庭回忆",
-                description="适合家人团聚、陪伴、老照片回忆等暖心内容。",
+                description="适合家庭团聚、陪伴、旧照片回忆等温暖内容。",
                 generation_instruction=(
-                    "突出家庭陪伴、亲切情绪、温暖光线、清晰字幕和适合中老年观看的慢节奏表达。"
+                    "Focus on family companionship, gentle emotion, warm lighting, "
+                    "clear subtitles, and a calm vertical short-video rhythm."
                 ),
                 render_instruction=(
-                    "画面以家庭情感和真实生活场景为核心，镜头稳定，情绪温暖自然，适合做回忆类短视频。"
+                    "Keep the visual language warm, natural, and emotionally sincere. "
+                    "Prioritize stable framing, realistic family-life details, and readable subtitles."
                 ),
-                preview="暖色调、真实家庭氛围、字幕清楚、节奏舒缓。",
+                preview="暖色调、家庭氛围自然、字幕清晰、节奏舒缓。",
                 is_default=True,
             ),
             PromptTemplate(
@@ -117,10 +119,12 @@ class AITemplateRegistryService:
                 name="节日祝福",
                 description="适合生日、节庆、问候、感恩祝福类创作。",
                 generation_instruction=(
-                    "突出节日仪式感、祝福表达、喜庆但不过度花哨的视觉风格，语言真诚易懂。"
+                    "Emphasize celebration, blessing, sincerity, and a festive atmosphere "
+                    "without becoming overly flashy or noisy."
                 ),
                 render_instruction=(
-                    "强化祝福主题、节日元素和情绪传递，字幕醒目，适合长辈观看和转发。"
+                    "Make the theme feel celebratory and heartfelt, with readable subtitles, "
+                    "clear blessing moments, and a shareable short-video structure."
                 ),
                 preview="节日元素明确，祝福语自然，画面热闹但不杂乱。",
             ),
@@ -129,22 +133,31 @@ class AITemplateRegistryService:
                 name="健康分享",
                 description="适合养生提醒、生活建议、科普提醒类内容。",
                 generation_instruction=(
-                    "强调重点信息、条理表达、可信赖的日常分享感，画面整洁，字幕字号偏大。"
+                    "Highlight practical information, trustworthy tone, structured delivery, "
+                    "clean composition, and large readable subtitles."
                 ),
                 render_instruction=(
-                    "突出信息重点和阅读友好度，镜头简洁平稳，适合做生活提醒和知识分享。"
+                    "Make the message easy to follow, visually clean, and suitable for elderly viewers, "
+                    "with calm pacing and obvious information hierarchy."
                 ),
-                preview="重点突出、信息清楚、镜头简洁、阅读压力低。",
+                preview="重点突出、信息清晰、镜头简洁、阅读压力低。",
             ),
         )
         self._video_templates: tuple[VideoTemplate, ...] = (
             VideoTemplate(
                 key="warm_album",
                 name="暖心相册",
-                description="照片串联、家庭合影、回忆记录的默认模板。",
-                style_hint="暖色调，柔和光线，家庭纪念感，人物表情自然。",
-                shot_hint="多用慢推拉、轻微运镜和稳定中近景，转场柔和。",
-                subtitle_hint="字幕字号较大，颜色对比清楚，阅读轻松。",
+                description="适合照片串联、家庭合影、回忆记录等场景。",
+                style_hint=(
+                    "Warm color palette, soft indoor lighting, natural facial expressions, "
+                    "and an intimate family-memory atmosphere."
+                ),
+                shot_hint=(
+                    "Use gentle push-ins, slow pans, soft transitions, and stable medium-close framing."
+                ),
+                subtitle_hint=(
+                    "Use large, high-contrast subtitles that remain easy to read on a vertical screen."
+                ),
                 preview="适合家庭相册、陪伴记录、节日问候。",
                 default_duration=10,
                 is_default=True,
@@ -160,9 +173,16 @@ class AITemplateRegistryService:
                 key="story_narration",
                 name="字幕讲述",
                 description="适合有旁白感、文字驱动、口播转视频的成片方式。",
-                style_hint="画面克制，主体清晰，字幕承载主要信息，风格稳重。",
-                shot_hint="镜头节奏均匀，以固定镜头和轻缓切换为主。",
-                subtitle_hint="分段字幕清晰，重点词突出，适合边看边读。",
+                style_hint=(
+                    "Keep visuals restrained and clear, with subtitles carrying the main information "
+                    "and a calm, trustworthy tone."
+                ),
+                shot_hint=(
+                    "Prefer even pacing, fixed shots, and light transitions that support narration."
+                ),
+                subtitle_hint=(
+                    "Break subtitles into readable phrases, highlight key words, and keep text easy to scan."
+                ),
                 preview="适合口述故事、生活感悟、问候表达。",
                 default_duration=20,
                 preview_video_url=(
@@ -177,9 +197,16 @@ class AITemplateRegistryService:
                 key="life_record",
                 name="生活记录",
                 description="适合日常生活、散步、做饭、陪伴等轻纪实视频。",
-                style_hint="自然写实，生活化场景，色彩明亮不过饱和。",
-                shot_hint="以纪实镜头为主，可加入少量跟拍与环境特写。",
-                subtitle_hint="字幕简洁，不遮挡主体，保留生活氛围。",
+                style_hint=(
+                    "Use natural daylight, realistic home-life scenes, bright but not oversaturated colors, "
+                    "and a documentary-like texture."
+                ),
+                shot_hint=(
+                    "Favor observational shots, gentle tracking, and environment details that feel grounded."
+                ),
+                subtitle_hint=(
+                    "Keep subtitles simple and unobtrusive so the scene remains the focus."
+                ),
                 preview="适合日常片段、活动记录、生活分享。",
                 default_duration=10,
                 preview_video_url=(
@@ -187,7 +214,7 @@ class AITemplateRegistryService:
                 ),
                 popularity=89,
                 tags=("纪实", "生活感", "跟拍"),
-                supports_reference_link=False,
+                supports_reference_link=True,
                 supports_reference_video=True,
             ),
         )
@@ -195,9 +222,9 @@ class AITemplateRegistryService:
             WorkbenchMode(
                 code="simple",
                 label="简单",
-                title="AI 快速创作",
-                subtitle="保留语音转写、AI 校准、提示词生成和基础成片能力。",
-                highlights=("语音转文字", "AI 校准", "少参数"),
+                title="AI快速创作",
+                subtitle="输入内容后，完成语音转文字、AI校验、英文提示词生成和视频生成。",
+                highlights=("语音转文字", "AI校验", "少参数"),
                 default_prompt_template_key="family_memory",
                 default_video_template_key="warm_album",
                 supports_voice_input=True,
@@ -207,22 +234,28 @@ class AITemplateRegistryService:
             WorkbenchMode(
                 code="starter",
                 label="入门",
-                title="链接跟做",
-                subtitle="复制公开视频链接，结合上传图片快速生成同主题短视频。",
+                title="链接入门创作",
+                subtitle="在简单模式基础上增加链接地址，结合图片快速生成相关视频。",
                 highlights=("视频链接", "上传图片", "快速跟做"),
                 default_prompt_template_key="family_memory",
                 default_video_template_key="warm_album",
+                supports_voice_input=True,
+                supports_text_correction=True,
+                supports_prompt_generation=True,
                 requires_reference_link=True,
                 requires_images=True,
             ),
             WorkbenchMode(
                 code="custom",
                 label="自定义",
-                title="模板复刻",
-                subtitle="查看热门模板样片，按模板或参考短视频去复刻成片。",
-                highlights=("热门模板", "样片预览", "图片和短视频"),
+                title="模板自定义创作",
+                subtitle="在入门模式基础上增加模板选择，可按模板风格生成目标视频。",
+                highlights=("热门模板", "样片预览", "自定义生成"),
                 default_prompt_template_key="family_memory",
                 default_video_template_key="warm_album",
+                supports_voice_input=True,
+                supports_text_correction=True,
+                supports_prompt_generation=True,
                 requires_images=True,
                 supports_reference_video=True,
             ),
@@ -273,11 +306,13 @@ class AITemplateRegistryService:
     def build_prompt_system_prompt(self, *, prompt_template_key: str | None) -> str:
         template = self.get_prompt_template(prompt_template_key)
         return (
-            "你是短视频创作提示词专家。"
-            "请把用户输入转换成适合视频生成模型理解的中文提示词。"
-            "需要覆盖主体、场景、镜头、光线、构图、情绪、字幕和节奏。"
-            f"优先遵循这个创作模板方向：{template.generation_instruction}"
-            "输出一段完整的中文提示词，不要添加解释、标题或序号。"
+            "You are an expert prompt writer for vertical AI video generation. "
+            "Convert the user's Chinese requirement into one polished English prompt that can be used directly "
+            "by a video model. The prompt should be vivid, concise, and production-ready. "
+            "Cover subject, scene, action, camera language, lighting, composition, emotion, subtitle style when useful, "
+            "and pacing. Follow this creative direction first: "
+            f"{template.generation_instruction} "
+            "Return only the final English prompt with no title, list, explanation, or quotation marks."
         )
 
     def compose_simple_video_request(
@@ -331,6 +366,7 @@ class AITemplateRegistryService:
         video_template_key: str | None,
         duration: int,
         has_images: bool,
+        reference_link: str | None = None,
         reference_video_path: str | None = None,
         supplemental_text: str | None = None,
     ) -> dict[str, Any]:
@@ -346,6 +382,7 @@ class AITemplateRegistryService:
             duration=duration,
             has_images=has_images,
             creation_mode="custom",
+            reference_link=reference_link,
             reference_video_path=reference_video_path,
             supplemental_text=supplemental_text,
         )
@@ -354,15 +391,28 @@ class AITemplateRegistryService:
     def build_starter_prompt(*, input_text: str | None) -> str:
         note = (input_text or "").strip()
         if note:
-            return f"参考公开视频的节奏和结构，结合上传图片生成竖屏短视频，重点要求：{note}"
-        return "参考公开视频的节奏和结构，结合上传图片生成一条适合家庭分享的竖屏短视频。"
+            return (
+                "Create a vertical short video inspired by the linked reference video, "
+                "but rebuilt around the uploaded images. "
+                f"Additional requirement: {note}"
+            )
+        return (
+            "Create a warm vertical short video inspired by the linked reference video, "
+            "using the uploaded images as the main visual references."
+        )
 
     @staticmethod
     def build_custom_prompt(*, template: VideoTemplate, input_text: str | None) -> str:
         note = (input_text or "").strip()
         if note:
-            return f"参考{template.name}模板生成竖屏短视频，并满足以下要求：{note}"
-        return f"参考{template.name}模板的镜头节奏、字幕风格和情绪推进，结合上传素材生成新的家庭短视频。"
+            return (
+                f"Create a vertical short video based on the '{template.name}' template style. "
+                f"Additional requirement: {note}"
+            )
+        return (
+            f"Create a new vertical short video following the '{template.name}' template style, "
+            "while adapting the content to the uploaded user materials."
+        )
 
     def _compose_video_request(
         self,
@@ -381,32 +431,45 @@ class AITemplateRegistryService:
         video_template = self.get_video_template(video_template_key)
 
         segments = [
-            f"主题提示词：{prompt.strip()}",
-            f"提示词模板要求：{prompt_template.render_instruction}",
-            f"视频模板风格：{video_template.style_hint}",
-            f"镜头节奏：{video_template.shot_hint}",
-            f"字幕要求：{video_template.subtitle_hint}",
-            "适合中老年用户观看，字幕清晰，人物表情自然，画面稳定。",
-            "请生成竖屏短视频，避免复杂特效和眩光。",
+            f"Core request: {prompt.strip()}",
+            f"Prompt direction: {prompt_template.render_instruction}",
+            f"Visual style: {video_template.style_hint}",
+            f"Camera rhythm: {video_template.shot_hint}",
+            f"Subtitle guidance: {video_template.subtitle_hint}",
+            (
+                "Keep the result suitable for elderly viewers: clean subtitles, natural expressions, "
+                "stable framing, and easy-to-follow pacing."
+            ),
+            "Generate a vertical short video and avoid distracting flashy effects.",
         ]
         if has_images:
-            segments.append("请参考上传图片中的人物关系、服饰特征和场景元素。")
+            segments.append(
+                "Use the uploaded images as references for subject identity, clothing details, and scene elements."
+            )
         else:
-            segments.append("可自由补充贴近家庭生活的真实场景。")
+            segments.append("You may build a realistic home-life scene that matches the request.")
 
         if creation_mode == "starter":
-            segments.append("整体节奏参考热门短视频的开场、转场和收束方式。")
+            segments.append(
+                "Reference the linked public video for opening hook, transition rhythm, and overall pacing."
+            )
         if reference_link and reference_link.strip():
-            segments.append("用户提供了公开视频链接，可将其视为节奏与结构参考。")
+            segments.append(
+                "A public reference video link is provided and can guide structure, tempo, and shot progression."
+            )
         if creation_mode == "custom":
-            segments.append("保持样片模板的镜头组织、字幕风格和情绪推进，但主体内容换成用户素材。")
+            segments.append(
+                "Keep the selected template's camera organization, subtitle style, and emotional progression."
+            )
         if supplemental_text and supplemental_text.strip():
-            segments.append(f"额外创作要求：{supplemental_text.strip()}")
+            segments.append(f"Additional creation note: {supplemental_text.strip()}")
         if reference_video_path:
-            segments.append("用户提供了参考短视频，请尽量模仿其镜头节奏与叙事结构。")
+            segments.append(
+                "An extra reference video is uploaded. Mirror its shot pacing and narrative structure when appropriate."
+            )
 
-        provider_prompt = "；".join(
-            segment.strip().rstrip("；。")
+        provider_prompt = "; ".join(
+            segment.strip().rstrip(";.")
             for segment in segments
             if segment and segment.strip()
         )

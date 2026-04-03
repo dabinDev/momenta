@@ -8,7 +8,6 @@ import '../../data/models/video_task_model.dart';
 abstract class VideoRepository {
   Future<String> transcribeAudio(File audioFile);
   Future<String> correctText(String text);
-  Future<String> polishText(String text);
   Future<CreateWorkbenchModel> fetchCreateWorkbench();
   Future<List<AiTemplateModel>> fetchPromptTemplates();
   Future<List<AiTemplateModel>> fetchVideoTemplates();
@@ -39,6 +38,7 @@ abstract class VideoRepository {
     required int duration,
     required String videoTemplateKey,
     String? promptTemplateKey,
+    String? referenceLink,
     String? referenceVideoPath,
     String? supplementalText,
   });

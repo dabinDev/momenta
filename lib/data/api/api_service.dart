@@ -127,16 +127,6 @@ class ApiService {
     return (map['text'] ?? map['result'] ?? map['content'] ?? '').toString();
   }
 
-  Future<String> polishText(String text) async {
-    final Response<dynamic> response = await _dio.post(
-      '/api/polish-text',
-      data: <String, dynamic>{'text': text},
-      options: await _authOptions(),
-    );
-    final Map<String, dynamic> map = _readEnvelopeMap(response.data);
-    return (map['text'] ?? map['result'] ?? map['content'] ?? '').toString();
-  }
-
   Future<List<AiTemplateModel>> fetchPromptTemplates() async {
     final Response<dynamic> response = await _dio.get(
       '/api/prompt-templates',
@@ -238,6 +228,7 @@ class ApiService {
     required int duration,
     required String videoTemplateKey,
     String? promptTemplateKey,
+    String? referenceLink,
     String? referenceVideoPath,
     String? supplementalText,
   }) {
@@ -250,6 +241,7 @@ class ApiService {
         'duration': duration,
         'video_template_key': videoTemplateKey,
         if (promptTemplateKey != null) 'prompt_template_key': promptTemplateKey,
+        if (referenceLink != null) 'reference_link': referenceLink,
         if (referenceVideoPath != null)
           'reference_video_path': referenceVideoPath,
         if (supplementalText != null) 'supplemental_text': supplementalText,

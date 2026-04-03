@@ -62,21 +62,25 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
 
         # 获取请求体
         if request.method in ["POST", "PUT", "PATCH"]:
-            try:
-                body = await request.json()
-                args.update(body)
-            except json.JSONDecodeError:
+            content_type = (request.headers.get("content-type") or "").lower()
+            if "multipart/form-data" in content_type:
+                args["_body"] = "[multipart/form-data omitted]"
+            else:
                 try:
-                    body = await request.form()
-                    # args.update(body)
-                    for k, v in body.items():
-                        if hasattr(v, "filename"):  # 文件上传行为
-                            args[k] = v.filename
-                        elif isinstance(v, list) and v and hasattr(v[0], "filename"):
-                            args[k] = [file.filename for file in v]
-                        else:
-                            args[k] = v
-                except Exception:
+                    if "application/x-www-form-urlencoded" in content_type:
+                        body = await request.form()
+                        for k, v in body.items():
+                            if hasattr(v, "filename"):  # 文件上传行为
+                                args[k] = v.filename
+                            elif isinstance(v, list) and v and hasattr(v[0], "filename"):
+                                args[k] = [file.filename for file in v]
+                            else:
+                                args[k] = v
+                    else:
+                        body = await request.json()
+                        if isinstance(body, dict):
+                            args.update(body)
+                except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
                     pass
 
         return args
@@ -121,6 +125,12 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
             except (ValueError, TypeError):
                 pass
         return v
+
+    @staticmethod
+    def normalize_response_body_for_audit(value: Any) -> Any:
+        if isinstance(value, bytes):
+            return {"code": 0, "msg": "Binary response omitted", "data": None}
+        return value
 
     async def _async_iter(self, items: list[bytes]) -> AsyncGenerator[bytes, None]:
         for item in items:
@@ -167,7 +177,9 @@ class HttpAuditLogMiddleware(BaseHTTPMiddleware):
             data["response_time"] = process_time
 
             data["request_args"] = request.state.request_args
-            data["response_body"] = await self.get_response_body(request, response)
+            data["response_body"] = self.normalize_response_body_for_audit(
+                await self.get_response_body(request, response)
+            )
             await AuditLog.create(**data)
 
         return response

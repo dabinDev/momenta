@@ -108,16 +108,6 @@ async def upload_reference_video(video: UploadFile = File(...)):
     return Success(data=payload)
 
 
-@router.post("/polish-text", summary="Polish text for video creation", dependencies=[DependAuth])
-async def polish_text(req_in: TextTransformIn):
-    user_id = CTX_USER_ID.get()
-    try:
-        payload = await business_gateway_service.polish_text(user_id=user_id, text=req_in.text)
-    except (LegacyGatewayError, LLMGatewayError) as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return Success(data=payload)
-
-
 @router.post("/correct-text", summary="Correct input text", dependencies=[DependAuth])
 async def correct_text(req_in: TextTransformIn):
     user_id = CTX_USER_ID.get()
@@ -229,6 +219,7 @@ async def create_custom_task(req_in: CustomVideoTaskCreateIn):
             duration=req_in.duration,
             prompt_template_key=req_in.prompt_template_key,
             video_template_key=req_in.video_template_key,
+            reference_link=req_in.reference_link,
             reference_video_path=req_in.reference_video_path,
             supplemental_text=req_in.supplemental_text,
         )

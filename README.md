@@ -1,4 +1,4 @@
-# 银龄 AI 短视频助手
+# 拾光视频
 
 面向中老年用户的 Flutter App，提供从文字/语音输入、AI 矫正文案、提示词生成、参考图上传到视频生成和历史管理的完整链路。
 
@@ -15,17 +15,20 @@
 后端服务基地址当前默认为：
 
 ```text
-http://1.15.227.223:3000
+http://192.168.101.21:9999
 ```
 
 设置页可配置：
 
-- LLM Base URL，默认 `https://api.moonshot.cn/v1`
-- LLM API Key，传递方式 `Authorization: Bearer <YOUR_KIMI_API_KEY>`
-- LLM Model，默认 `moonshot-v1-8k`
-- Video Base URL，默认 `https://api.openai.com/v1`
+- LLM Base URL，默认 `https://api.99hub.top`
+- LLM API Key，传递方式 `Authorization: Bearer <YOUR_LLM_API_KEY>`
+- LLM Model，默认 `gpt-5.4-mini`
+- Video Base URL，默认 `https://api.99hub.top`
 - Video API Key
-- Video Model，默认 `video-generation`
+- Video Model，默认 `veo_3_1-fast-components-4K`
+- Speech Base URL，默认 `https://api.99hub.top`
+- Speech API Key
+- Speech Model，默认 `gpt-4o-mini-audio-preview`
 
 真实密钥不会写死在源码中，API Key 仅通过设置页输入，并保存到 `flutter_secure_storage`。
 
@@ -42,7 +45,7 @@ sk-xxxxxxxxxxxxxxxxxxxxxxxx
 1. 执行 `flutter pub get`
 2. 确认后端服务可访问
 3. 执行 `flutter run`
-4. 首次进入设置页，保存 LLM / Video 配置
+4. 首次进入设置页，保存 LLM / Video / Speech 配置
 
 ## 常见排查
 

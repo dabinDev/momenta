@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import mimetypes
 import secrets
 from collections.abc import Sequence
@@ -53,6 +54,20 @@ class LocalMediaService:
             subdir="reference_videos",
         )
         return items[0]
+
+    async def ensure_public_image_url(self, location: str) -> str:
+        normalized = (location or "").strip()
+        if not normalized:
+            raise LocalMediaError("Image location is empty")
+        if self._is_public_image_url(normalized):
+            return normalized
+
+        file_name, content, content_type = await self.read_remote_bytes(normalized)
+        return await self._upload_image_to_proxy(
+            file_name=file_name,
+            content=content,
+            content_type=content_type,
+        )
 
     async def _save_uploaded_files(
         self,
@@ -135,6 +150,84 @@ class LocalMediaService:
         if not target_file.exists():
             raise LocalMediaError("Local media file not found")
         return target_file.name, target_file.read_bytes()
+
+    async def _upload_image_to_proxy(
+        self,
+        *,
+        file_name: str,
+        content: bytes,
+        content_type: str,
+    ) -> str:
+        timeout = httpx.Timeout(connect=20.0, read=120.0, write=120.0, pool=20.0)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            try:
+                response = await client.post(
+                    settings.IMAGE_PROXY_UPLOAD_URL,
+                    files={
+                        "file": (
+                            file_name or f"{secrets.token_hex(6)}.jpg",
+                            content,
+                            content_type or "application/octet-stream",
+                        )
+                    },
+                )
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise LocalMediaError(self._read_error_detail(exc.response)) from exc
+            except httpx.HTTPError as exc:
+                raise LocalMediaError("Failed to upload image to public proxy") from exc
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise LocalMediaError("Public image proxy returned invalid JSON") from exc
+
+        public_url = str(payload.get("url") or "").strip() if isinstance(payload, dict) else ""
+        if not public_url:
+            raise LocalMediaError("Public image proxy did not return an image URL")
+        return public_url
+
+    @staticmethod
+    def _is_public_image_url(location: str) -> bool:
+        parsed = urlparse(location)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return False
+
+        if parsed.port and parsed.port not in {80, 443}:
+            return False
+
+        host = parsed.hostname.strip().lower()
+        if host in {"localhost", "0.0.0.0"} or host.endswith(".local"):
+            return False
+
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            return True
+
+        return not (
+            address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_multicast
+            or address.is_reserved
+            or address.is_unspecified
+        )
+
+    @staticmethod
+    def _read_error_detail(response: httpx.Response) -> str:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = response.text
+
+        if isinstance(payload, dict):
+            for key in ("error", "message", "detail", "msg", "code"):
+                if payload.get(key):
+                    return str(payload[key])
+        if isinstance(payload, str) and payload.strip():
+            return payload.strip()
+        return f"Request failed with status {response.status_code}"
 
     @staticmethod
     def _guess_suffix(content_type: str | None) -> str:
