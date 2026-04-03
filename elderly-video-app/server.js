@@ -22,7 +22,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 const DEFAULT_CONFIG = {
-  backendBaseUrl: 'http://192.168.101.21:10099',
+  backendBaseUrl: process.env.BACKEND_BASE_URL || 'http://127.0.0.1:10099',
 };
 
 app.use(cors());
@@ -765,6 +765,60 @@ app.get('/api/video-status/:id', requireToken, (req, res) =>
     fallbackError: '获取任务状态失败',
   })
 );
+
+app.post('/api/history/:id/retry', requireToken, (req, res) =>
+  proxyJsonRequest(req, res, {
+    method: 'POST',
+    targetPath: `/api/tasks/${encodeURIComponent(req.params.id)}/retry`,
+    successMapper: (payload) => {
+      const task = unwrapEnvelope(payload) || {};
+      return {
+        success: true,
+        record: normalizeTask(task),
+      };
+    },
+    fallbackError: '重新生成失败',
+  })
+);
+
+app.get('/api/history/:id/download', requireToken, async (req, res) => {
+  const taskId = String(req.params.id || '').trim();
+  if (!taskId) {
+    return res.status(400).json({ success: false, error: '缺少任务编号' });
+  }
+
+  const targetUrl = buildBackendUrl(`/api/tasks/${encodeURIComponent(taskId)}/download`);
+  try {
+    const response = await fetch(targetUrl, {
+      headers: buildTokenHeaders(req),
+    });
+    if (!response.ok) {
+      const result = await readResponsePayload(response);
+      return res.status(result.status).json({
+        success: false,
+        error: readErrorMessage(result.payload, '下载视频失败'),
+      });
+    }
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const contentDisposition = response.headers.get('content-disposition');
+    const contentLength = response.headers.get('content-length');
+    res.status(200);
+    res.setHeader('Content-Type', contentType);
+    if (contentDisposition) {
+      res.setHeader('Content-Disposition', contentDisposition);
+    }
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+    response.body.pipe(res);
+  } catch (error) {
+    return res.status(502).json({
+      success: false,
+      error: error.message || '下载视频失败',
+    });
+  }
+});
 
 app.get('/api/history', requireToken, (req, res) => {
   const page = Math.max(Number(req.query.page || 1) || 1, 1);

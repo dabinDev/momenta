@@ -5,7 +5,7 @@ from app.core.ctx import CTX_USER_ID
 from app.core.dependency import DependAuth
 from app.log.log import logger
 from app.schemas.base import Success
-from app.services import get_or_create_user_app_config, speech_service
+from app.services import resolve_effective_user_app_config, speech_service
 from app.services.speech import (
     SpeechConfigError,
     SpeechProviderError,
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/voice", tags=["Speech"])
 async def transcribe_voice(audio: UploadFile = File(...), task_id: int | None = Form(default=None)):
     user_id = CTX_USER_ID.get()
     filename = audio.filename or "voice.pcm"
-    config = await get_or_create_user_app_config(user_id)
+    config = await resolve_effective_user_app_config(user_id)
     provider = speech_service.provider_name(config)
     try:
         content = await audio.read()

@@ -1,4 +1,10 @@
+from pathlib import Path
+from urllib.parse import urlparse
+
+import httpx
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from starlette.background import BackgroundTask
+from starlette.responses import StreamingResponse
 
 from app.controllers.task import VideoGenerationRateLimitError, task_controller
 from app.core.ctx import CTX_USER_ID
@@ -16,8 +22,34 @@ from app.services.legacy_gateway import LegacyGatewayError
 from app.services.llm_gateway import LLMGatewayError
 from app.services.local_media import LocalMediaError
 from app.services.video_gateway import VideoGatewayError
+from app.settings.config import settings
 
 router = APIRouter(tags=["App Tasks"])
+
+
+def _resolve_video_url(raw_url: str) -> str:
+    normalized = str(raw_url or "").strip()
+    if not normalized:
+        return ""
+    if normalized.startswith("http://") or normalized.startswith("https://"):
+        return normalized
+    base_url = settings.PUBLIC_BASE_URL.rstrip("/")
+    if not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+    return f"{base_url}{normalized}"
+
+
+def _download_filename(task_id: int, target_url: str) -> str:
+    suffix = Path(urlparse(target_url).path).suffix or ".mp4"
+    return f"task_{task_id}{suffix}"
+
+
+async def _close_download_stream(
+    response: httpx.Response,
+    client: httpx.AsyncClient,
+) -> None:
+    await response.aclose()
+    await client.aclose()
 
 
 async def _build_task_response(
@@ -305,6 +337,60 @@ async def get_task(task_id: int):
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return Success(data=await task_controller.serialize_task(task))
+
+
+@router.post("/tasks/{task_id}/retry", summary="Retry a failed task", dependencies=[DependAuth])
+async def retry_task(task_id: int):
+    user_id = CTX_USER_ID.get()
+    try:
+        task = await task_controller.retry_user_task(task_id=task_id, user_id=user_id)
+    except VideoGenerationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Success(data=await task_controller.serialize_task(task))
+
+
+@router.get("/tasks/{task_id}/download", summary="Download current user task video", dependencies=[DependAuth])
+async def download_task_video(task_id: int):
+    user_id = CTX_USER_ID.get()
+    task = await task_controller.get_user_task(task_id=task_id, user_id=user_id)
+    target_url = _resolve_video_url(task.video_url or "")
+    if not target_url:
+        raise HTTPException(status_code=404, detail="Task video is not ready")
+
+    client = httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0),
+        follow_redirects=True,
+    )
+    try:
+        response = await client.send(
+            client.build_request("GET", target_url),
+            stream=True,
+        )
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        await client.aclose()
+        raise HTTPException(status_code=exc.response.status_code, detail="Failed to download task video") from exc
+    except httpx.HTTPError as exc:
+        await client.aclose()
+        raise HTTPException(status_code=502, detail="Failed to download task video") from exc
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{_download_filename(task.id, target_url)}"',
+    }
+    content_length = response.headers.get("content-length")
+    if content_length:
+        headers["Content-Length"] = content_length
+
+    return StreamingResponse(
+        response.aiter_bytes(),
+        media_type=response.headers.get("content-type") or "application/octet-stream",
+        headers=headers,
+        background=BackgroundTask(_close_download_stream, response, client),
+    )
 
 
 @router.delete("/tasks/{task_id}", summary="Delete a task from current user history", dependencies=[DependAuth])

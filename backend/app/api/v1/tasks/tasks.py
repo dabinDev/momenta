@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
-from app.controllers.task import task_controller
+from app.controllers.task import VideoGenerationRateLimitError, task_controller
 from app.schemas.base import Success, SuccessExtra
 from app.services.legacy_gateway import LegacyGatewayError
 from app.services.local_media import LocalMediaError
@@ -74,6 +74,20 @@ async def sync_task(task_id: int = Query(..., description="Task ID")):
     task = await task_controller.get_task(task_id=task_id)
     try:
         task = await task_controller.sync_task_status(task, force=True)
+    except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Success(data=await task_controller.serialize_task(task, include_user=True))
+
+
+@router.post("/retry", summary="Retry task from stored request context")
+async def retry_task(task_id: int = Query(..., description="Task ID")):
+    task = await task_controller.get_task(task_id=task_id)
+    try:
+        task = await task_controller.retry_task(task)
+    except VideoGenerationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return Success(data=await task_controller.serialize_task(task, include_user=True))

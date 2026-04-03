@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:video_player/video_player.dart' as vp;
 
@@ -7,6 +8,7 @@ class VideoPlayerController extends GetxController {
   final RxBool isLoading = true.obs;
   final RxString title = '视频播放'.obs;
   final RxString errorText = ''.obs;
+  final RxBool isFullscreen = false.obs;
 
   late final vp.VideoPlayerController playerController;
 
@@ -46,8 +48,29 @@ class VideoPlayerController extends GetxController {
     update();
   }
 
+  Future<void> toggleFullscreen() async {
+    final bool next = !isFullscreen.value;
+    isFullscreen.value = next;
+    if (next) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      return;
+    }
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+    ]);
+  }
+
   @override
   void onClose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+    ]);
     if (!isLoading.value && errorText.value.isEmpty) {
       playerController.dispose();
     }

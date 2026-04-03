@@ -5,7 +5,7 @@ from app.controllers.user import user_controller
 from app.log.log import logger
 from app.schemas.ai_debug import AIDebugTaskCreateRequest, AIDebugTextRequest
 from app.schemas.base import Success
-from app.services import get_or_create_user_app_config, speech_service
+from app.services import resolve_effective_user_app_config, speech_service
 from app.services.business_gateway import business_gateway_service
 from app.services.legacy_gateway import LegacyGatewayError
 from app.services.llm_gateway import LLMGatewayError
@@ -114,7 +114,7 @@ async def transcribe_debug_voice(
 ):
     await user_controller.get(id=user_id)
     filename = audio.filename or "voice.pcm"
-    config = await get_or_create_user_app_config(user_id)
+    config = await resolve_effective_user_app_config(user_id)
     provider = speech_service.provider_name(config)
     try:
         content = await audio.read()

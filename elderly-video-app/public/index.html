@@ -68,10 +68,6 @@
         <button class="tab" data-page="history" type="button">记录</button>
         <button class="tab" data-page="settings" type="button">设置</button>
       </nav>
-      <div class="topbar-user">
-        <div class="user-chip" id="userChip">未登录</div>
-        <button class="btn btn--ghost btn--small" id="logoutBtn" type="button">退出</button>
-      </div>
     </header>
 
     <main class="app-main">
@@ -259,7 +255,7 @@
           <div class="field-stack">
             <label class="field">
               <span class="field-label">服务地址</span>
-              <input class="input" id="backendBaseUrl" type="text" placeholder="http://192.168.101.21:9999">
+              <input class="input" id="backendBaseUrl" type="text" placeholder="http://127.0.0.1:10099">
             </label>
             <div class="button-row">
               <button class="btn btn--primary" id="saveProxySettingsBtn" type="button">保存代理地址</button>
@@ -343,11 +339,22 @@
             <div class="section-icon section-icon--jade">账</div>
             <div>
               <h3>当前账号</h3>
-              <p>信息来自 App 使用的同一套登录和用户信息接口。</p>
+              <p>信息来自 App 使用的同一套登录和用户信息接口，账号操作也统一放在这里。</p>
             </div>
           </div>
-          <div class="meta-list" id="sessionMeta"></div>
-          <div class="entry-list">
+          <div class="account-panel">
+            <div class="account-hero">
+              <div class="account-avatar" id="accountAvatar" aria-hidden="true">拾</div>
+              <div class="account-hero__copy">
+                <strong id="accountDisplayName">未登录用户</strong>
+                <span id="accountUsername">请先登录账号</span>
+              </div>
+            </div>
+            <div class="account-basic-card">
+              <div class="meta-list account-meta" id="sessionMeta"></div>
+            </div>
+          </div>
+          <div class="entry-list entry-list--compact">
             <button class="entry-tile" id="editProfileBtn" type="button">
               <div class="entry-tile__copy">
                 <strong>编辑资料</strong>
@@ -369,6 +376,9 @@
               </div>
               <span>›</span>
             </button>
+          </div>
+          <div class="action-stack action-stack--account">
+            <button class="btn btn--primary btn--wide" id="settingsLogoutBtn" type="button">退出登录</button>
           </div>
         </section>
 

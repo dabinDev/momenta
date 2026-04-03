@@ -6,7 +6,7 @@ import { useUserStore, usePermissionStore } from '@/store'
 
 const isHash = import.meta.env.VITE_USE_HASH === 'true'
 export const router = createRouter({
-  history: isHash ? createWebHashHistory('/') : createWebHistory('/'),
+  history: isHash ? createWebHashHistory(import.meta.env.BASE_URL) : createWebHistory(import.meta.env.BASE_URL),
   routes: basicRoutes,
   scrollBehavior: () => ({ left: 0, top: 0 }),
 })

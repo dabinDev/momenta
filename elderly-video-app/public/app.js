@@ -82,6 +82,7 @@ const state = {
   uploadedReferenceVideo: null,
   historyPage: 1,
   currentVideoUrl: '',
+  currentVideoTaskId: '',
   currentTask: null,
   historySummary: {
     total: 0,
@@ -128,6 +129,39 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
+function buildAccountMetaRows(user) {
+  return [
+    ['账号', user?.username || '未设置'],
+    ['手机号', user?.phone || '--'],
+    ['版本号', versionLabel()],
+  ].map(([label, value]) => (
+    `<div class="account-meta-row"><span class="account-meta-label">${escapeHtml(label)}</span><strong class="account-meta-value">${escapeHtml(value)}</strong></div>`
+  )).join('');
+}
+
+function syncAccountSummary(user) {
+  const displayName = user?.alias?.trim() || user?.username || '未登录用户';
+  const usernameText = user?.username ? `@${user.username}` : '请先登录账号';
+  const avatarText = (user?.alias?.trim() || user?.username || '拾').charAt(0) || '拾';
+  const avatar = $('accountAvatar');
+  if (avatar) {
+    if (user?.avatar) {
+      avatar.innerHTML = `<img src="${escapeAttr(user.avatar)}" alt="${escapeAttr(displayName)}">`;
+    } else {
+      avatar.textContent = avatarText;
+    }
+  }
+  if ($('accountDisplayName')) {
+    $('accountDisplayName').textContent = displayName;
+  }
+  if ($('accountUsername')) {
+    $('accountUsername').textContent = usernameText;
+  }
+  if ($('sessionMeta')) {
+    $('sessionMeta').innerHTML = buildAccountMetaRows(user);
+  }
 }
 
 function compactPayload(payload) {
@@ -319,12 +353,7 @@ function renderVersionInfo() {
 }
 
 function updateUserUI() {
-  $('userChip').textContent = state.currentUser?.alias?.trim() || state.currentUser?.username || '未登录';
-  $('sessionMeta').innerHTML = [
-    `用户名：${escapeHtml(state.currentUser?.username || '未登录')}`,
-    `别名：${escapeHtml(state.currentUser?.alias || '--')}`,
-    `邮箱：${escapeHtml(state.currentUser?.email || '--')}`,
-  ].map((item) => `<div>${item}</div>`).join('');
+  syncAccountSummary(state.currentUser || null);
 }
 
 async function login() {
@@ -1200,7 +1229,23 @@ function renderTaskStatusPanel() {
     taskStatusPanel.removeAttribute('title');
     taskStatusPanel.removeAttribute('aria-label');
   }
-  setHidden($('taskActions'), !canPlay);
+  const actions = $('taskActions');
+  if (status === 'completed' && state.currentTask?.videoUrl) {
+    actions.innerHTML = `
+      <button class="btn btn--outline btn--small" type="button" data-task-action="play">播放结果</button>
+      <button class="btn btn--outline btn--small" type="button" data-task-action="download">保存到本地</button>
+    `;
+    setHidden(actions, false);
+  } else if (status === 'failed' && state.currentTask?.id) {
+    actions.innerHTML = `
+      <button class="btn btn--outline btn--small" type="button" data-task-action="retry">重新生成</button>
+      <button class="btn btn--ghost btn--small" type="button" data-task-action="delete">删除</button>
+    `;
+    setHidden(actions, false);
+  } else {
+    actions.innerHTML = '';
+    setHidden(actions, true);
+  }
 }
 
 function setSubmitting(nextSubmitting) {
@@ -1238,28 +1283,29 @@ function previewCurrentTask() {
   if (state.currentTask?.status !== 'completed' || !state.currentTask?.videoUrl) {
     return;
   }
-  openModal(state.currentTask.videoUrl, '生成结果预览');
+  openModal(state.currentTask.videoUrl, '生成结果预览', state.currentTask.id || '');
 }
 
 async function downloadCurrentTask() {
-  if (state.currentTask?.status !== 'completed' || !state.currentTask?.videoUrl) {
+  if (state.currentTask?.status !== 'completed' || !state.currentTask?.id) {
     showToast('当前没有可保存的视频。', 'error');
     return;
   }
 
   try {
-    await downloadVideoByProxy(state.currentTask.videoUrl, '拾光视频');
+    await downloadTaskById(state.currentTask.id, '拾光视频');
     showToast('视频已开始保存到本地。', 'success');
   } catch (error) {
     showToast(error.message || '保存视频失败。', 'error');
   }
 }
 
-function openModal(url, title = '视频预览') {
+function openModal(url, title = '视频预览', taskId = '') {
   if (!url) {
     return;
   }
   state.currentVideoUrl = url;
+  state.currentVideoTaskId = taskId || '';
   $('modalTitle').textContent = title;
   $('modalVideo').src = url;
   setHidden($('videoModal'), false);
@@ -1269,17 +1315,8 @@ function openModal(url, title = '视频预览') {
 function closeModal() {
   $('modalVideo').pause();
   $('modalVideo').src = '';
+  state.currentVideoTaskId = '';
   setHidden($('videoModal'), true);
-}
-
-function downloadVideo() {
-  if (!state.currentVideoUrl) {
-    return;
-  }
-  const link = document.createElement('a');
-  link.href = state.currentVideoUrl;
-  link.download = `拾光视频_${Date.now()}.mp4`;
-  link.click();
 }
 
 function stopTaskPolling() {
@@ -1295,7 +1332,7 @@ function markTaskCompleted(task, modalTitle) {
   renderTaskStatusPanel();
   showToast('视频生成完成。', 'success');
   if (task.videoUrl) {
-    openModal(task.videoUrl, modalTitle);
+    openModal(task.videoUrl, modalTitle, task.id || '');
   }
   if (state.activePage === 'history') {
     loadHistory(state.historyPage);
@@ -1525,28 +1562,7 @@ function friendlyBrowserSpeechError(code) {
   return '浏览器语音识别失败，请稍后重试。';
 }
 
-function ensureRecordingDialogExtras() {
-  const dialogCard = $('recordingDialog')?.querySelector('.dialog-card');
-  const actionStack = $('recordingDialog')?.querySelector('.action-stack');
-  if (!dialogCard || !actionStack || $('recordingPreviewText')) {
-    return;
-  }
-
-  const previewPanel = document.createElement('div');
-  previewPanel.className = 'note-panel recording-preview';
-  previewPanel.innerHTML = `
-    <strong>实时识别预览</strong>
-    <div class="recording-preview__text" id="recordingPreviewText">请直接说话，识别结果会实时显示在这里。</div>
-  `;
-
-  const hint = document.createElement('p');
-  hint.className = 'field-tip recording-hint';
-  hint.id = 'recordingHint';
-  hint.textContent = '说完后点“识别文字”，系统会直接写入输入框。';
-
-  dialogCard.insertBefore(previewPanel, actionStack);
-  dialogCard.insertBefore(hint, actionStack);
-}
+function ensureRecordingDialogExtras() {}
 
 function applySpeechUxCopy() {
   const settingsPage = $('page-settings');
@@ -1585,6 +1601,104 @@ function applySpeechUxCopy() {
     tip.className = 'field-tip';
     tip.dataset.speechNativeTip = 'true';
     tip.textContent = '当前 H5 和 App 的创作页不会调用这里做语音转文字，仅保留给后端备用转写和日志排查使用。';
+    speechSection.prepend(tip);
+  }
+}
+
+function applyRefinedSettingsUx() {
+  const settingsPage = $('page-settings');
+  if (!settingsPage) {
+    return;
+  }
+
+  const heading = settingsPage.querySelector('.page-head h2');
+  const copy = settingsPage.querySelector('.page-head .page-copy');
+  if (heading) {
+    heading.textContent = '应用设置';
+  }
+  if (copy) {
+    copy.textContent = '参考 App 只展示账号主信息，其它代理和 AI 调试配置默认收起。';
+  }
+
+  const cards = $$('#page-settings > .section-card');
+  const proxyCard = cards.find((card) => card.querySelector('#backendBaseUrl'));
+  const serviceCard = cards.find((card) => card.querySelector('#saveAiConfigBtn'));
+  const accountCard = cards.find((card) => card.querySelector('#settingsLogoutBtn'));
+  const versionCard = cards.find((card) => card.querySelector('#versionMeta'));
+  if (!proxyCard || !serviceCard || !accountCard || !versionCard) {
+    return;
+  }
+
+  const accountCopy = accountCard.querySelector('.section-head p');
+  if (accountCopy) {
+    accountCopy.textContent = '参考 App 只保留账号主信息，调试和连接配置默认收起。';
+  }
+  const editProfileTitle = $('editProfileBtn')?.querySelector('strong');
+  if (editProfileTitle) {
+    editProfileTitle.textContent = '个人信息';
+  }
+
+  let disclosureCard = $('settingsAdvancedCard');
+  if (!disclosureCard) {
+    disclosureCard = document.createElement('section');
+    disclosureCard.className = 'section-card section-card--subtle settings-disclosure-card';
+    disclosureCard.id = 'settingsAdvancedCard';
+    disclosureCard.innerHTML = `
+      <details class="settings-disclosure">
+        <summary class="settings-disclosure__summary">
+          <div class="settings-disclosure__copy">
+            <strong>高级设置</strong>
+            <span>代理地址、AI 配置和版本检查默认收起，需要时再展开。</span>
+          </div>
+          <span class="settings-disclosure__chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="settings-disclosure__body">
+          <div class="settings-toolbar" id="settingsToolbar"></div>
+          <div class="settings-advanced-grid" id="settingsAdvancedGrid"></div>
+        </div>
+      </details>
+    `;
+    accountCard.insertAdjacentElement('afterend', disclosureCard);
+  }
+
+  const toolbar = $('settingsToolbar');
+  const advancedGrid = $('settingsAdvancedGrid');
+  if (!toolbar || !advancedGrid) {
+    return;
+  }
+
+  const refreshProfileBtn = $('refreshProfileBtn');
+  if (refreshProfileBtn) {
+    refreshProfileBtn.className = 'btn btn--ghost btn--small';
+    refreshProfileBtn.textContent = '同步账号';
+    toolbar.append(refreshProfileBtn);
+  }
+
+  const checkUpdateBtn = $('checkUpdateBtn');
+  if (checkUpdateBtn) {
+    const oldButtonRow = checkUpdateBtn.closest('.button-row');
+    checkUpdateBtn.className = 'btn btn--ghost btn--small';
+    checkUpdateBtn.textContent = '检查更新';
+    toolbar.append(checkUpdateBtn);
+    oldButtonRow?.remove();
+  }
+
+  proxyCard.classList.add('settings-advanced-block');
+  serviceCard.classList.add('settings-advanced-block');
+  versionCard.classList.add('settings-advanced-block');
+  advancedGrid.append(proxyCard, serviceCard, versionCard);
+
+  const speechChip = document.querySelector('[data-settings-section="speech"]');
+  if (speechChip) {
+    speechChip.textContent = '语音备用';
+  }
+
+  const speechSection = $('settingsSection-speech');
+  if (speechSection && !speechSection.querySelector('[data-speech-native-tip]')) {
+    const tip = document.createElement('p');
+    tip.className = 'field-tip';
+    tip.dataset.speechNativeTip = 'true';
+    tip.textContent = '当前 H5 与 App 的创作页优先使用本机识别，这里的语音配置只保留给后端备用转写与排障。';
     speechSection.prepend(tip);
   }
 }
@@ -1668,8 +1782,8 @@ async function startRecording() {
   try {
     const recognition = new BrowserSpeechRecognition();
     recognition.lang = 'zh-CN';
-    recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     state.recording = {
@@ -1691,17 +1805,13 @@ async function startRecording() {
 
     recognition.onresult = (event) => {
       let finalText = state.recording.finalText || '';
-      let interimText = '';
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const transcript = String(event.results[index][0]?.transcript || '');
-        if (event.results[index].isFinal) {
-          finalText += transcript;
-        } else {
-          interimText += transcript;
-        }
+        finalText += transcript;
       }
       state.recording.finalText = finalText;
-      state.recording.interimText = interimText;
+      state.recording.interimText = '';
+      state.recording.errorMessage = '';
       updateRecordingDialog();
     };
 
@@ -1818,7 +1928,7 @@ function bindEvents() {
       login();
     }
   });
-  $('logoutBtn').addEventListener('click', logout);
+  $('settingsLogoutBtn').addEventListener('click', logout);
 
   $('modeSwitchBtn').addEventListener('click', openModeSheet);
   $('closeModeSheetBtn').addEventListener('click', closeModeSheet);
@@ -1861,7 +1971,18 @@ function bindEvents() {
   $('playCurrentTaskBtn').addEventListener('click', previewCurrentTask);
   $('downloadCurrentTaskBtn').addEventListener('click', downloadCurrentTask);
   $('taskStatusPanel').addEventListener('click', (event) => {
-    if (event.target.closest('#playCurrentTaskBtn, #downloadCurrentTaskBtn')) {
+    const actionButton = event.target.closest('[data-task-action]');
+    if (actionButton) {
+      const action = actionButton.dataset.taskAction || '';
+      if (action === 'play') {
+        previewCurrentTask();
+      } else if (action === 'download') {
+        downloadCurrentTask();
+      } else if (action === 'retry') {
+        retryCurrentTask();
+      } else if (action === 'delete') {
+        deleteCurrentTask();
+      }
       return;
     }
     previewCurrentTask();
@@ -1902,13 +2023,7 @@ function bindEvents() {
 
 function updateUserUI() {
   const user = state.currentUser || null;
-  $('userChip').textContent = user?.alias?.trim() || user?.username || '未登录';
-  $('sessionMeta').innerHTML = [
-    `用户名：${escapeHtml(user?.username || '未登录')}`,
-    `昵称：${escapeHtml(user?.alias || '--')}`,
-    `邮箱：${escapeHtml(user?.email || '--')}`,
-    `手机号：${escapeHtml(user?.phone || '--')}`,
-  ].map((item) => `<div>${item}</div>`).join('');
+  syncAccountSummary(user);
 
   $('profileAlias').value = user?.alias || '';
   $('profileEmail').value = user?.email || '';
@@ -2361,7 +2476,7 @@ function bindEvents() {
       login();
     }
   });
-  $('logoutBtn').addEventListener('click', logout);
+  $('settingsLogoutBtn').addEventListener('click', logout);
 
   $('modeSwitchBtn').addEventListener('click', openModeSheet);
   $('closeModeSheetBtn').addEventListener('click', closeModeSheet);
@@ -2465,6 +2580,197 @@ function bindEvents() {
   });
 }
 
+function applyRefinedSettingsUx() {
+  const settingsPage = $('page-settings');
+  if (!settingsPage) {
+    return;
+  }
+
+  const heading = settingsPage.querySelector('.page-head h2');
+  const copy = settingsPage.querySelector('.page-head .page-copy');
+  if (heading) {
+    heading.textContent = '应用设置';
+  }
+  if (copy) {
+    copy.textContent = '普通用户仅展示账号与版本信息，服务器地址和 AI 参数由后台统一维护。';
+  }
+
+  const cards = $$('#page-settings > .section-card');
+  const proxyCard = cards.find((card) => card.querySelector('#backendBaseUrl'));
+  const serviceCard = cards.find((card) => card.querySelector('#saveAiConfigBtn'));
+  const accountCard = cards.find((card) => card.querySelector('#settingsLogoutBtn'));
+  if (proxyCard) {
+    proxyCard.remove();
+  }
+  if (serviceCard) {
+    serviceCard.remove();
+  }
+  const accountCopy = accountCard?.querySelector('.section-head p');
+  if (accountCopy) {
+    accountCopy.textContent = '这里仅保留账号相关操作，开发环境配置不对普通用户展示。';
+  }
+}
+
+async function downloadTaskById(taskId, filenamePrefix = '拾光视频') {
+  if (!taskId) {
+    throw new Error('当前没有可下载的视频。');
+  }
+  const filename = `${filenamePrefix}_${Date.now()}.mp4`;
+  const response = await fetch(`/api/history/${encodeURIComponent(taskId)}/download`, {
+    headers: state.authToken
+      ? {
+          Authorization: `Bearer ${state.authToken}`,
+          token: state.authToken,
+        }
+      : {},
+  });
+  if (!response.ok) {
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch (_) {
+      payload = {};
+    }
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
+    throw new Error(payload.error || payload.message || '下载视频失败。');
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+async function retryTask(taskId) {
+  const result = await apiFetch(`/api/history/${encodeURIComponent(taskId)}/retry`, {
+    method: 'POST',
+  });
+  return result.record || null;
+}
+
+async function deleteCurrentTask() {
+  if (!state.currentTask?.id) {
+    return;
+  }
+  await deleteHistory(state.currentTask.id);
+  state.currentTask = null;
+  renderTaskStatusPanel();
+}
+
+async function retryCurrentTask() {
+  if (!state.currentTask?.id || state.currentTask?.status !== 'failed') {
+    return;
+  }
+  try {
+    const task = await retryTask(state.currentTask.id);
+    state.currentTask = task;
+    state.pollingCount = 0;
+    renderTaskStatusPanel();
+    if (task?.id && ['queued', 'processing'].includes(String(task.status || '').toLowerCase())) {
+      setSubmitting(true);
+      startTaskPolling(task.id);
+    }
+    showToast('已重新提交任务。', 'success');
+  } catch (error) {
+    showToast(error.message || '重新生成失败。', 'error');
+  }
+}
+
+async function downloadVideo() {
+  try {
+    if (state.currentVideoTaskId) {
+      await downloadTaskById(state.currentVideoTaskId, '拾光视频');
+      return;
+    }
+    await downloadVideoByProxy(state.currentVideoUrl, '拾光视频');
+  } catch (error) {
+    showToast(error.message || '下载视频失败。', 'error');
+  }
+}
+
+function renderHistory(records, totalPages) {
+  if (!records.length) {
+    $('historyList').innerHTML = '<div class="empty-state">还没有任务记录，先去创作一条视频吧。</div>';
+    $('pagination').innerHTML = '';
+    return;
+  }
+
+  $('historyList').innerHTML = records.map((item) => {
+    const descriptor = statusDescriptor(item.status);
+    const canPlay = item.status === 'completed' && item.videoUrl;
+    const canDownload = item.status === 'completed' && item.id;
+    const canRetry = item.status === 'failed' && item.id;
+    return `
+      <article class="history-item">
+        <div class="history-preview" ${canPlay ? `data-play-video="${escapeAttr(item.videoUrl)}" data-task-id="${escapeAttr(item.id)}"` : ''}>
+          ${canPlay ? `<video src="${escapeAttr(item.videoUrl)}" muted playsinline></video>` : '<div class="empty-state">暂无视频</div>'}
+        </div>
+        <div class="history-info">
+          <div class="history-title">${escapeHtml(item.displayText || item.prompt || '无提示词')}</div>
+          <div class="history-meta">
+            <span class="${descriptor.className}">${escapeHtml(descriptor.label)}</span>
+            <span>${escapeHtml(item.duration || 0)} 秒</span>
+            <span>${escapeHtml(formatDate(item.createdAt))}</span>
+          </div>
+        </div>
+        <div class="history-actions">
+          ${canPlay ? `<button class="btn btn--outline btn--small" type="button" data-play-video="${escapeAttr(item.videoUrl)}" data-task-id="${escapeAttr(item.id)}">播放</button>` : ''}
+          ${canDownload ? `<button class="btn btn--outline btn--small" type="button" data-download-task="${escapeAttr(item.id)}">下载</button>` : ''}
+          ${canRetry ? `<button class="btn btn--outline btn--small" type="button" data-retry-history="${escapeAttr(item.id)}">重新生成</button>` : ''}
+          <button class="btn btn--ghost btn--small" type="button" data-delete-history="${escapeAttr(item.id)}">删除</button>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  $$('[data-play-video]').forEach((node) => {
+    node.addEventListener('click', () => openModal(node.dataset.playVideo || '', '历史视频', node.dataset.taskId || ''));
+  });
+  $$('[data-download-task]').forEach((node) => {
+    node.addEventListener('click', async () => {
+      try {
+        await downloadTaskById(node.dataset.downloadTask || '', '历史视频');
+        showToast('视频已开始下载。', 'success');
+      } catch (error) {
+        showToast(error.message || '下载视频失败。', 'error');
+      }
+    });
+  });
+  $$('[data-retry-history]').forEach((node) => {
+    node.addEventListener('click', async () => {
+      try {
+        await retryTask(node.dataset.retryHistory || '');
+        showToast('已重新提交任务。', 'success');
+        await loadHistory(state.historyPage);
+      } catch (error) {
+        showToast(error.message || '重新生成失败。', 'error');
+      }
+    });
+  });
+  $$('[data-delete-history]').forEach((node) => {
+    node.addEventListener('click', () => deleteHistory(node.dataset.deleteHistory || ''));
+  });
+
+  if (totalPages <= 1) {
+    $('pagination').innerHTML = '';
+    return;
+  }
+
+  let html = `<button ${state.historyPage <= 1 ? 'disabled' : ''} data-page="${state.historyPage - 1}">上一页</button>`;
+  for (let page = 1; page <= totalPages; page += 1) {
+    html += `<button class="${page === state.historyPage ? 'active' : ''}" data-page="${page}">${page}</button>`;
+  }
+  html += `<button ${state.historyPage >= totalPages ? 'disabled' : ''} data-page="${state.historyPage + 1}">下一页</button>`;
+  $('pagination').innerHTML = html;
+  $$('[data-page]', $('pagination')).forEach((button) => {
+    button.addEventListener('click', () => loadHistory(Number(button.dataset.page || 1)));
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   readSession();
@@ -2475,6 +2781,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   fillAiConfigForm(DEFAULT_AI_CONFIG);
   switchSettingsSection('llm');
   applySpeechUxCopy();
+  applyRefinedSettingsUx();
   ensureRecordingDialogExtras();
   updateRecordingDialog();
   showTranscribeState(false);

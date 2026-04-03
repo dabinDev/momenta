@@ -4,7 +4,12 @@ from .base import BaseModel, TimestampMixin
 
 
 class VideoTask(BaseModel, TimestampMixin):
-    user = fields.ForeignKeyField("models.User", related_name="video_tasks", on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="video_tasks",
+        on_delete=fields.CASCADE,
+        db_constraint=False,
+    )
     task_source = fields.CharField(max_length=20, default="app", description="Task source", index=True)
     task_type = fields.CharField(max_length=30, default="text_to_video", description="Task type", index=True)
     status = fields.CharField(max_length=20, default="queued", description="Task status", index=True)
@@ -30,7 +35,12 @@ class VideoTask(BaseModel, TimestampMixin):
 
 
 class VideoTaskAsset(BaseModel, TimestampMixin):
-    task = fields.ForeignKeyField("models.VideoTask", related_name="assets", on_delete=fields.CASCADE)
+    task = fields.ForeignKeyField(
+        "models.VideoTask",
+        related_name="assets",
+        on_delete=fields.CASCADE,
+        db_constraint=False,
+    )
     asset_type = fields.CharField(max_length=30, default="reference_image", description="Asset type", index=True)
     file_url = fields.CharField(max_length=500, description="Asset URL")
     file_name = fields.CharField(max_length=255, null=True, description="Asset file name")
@@ -41,12 +51,18 @@ class VideoTaskAsset(BaseModel, TimestampMixin):
 
 
 class VoiceTranscriptionLog(BaseModel, TimestampMixin):
-    user = fields.ForeignKeyField("models.User", related_name="voice_logs", on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="voice_logs",
+        on_delete=fields.CASCADE,
+        db_constraint=False,
+    )
     task = fields.ForeignKeyField(
         "models.VideoTask",
         related_name="voice_logs",
         on_delete=fields.SET_NULL,
         null=True,
+        db_constraint=False,
     )
     provider = fields.CharField(max_length=50, default="xfyun", description="Speech provider", index=True)
     audio_duration = fields.FloatField(default=0, description="Audio duration in seconds")

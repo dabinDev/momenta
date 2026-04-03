@@ -311,6 +311,19 @@ class TaskController:
             filters["is_deleted"] = False
         return await VideoTask.get(**filters)
 
+    async def retry_user_task(self, *, task_id: int, user_id: int) -> VideoTask:
+        task = await self.get_user_task(task_id=task_id, user_id=user_id)
+        return await self.retry_task(task)
+
+    async def retry_task(self, task: VideoTask) -> VideoTask:
+        payload = task.provider_payload or {}
+        if not isinstance(payload, dict):
+            raise ValueError("Task payload is invalid")
+        retried_task = await self._retry_task_from_request_context(task=task, payload=payload)
+        if retried_task.id != task.id:
+            return retried_task
+        return retried_task
+
     async def list_user_tasks(
         self,
         *,

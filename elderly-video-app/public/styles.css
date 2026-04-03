@@ -127,8 +127,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 22px;
+  gap: 10px;
+  padding: 10px 16px;
   border-bottom: 1px solid rgba(241, 226, 212, 0.9);
   background: rgba(255, 252, 250, 0.72);
   backdrop-filter: blur(18px);
@@ -136,7 +136,6 @@ button {
 
 .topbar-brand,
 .brand-lockup,
-.topbar-user,
 .button-row,
 .history-toolbar,
 .service-chip-row,
@@ -145,7 +144,7 @@ button {
 .section-inline-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .topbar-brand {
@@ -154,15 +153,15 @@ button {
 
 .brand-mark {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   place-items: center;
-  border-radius: 18px;
+  border-radius: 16px;
   color: #fff;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
   background: linear-gradient(135deg, var(--primary), var(--amber) 55%, var(--sky));
-  box-shadow: 0 14px 28px rgba(240, 110, 66, 0.22);
+  box-shadow: 0 12px 24px rgba(240, 110, 66, 0.2);
 }
 
 .brand-mark--large {
@@ -174,29 +173,33 @@ button {
 
 .topbar-brand strong {
   display: block;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.15;
 }
 
 .topbar-brand span {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .topbar-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .tab {
-  padding: 12px 18px;
-  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 14px;
   color: var(--muted);
   background: transparent;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
@@ -212,19 +215,18 @@ button {
   box-shadow: 0 12px 22px rgba(93, 141, 247, 0.2);
 }
 
-.user-chip,
 .hero-pill {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.86);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .app-main {
   max-width: 980px;
   margin: 0 auto;
-  padding: 18px 16px 28px;
+  padding: 16px 16px 28px;
 }
 
 .page {
@@ -240,8 +242,8 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 16px;
-  padding: 10px 4px 6px;
+  margin-bottom: 14px;
+  padding: 6px 2px 4px;
 }
 
 .page-head h2,
@@ -286,10 +288,10 @@ button {
 .mode-switch {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 50px;
-  padding: 10px 14px;
-  border-radius: 18px;
+  gap: 8px;
+  min-height: 46px;
+  padding: 8px 12px;
+  border-radius: 16px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(249, 248, 255, 0.82));
   color: var(--text);
   cursor: pointer;
@@ -301,9 +303,9 @@ button {
 .dialog-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 700;
   color: var(--primary-deep);
@@ -374,6 +376,99 @@ button {
 .meta-list {
   display: grid;
   gap: 14px;
+}
+
+.account-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.section-card--subtle {
+  background: rgba(255, 252, 250, 0.78);
+}
+
+.account-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 4px 2px;
+}
+
+.account-avatar {
+  display: grid;
+  width: 68px;
+  height: 68px;
+  flex: 0 0 68px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 24px;
+  color: var(--primary-deep);
+  font-size: 30px;
+  font-weight: 800;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 239, 228, 0.92), rgba(228, 238, 255, 0.88));
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-hero__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-hero__copy strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1.16;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-hero__copy span {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.account-basic-card {
+  padding: 4px 18px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255, 247, 240, 0.9), rgba(246, 248, 255, 0.92));
+}
+
+.account-meta {
+  gap: 0;
+}
+
+.account-meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 0;
+}
+
+.account-meta-row + .account-meta-row {
+  border-top: 1px solid rgba(226, 213, 201, 0.72);
+}
+
+.account-meta-label {
+  flex: 0 0 72px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.account-meta-value {
+  flex: 1;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: break-word;
 }
 
 .history-toolbar {
@@ -871,6 +966,10 @@ button {
   margin-top: 14px;
 }
 
+.entry-list--compact {
+  margin-top: 16px;
+}
+
 .entry-tile {
   display: flex;
   align-items: center;
@@ -888,6 +987,95 @@ button {
   display: grid;
   gap: 2px;
   text-align: left;
+}
+
+.action-stack--account {
+  margin-top: 18px;
+}
+
+.field-stack--compact,
+.action-stack--compact,
+.meta-list--compact {
+  gap: 12px;
+}
+
+.entry-list--compact .entry-tile {
+  padding: 13px 15px;
+  border-radius: 18px;
+}
+
+.settings-disclosure {
+  display: grid;
+  gap: 0;
+}
+
+.settings-disclosure__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-disclosure__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-disclosure__copy strong {
+  display: block;
+  font-size: 18px;
+}
+
+.settings-disclosure__copy span {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.settings-disclosure__chevron {
+  flex: 0 0 auto;
+  color: var(--primary-deep);
+  font-size: 24px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.settings-disclosure[open] .settings-disclosure__chevron {
+  transform: rotate(180deg);
+}
+
+.settings-disclosure__body {
+  display: grid;
+  gap: 16px;
+  padding-top: 18px;
+}
+
+.settings-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-advanced-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-advanced-grid > .section-card {
+  margin-bottom: 0;
+}
+
+.settings-advanced-block {
+  padding: 16px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255, 247, 240, 0.88), rgba(246, 248, 255, 0.9));
 }
 
 .pagination {
@@ -1157,16 +1345,25 @@ button {
   }
 
   .topbar {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px 12px;
   }
 
-  .topbar-tabs,
-  .topbar-user {
+  .topbar-tabs {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
+    gap: 8px;
+    margin-left: 0;
   }
 
-  .topbar-user {
-    justify-content: space-between;
+  .tab {
+    width: 100%;
+    justify-content: center;
+    padding-inline: 0;
   }
 
   .history-item {
@@ -1176,6 +1373,10 @@ button {
   .history-actions {
     grid-auto-flow: column;
     justify-content: flex-start;
+  }
+
+  .settings-disclosure__summary {
+    align-items: flex-start;
   }
 
   .history-toolbar {
@@ -1211,7 +1412,63 @@ button {
 
 @media (max-width: 560px) {
   .topbar {
-    padding: 14px 12px;
+    padding: 10px 12px;
+    gap: 8px 10px;
+  }
+
+  .brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    font-size: 18px;
+  }
+
+  .topbar-brand strong {
+    font-size: 18px;
+  }
+
+  .topbar-brand span {
+    display: none;
+  }
+
+  .tab {
+    min-height: 38px;
+    border-radius: 12px;
+    font-size: 14px;
+    padding-block: 8px;
+  }
+
+  .account-hero {
+    gap: 12px;
+  }
+
+  .account-avatar {
+    width: 60px;
+    height: 60px;
+    flex-basis: 60px;
+    border-radius: 20px;
+    font-size: 24px;
+  }
+
+  .account-hero__copy strong {
+    font-size: 24px;
+  }
+
+  .account-basic-card {
+    padding-inline: 16px;
+  }
+
+  .settings-toolbar {
+    justify-content: stretch;
+  }
+
+  .settings-toolbar .btn {
+    width: 100%;
+  }
+
+  .btn--small {
+    min-height: 38px;
+    padding: 8px 12px;
   }
 
   .app-main {

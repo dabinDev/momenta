@@ -50,6 +50,42 @@ class VideoSaveHelper {
     }
   }
 
+  static Future<void> saveTaskVideoToGallery({
+    required ApiService apiService,
+    required String taskId,
+    String fileNamePrefix = albumName,
+  }) async {
+    final Directory tempDir = await getTemporaryDirectory();
+    final String fileName =
+        '${_sanitizeFileName(fileNamePrefix)}_${DateTime.now().millisecondsSinceEpoch}.mp4';
+    final File tempFile = File(p.join(tempDir.path, fileName));
+
+    try {
+      final bool hasAccess = await Gal.hasAccess(toAlbum: true);
+      if (!hasAccess) {
+        final bool granted = await Gal.requestAccess(toAlbum: true);
+        if (!granted) {
+          throw const AppException('鏈幏寰楃浉鍐屾潈闄愶紝璇峰湪绯荤粺璁剧疆涓厑璁稿悗閲嶈瘯');
+        }
+      }
+
+      await FileUtils.ensureParentDirectory(tempFile);
+      await apiService.downloadTaskVideo(
+        taskId: taskId,
+        savePath: tempFile.path,
+      );
+      await Gal.putVideo(tempFile.path, album: albumName);
+    } on DioException catch (error) {
+      throw AppException.fromDioException(error);
+    } on GalException catch (error) {
+      throw AppException(_readGalError(error));
+    } finally {
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+    }
+  }
+
   static String _sanitizeFileName(String input) {
     final String normalized = input
         .trim()

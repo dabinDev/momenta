@@ -59,19 +59,41 @@ App/H5 业务接口：
 
 ## 3. 端口和地址统一规则
 
-这是当前仓库最需要注意的发布点。
+这是当前仓库最需要注意的发布点。当前已经整理为“本地开发”和“远端部署”两套可共存配置，不需要再来回手改同一个 `.env`。
+
+### 当前推荐的最终结构
+
+| 场景 | 地址 | 说明 |
+| --- | --- | --- |
+| H5 首页 | `https://memovideos.cn/` | 对外 Web 入口 |
+| Web 管理端 | `https://memovideos.cn/admin/` | 对外管理后台入口 |
+| 后端 API | `https://api.memovideos.cn` | App / 管理端 / 对外 API 入口 |
+| 后端服务内部监听 | `http://127.0.0.1:10099` | 服务器内部服务互调 |
+| H5 服务内部监听 | `http://127.0.0.1:3000` | 服务器内部服务互调 |
+
+### 本地开发与远端部署共存规则
+
+| 模块 | 本地默认 | 远端发布 |
+| --- | --- | --- |
+| backend | `backend/.env` | `backend/.env.production` |
+| backend 默认值 | `http://127.0.0.1:10099` | 由 `.env.production` 覆盖到 `https://api.memovideos.cn` |
+| frontend 开发 | `frontend/.env.development` | 本地代理到 `127.0.0.1:10099` |
+| frontend 生产 | `frontend/.env.production` | 构建后走同源 `/api/v1` |
+| H5 本地 | `elderly-video-app/config.json` | 默认 `http://127.0.0.1:10099` |
+| H5 远端 | `BACKEND_BASE_URL` 环境变量 | 由 systemd 注入 `http://127.0.0.1:10099` |
+| Flutter | `dart-define` | 本地调试与远端打包分别传入不同地址 |
 
 ### 代码里的现状
 
 | 模块 | 当前默认值 | 来源 |
 | --- | --- | --- |
-| 后端本地直跑端口 | `9999` | `backend/run.py` |
-| 后端 `PUBLIC_BASE_URL` 默认值 | `http://192.168.101.21:9999` | `backend/app/settings/config.py` |
-| App 编译时默认后端地址 | `http://192.168.101.21:10099` | `lib/app/constants.dart` |
+| 后端服务端口 | `10099` | `deploy/tencent-cvm/momenta-backend.service` |
+| 后端 `PUBLIC_BASE_URL` 默认值 | `http://127.0.0.1:10099` | `backend/app/settings/config.py` |
+| App 编译时默认后端地址 | `https://api.memovideos.cn` | `lib/app/constants.dart` |
 | 管理端开发代理目标 | `http://127.0.0.1:10099` | `frontend/.env.development` |
 | H5 默认后端地址 | `http://127.0.0.1:10099` | `elderly-video-app/config.json` |
 | H5 自身服务端口 | `3000` | `elderly-video-app/server.js` |
-| 管理端开发端口 | `3100` | `frontend/.env` |
+| 管理端开发端口 | `3100` | `frontend/.env.development` |
 
 ### 发布时必须统一
 
@@ -147,21 +169,41 @@ App/H5 业务接口：
 
 ### 4.4 本地开发启动
 
+推荐先复制一份本地环境文件：
+
+```bash
+cd backend
+copy .env.example .env
+```
+
 ```bash
 cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python run.py
+uvicorn app:app --host 0.0.0.0 --port 10099 --reload
 ```
 
 本地默认监听：
 
 ```text
-http://0.0.0.0:9999
+http://127.0.0.1:10099
 ```
 
 ### 4.5 建议的生产启动方式
+
+生产环境不要直接依赖本地 `.env`，而应使用单独的生产环境文件：
+
+```bash
+cp backend/.env.production.example backend/.env.production
+```
+
+并填写生产地址，例如：
+
+```env
+SERVER_BASE_URL=https://api.memovideos.cn
+PUBLIC_BASE_URL=https://api.memovideos.cn
+```
 
 `backend/run.py` 默认带 `reload=True`，适合开发，不建议直接作为生产守护命令。
 
@@ -170,18 +212,18 @@ http://0.0.0.0:9999
 ```bash
 cd backend
 .venv\Scripts\activate
-uvicorn app:app --host 0.0.0.0 --port 9999
+uvicorn app:app --host 0.0.0.0 --port 10099
 ```
 
 如果是 Linux 服务器，可配合 `systemd` / `supervisor` / `pm2` 守护。
 
 ### 4.6 必配环境变量
 
-至少确认以下配置：
+本地至少确认以下配置：
 
 ```env
-SERVER_BASE_URL=http://旧业务服务地址
-PUBLIC_BASE_URL=http://你的后端公网地址或局域网地址
+SERVER_BASE_URL=http://127.0.0.1:10099
+PUBLIC_BASE_URL=http://127.0.0.1:10099
 IMAGE_PROXY_UPLOAD_URL=https://imageproxy.zhongzhuan.chat/api/upload
 ```
 
@@ -278,13 +320,21 @@ http://127.0.0.1:3100
 http://127.0.0.1:10099
 ```
 
-如果你本地后端直接跑在 `9999`，需要先改 `frontend/.env.development`：
-
-```env
-VITE_PROXY_TARGET='http://127.0.0.1:9999'
-```
+当前仓库已经默认按本地 `10099` 配置好，一般不需要再改。
 
 ### 5.3 生产构建
+
+生产环境直接使用：
+
+```text
+frontend/.env.production
+```
+
+该文件会让管理端构建后通过同源 `/api/v1` 访问后端，因此适合部署到：
+
+- `https://memovideos.cn/admin/`
+
+构建命令：
 
 ```bash
 cd frontend
@@ -349,7 +399,7 @@ server {
 ```bash
 cd elderly-video-app
 npm install
-npm run dev
+node server.js
 ```
 
 默认端口：
@@ -360,7 +410,7 @@ http://127.0.0.1:3000
 
 ### 6.3 后端地址配置
 
-H5 当前默认从这里读取后端地址：
+H5 当前本地默认从这里读取后端地址：
 
 - `elderly-video-app/config.json`
 
@@ -372,7 +422,15 @@ H5 当前默认从这里读取后端地址：
 }
 ```
 
-如果你的后端实际跑在 `9999`，这里必须同步改掉。
+当前仓库已经默认按本地 `10099` 配置好。
+
+远端部署时，不建议改这个文件，而是通过环境变量覆盖：
+
+```bash
+BACKEND_BASE_URL=http://127.0.0.1:10099
+```
+
+当前远端 systemd 已按这种方式配置，因此本地 `config.json` 和远端发布不会互相污染。
 
 ### 6.4 H5 对后端依赖的关键接口
 
@@ -398,6 +456,7 @@ H5 端没有单独前端构建流程，直接运行 Node 服务即可：
 ```bash
 cd elderly-video-app
 npm install --production
+set BACKEND_BASE_URL=http://127.0.0.1:10099
 node server.js
 ```
 
@@ -445,16 +504,16 @@ String.fromEnvironment('AUTH_SERVER_BASE_URL')
 当前默认值写在 `lib/app/constants.dart` 中：
 
 ```text
-http://192.168.101.21:10099
+https://api.memovideos.cn
 ```
 
-因此发布和联调时，必须显式传入正确地址。
+因此发布和联调时，建议始终显式传入正确地址。
 
 ### 7.4 本地调试
 
 ```bash
 flutter pub get
-flutter run --dart-define=AUTH_SERVER_BASE_URL=http://127.0.0.1:9999
+flutter run --dart-define=AUTH_SERVER_BASE_URL=http://127.0.0.1:10099
 ```
 
 如果是真机调试：
@@ -480,13 +539,13 @@ keyPassword=your-password
 构建命令：
 
 ```bash
-flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=http://your-host:10099
+flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
 ```
 
 如果需要 `aab`：
 
 ```bash
-flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=http://your-host:10099
+flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
 ```
 
 默认图标资源：
@@ -542,13 +601,13 @@ App 不直接内置安装包地址，而是通过后端接口查询：
 
 推荐按下面顺序上线：
 
-1. 先确定统一公网地址、端口和 `/media` 访问策略
-2. 部署后端，先确保 `/api/*` 和 `/media/*` 可用
+1. 准备远端配置文件：`backend/.env.production`
+2. 部署后端，先确保 `https://api.memovideos.cn` 和 `/media/*` 可用
 3. 登录后台修改默认管理员密码
 4. 用测试账号在 App 或 H5 中完成 AI 配置
-5. 发布管理端
-6. 发布 H5
-7. 打包 App
+5. 发布管理端到 `https://memovideos.cn/admin/`
+6. 发布 H5 到 `https://memovideos.cn/`
+7. 打包 App，显式传 `https://api.memovideos.cn`
 8. 在管理端录入 App 发布记录
 9. 用真机完整回归简单 / 入门 / 自定义三种链路
 
@@ -613,12 +672,13 @@ App 不直接内置安装包地址，而是通过后端接口查询：
 
 如果你要尽快稳定上线，推荐这样做：
 
-1. 后端独立部署在 `9999`
-2. Nginx 对外统一暴露 `10099`
-3. `PUBLIC_BASE_URL` 写成对外访问地址
-4. 管理端单独 `npm run build` 后以静态站部署
-5. H5 单独跑 Node 服务
-6. App 打包时通过 `--dart-define` 写入正式后端地址
-7. 先录一条有效发布记录，再发安装包给测试人员
+1. 后端内部监听 `127.0.0.1:10099`
+2. `https://api.memovideos.cn` 对外提供 FastAPI
+3. `https://memovideos.cn` 对外提供 H5 和管理端
+4. backend 使用 `.env.production`
+5. 管理端单独 `npm run build` 后以静态站部署到 `/admin/`
+6. H5 单独跑 Node 服务，并通过 `BACKEND_BASE_URL` 指向 `127.0.0.1:10099`
+7. App 打包时通过 `--dart-define` 写入 `https://api.memovideos.cn`
+8. 先录一条有效发布记录，再发安装包给测试人员
 
 这样最接近当前仓库真实结构，也最不容易因为目录或端口不一致导致发布失败。

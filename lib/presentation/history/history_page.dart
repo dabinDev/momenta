@@ -43,7 +43,7 @@ class HistoryPage extends GetView<HistoryController> {
               child: controller.items.isEmpty
                   ? const EmptyState(
                       title: '还没有历史记录',
-                      subtitle: '完成第一次创作后，视频任务会自动保存在这里。',
+                      subtitle: '完成第一条创作后，视频任务会自动保存在这里。',
                     )
                   : Column(
                       children: <Widget>[
@@ -64,6 +64,11 @@ class HistoryPage extends GetView<HistoryController> {
                                 : null,
                             onDownload: controller.items[index].isCompleted
                                 ? () => controller.saveItem(
+                                      controller.items[index],
+                                    )
+                                : null,
+                            onRetry: controller.items[index].isFailed
+                                ? () => controller.retryItem(
                                       controller.items[index],
                                     )
                                 : null,
@@ -89,7 +94,7 @@ class HistoryPage extends GetView<HistoryController> {
 
     return AppPageScaffold(
       title: '历史记录',
-      subtitle: '查看结果、下载和删除任务',
+      subtitle: '查看结果、重新生成和删除任务',
       accentColor: AppTheme.sky,
       child: content,
     );
@@ -181,19 +186,21 @@ class _HistoryListItem extends StatelessWidget {
     required this.item,
     required this.onPlay,
     required this.onDownload,
+    required this.onRetry,
     required this.onDelete,
   });
 
   final HistoryItemModel item;
   final VoidCallback? onPlay;
   final VoidCallback? onDownload;
+  final VoidCallback? onRetry;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final String subtitle = item.createdAt == null
-        ? '任务编号：${item.id}'
+        ? '任务编号: ${item.id}'
         : DateFormat('yyyy-MM-dd HH:mm').format(item.createdAt!);
 
     return Padding(
@@ -230,7 +237,13 @@ class _HistoryListItem extends StatelessWidget {
             runSpacing: 8,
             children: <Widget>[
               if (item.duration != null) _MetaTag(label: '${item.duration} 秒'),
-              _MetaTag(label: item.isCompleted ? '可播放' : '等待完成'),
+              _MetaTag(
+                label: item.isCompleted
+                    ? '可播放'
+                    : item.isFailed
+                        ? '已失败'
+                        : '等待完成',
+              ),
             ],
           ),
           if (item.errorMessage?.isNotEmpty == true) ...<Widget>[
@@ -247,16 +260,24 @@ class _HistoryListItem extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: <Widget>[
-              _ActionChipButton(
-                icon: Icons.play_circle_outline,
-                label: '播放',
-                onTap: onPlay,
-              ),
-              _ActionChipButton(
-                icon: Icons.download_outlined,
-                label: '保存到相册',
-                onTap: onDownload,
-              ),
+              if (item.isCompleted)
+                _ActionChipButton(
+                  icon: Icons.play_circle_outline,
+                  label: '播放',
+                  onTap: onPlay,
+                ),
+              if (item.isCompleted)
+                _ActionChipButton(
+                  icon: Icons.download_outlined,
+                  label: '保存到相册',
+                  onTap: onDownload,
+                ),
+              if (item.isFailed)
+                _ActionChipButton(
+                  icon: Icons.refresh_rounded,
+                  label: '重新生成',
+                  onTap: onRetry,
+                ),
               _ActionChipButton(
                 icon: Icons.delete_outline,
                 label: '删除',

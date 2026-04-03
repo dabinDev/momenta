@@ -788,11 +788,8 @@ class CreateController extends GetxController {
   }
 
   Future<void> saveCurrentVideo() async {
-    final String videoUrl = FileUtils.resolveUrl(
-      AppConstants.serverBaseUrl,
-      currentTask.value?.videoUrl,
-    );
-    if (videoUrl.isEmpty) {
+    final String taskId = currentTask.value?.id ?? '';
+    if (taskId.isEmpty || currentTask.value?.isCompleted != true) {
       SnackbarHelper.error('当前没有可保存的视频');
       return;
     }
@@ -802,9 +799,9 @@ class CreateController extends GetxController {
 
     isSavingCurrentVideo.value = true;
     try {
-      await VideoSaveHelper.saveRemoteVideoToGallery(
+      await VideoSaveHelper.saveTaskVideoToGallery(
         apiService: _apiService,
-        videoUrl: videoUrl,
+        taskId: taskId,
       );
       SnackbarHelper.success('视频已保存到系统相册的“拾光视频”中');
     } catch (error) {
@@ -813,6 +810,51 @@ class CreateController extends GetxController {
       );
     } finally {
       isSavingCurrentVideo.value = false;
+    }
+  }
+
+  Future<void> retryCurrentTask() async {
+    final VideoTaskModel? task = currentTask.value;
+    if (task == null || !task.isFailed) {
+      return;
+    }
+
+    final String fallbackPrompt = task.displayText?.trim().isNotEmpty == true
+        ? task.displayText!.trim()
+        : (task.prompt?.trim() ?? '');
+
+    try {
+      final VideoTaskModel nextTask = await _apiService.retryTask(task.id);
+      currentTask.value = nextTask;
+      await _persistTask(nextTask, fallbackPrompt: fallbackPrompt);
+      SnackbarHelper.success('已重新提交生成任务');
+      if (nextTask.isProcessing) {
+        isSubmitting.value = true;
+        pollingCount.value = 0;
+        generationProgress.value = 0;
+        await _pollVideoStatus(nextTask.id, fallbackPrompt: fallbackPrompt);
+      }
+    } catch (error) {
+      SnackbarHelper.error(_readError(error, fallback: '重新生成失败'));
+    } finally {
+      isSubmitting.value = false;
+    }
+  }
+
+  Future<void> deleteCurrentTask() async {
+    final String taskId = currentTask.value?.id ?? '';
+    if (taskId.isEmpty) {
+      return;
+    }
+    try {
+      await _historyRepository.remove(taskId);
+      currentTask.value = null;
+      SnackbarHelper.success('任务已删除');
+      if (Get.isRegistered<HistoryController>()) {
+        await Get.find<HistoryController>().refreshList();
+      }
+    } catch (error) {
+      SnackbarHelper.error(_readError(error, fallback: '删除失败'));
     }
   }
 
@@ -875,7 +917,7 @@ class CreateController extends GetxController {
     await _speechToText.listen(
       onResult: _handleSpeechResult,
       listenFor: const Duration(seconds: AppConstants.maxSpeechSeconds),
-      pauseFor: const Duration(seconds: 2),
+      pauseFor: const Duration(seconds: 5),
       localeId: 'zh_CN',
       listenOptions: SpeechListenOptions(
         partialResults: true,
@@ -910,6 +952,7 @@ class CreateController extends GetxController {
       return;
     }
     _speechDraftText = recognizedWords;
+    _speechErrorMessage = null;
     liveSpeechText.value = recognizedWords;
     if (result.finalResult &&
         _speechResultCompleter != null &&
@@ -1326,24 +1369,23 @@ class _SpeechRecordingDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: <Widget>[
-                      Text(
-                        '\u5b9e\u65f6\u8bc6\u522b\u9884\u89c8',
-                        style: theme.textTheme.titleMedium,
+                      Icon(
+                        Icons.graphic_eq_rounded,
+                        color: AppTheme.primary.withValues(alpha: 0.8),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        controller.liveSpeechText.value.trim().isEmpty
-                            ? '\u8bf7\u76f4\u63a5\u8bf4\u8bdd\uff0c\u8bc6\u522b\u7ed3\u679c\u4f1a\u5b9e\u65f6\u663e\u793a\u5728\u8fd9\u91cc\u3002'
-                            : controller.liveSpeechText.value.trim(),
-                        style: theme.textTheme.bodyMedium,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '请直接说话，当前使用本机语音识别，停顿后系统可能会自动结束。',
+                          style: theme.textTheme.bodyMedium,
+                        ),
                       ),
                     ],
                   ),

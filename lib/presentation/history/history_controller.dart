@@ -12,6 +12,7 @@ import '../../core/utils/snackbar_helper.dart';
 import '../../core/utils/video_save_helper.dart';
 import '../../data/api/api_service.dart';
 import '../../data/models/history_item_model.dart';
+import '../../data/models/video_task_model.dart';
 import '../../domain/repositories/history_repository.dart';
 import '../../domain/repositories/video_repository.dart';
 
@@ -140,30 +141,26 @@ class HistoryController extends GetxController {
   }
 
   Future<void> saveItem(HistoryItemModel item) async {
-    final String videoUrl =
-        FileUtils.resolveUrl(AppConstants.serverBaseUrl, item.videoUrl);
-    if (videoUrl.isEmpty) {
+    if (!item.isCompleted) {
       SnackbarHelper.error('该记录没有可保存的视频');
       return;
     }
 
     try {
-      await VideoSaveHelper.saveRemoteVideoToGallery(
+      await VideoSaveHelper.saveTaskVideoToGallery(
         apiService: _apiService,
-        videoUrl: videoUrl,
+        taskId: item.id,
         fileNamePrefix: '历史视频',
       );
-      SnackbarHelper.success('视频已保存到系统相册的“拾光视频”中');
+      SnackbarHelper.success('视频已保存到系统相册');
     } catch (error) {
       SnackbarHelper.error(_readError(error, fallback: '保存视频失败'));
     }
   }
 
   Future<void> downloadItem(HistoryItemModel item) async {
-    final String videoUrl =
-        FileUtils.resolveUrl(AppConstants.serverBaseUrl, item.videoUrl);
-    if (videoUrl.isEmpty) {
-      SnackbarHelper.error('该记录没有可下载的视频地址');
+    if (!item.isCompleted) {
+      SnackbarHelper.error('该记录没有可下载的视频');
       return;
     }
 
@@ -177,13 +174,39 @@ class HistoryController extends GetxController {
         ),
       );
       await FileUtils.ensureParentDirectory(file);
-      final File downloaded = await _apiService.downloadVideo(
-        url: videoUrl,
+      final File downloaded = await _apiService.downloadTaskVideo(
+        taskId: item.id,
         savePath: file.path,
       );
-      SnackbarHelper.success('视频已保存到：${downloaded.path}');
+      SnackbarHelper.success('视频已保存到: ${downloaded.path}');
     } catch (error) {
       SnackbarHelper.error(_readError(error, fallback: '下载失败'));
+    }
+  }
+
+  Future<void> retryItem(HistoryItemModel item) async {
+    if (!item.isFailed) {
+      return;
+    }
+
+    try {
+      final VideoTaskModel task = await _apiService.retryTask(item.id);
+      final HistoryItemModel updated = item.copyWith(
+        status: task.status,
+        videoUrl: task.videoUrl,
+        errorMessage: task.errorMessage,
+        duration: task.duration,
+      );
+      await _historyRepository.upsert(updated);
+      final int index =
+          items.indexWhere((HistoryItemModel value) => value.id == item.id);
+      if (index >= 0) {
+        items[index] = updated;
+      }
+      await _loadSummary();
+      SnackbarHelper.success('已重新提交该任务');
+    } catch (error) {
+      SnackbarHelper.error(_readError(error, fallback: '重新生成失败'));
     }
   }
 

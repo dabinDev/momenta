@@ -302,6 +302,28 @@ class ApiService {
     );
   }
 
+  Future<VideoTaskModel> retryTask(String id) async {
+    final Response<dynamic> response = await _dio.post(
+      '/api/tasks/$id/retry',
+      options: await _authOptions(),
+    );
+    return VideoTaskModel.fromJson(_readEnvelopeMap(response.data));
+  }
+
+  Future<File> downloadTaskVideo({
+    required String taskId,
+    required String savePath,
+    ProgressCallback? onReceiveProgress,
+  }) async {
+    await _dio.download(
+      '/api/tasks/$taskId/download',
+      savePath,
+      onReceiveProgress: onReceiveProgress,
+      options: (await _authOptions()).copyWith(responseType: ResponseType.bytes),
+    );
+    return File(savePath);
+  }
+
   Future<File> downloadVideo({
     required String url,
     required String savePath,

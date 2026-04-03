@@ -968,6 +968,23 @@ class _CurrentTaskStatusPanel extends StatelessWidget {
                     ],
                   ),
                 ],
+                if (task.isFailed) ...<Widget>[
+                  const SizedBox(height: 14),
+                  _AdaptiveButtonRow(
+                    children: <Widget>[
+                      PrimaryButton.outline(
+                        label: '重新生成',
+                        icon: Icons.refresh_rounded,
+                        onPressed: controller.retryCurrentTask,
+                      ),
+                      PrimaryButton.outline(
+                        label: '删除任务',
+                        icon: Icons.delete_outline,
+                        onPressed: controller.deleteCurrentTask,
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ],
           ),

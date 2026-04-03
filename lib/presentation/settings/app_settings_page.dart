@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../app/constants.dart';
 import '../../app/theme.dart';
 import '../../shared/widgets/app_page_scaffold.dart';
-import '../../shared/widgets/large_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/section_card.dart';
 import 'app_settings_controller.dart';
@@ -16,7 +14,7 @@ class AppSettingsPage extends GetView<AppSettingsController> {
   Widget build(BuildContext context) {
     return AppPageScaffold(
       title: '应用设置',
-      subtitle: '管理文案、视频与后台备用语音配置',
+      subtitle: '普通用户不展示服务器地址和接口配置',
       accentColor: AppTheme.primary,
       child: RefreshIndicator(
         onRefresh: controller.refreshConfig,
@@ -38,126 +36,31 @@ class AppSettingsPage extends GetView<AppSettingsController> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: <Widget>[
               SectionCard(
-                title: '服务配置',
-                subtitle: '分别维护提示词、视频生成和后台备用语音配置',
-                icon: Icons.tune_rounded,
+                title: '服务说明',
+                subtitle: 'AI、视频生成和语音识别参数由后台统一维护',
+                icon: Icons.admin_panel_settings_outlined,
                 accentColor: AppTheme.primary,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Obx(
-                      () => Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: _SectionChip(
-                              label: '文案服务',
-                              icon: Icons.auto_awesome_outlined,
-                              selected:
-                                  controller.selectedSectionIndex.value == 0,
-                              onTap: () => controller.switchSection(0),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _SectionChip(
-                              label: '视频服务',
-                              icon: Icons.movie_creation_outlined,
-                              selected:
-                                  controller.selectedSectionIndex.value == 1,
-                              onTap: () => controller.switchSection(1),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _SectionChip(
-                              label: '语音服务',
-                              icon: Icons.keyboard_voice_outlined,
-                              selected:
-                                  controller.selectedSectionIndex.value == 2,
-                              onTap: () => controller.switchSection(2),
-                            ),
-                          ),
-                        ],
-                      ),
+                    Text(
+                      '当前 App 不再向普通用户展示服务器地址、API Key、模型名称等开发配置，避免误操作影响使用。',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '如需切换环境、更新接口或调整模型，请在后端与开发环境中统一维护。',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 18),
                     Obx(
-                      () => AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        child: switch (controller.selectedSectionIndex.value) {
-                          0 => const _LlmSettingsForm(
-                              key: ValueKey<String>('llm'),
-                            ),
-                          1 => const _VideoSettingsForm(
-                              key: ValueKey<String>('video'),
-                            ),
-                          _ => const _SpeechSettingsForm(
-                              key: ValueKey<String>('speech'),
-                            ),
-                        },
+                      () => PrimaryButton.outline(
+                        label: controller.isSyncing.value ? '刷新中...' : '刷新状态',
+                        icon: Icons.sync_rounded,
+                        onPressed: controller.isSyncing.value
+                            ? null
+                            : controller.refreshConfig,
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    LayoutBuilder(
-                      builder:
-                          (BuildContext context, BoxConstraints constraints) {
-                        final List<Widget> buttons = <Widget>[
-                          Obx(
-                            () => PrimaryButton(
-                              label:
-                                  controller.isSaving.value ? '保存中...' : '保存设置',
-                              icon: Icons.save_outlined,
-                              onPressed: controller.isSaving.value
-                                  ? null
-                                  : controller.save,
-                            ),
-                          ),
-                          Obx(
-                            () => PrimaryButton.outline(
-                              label: controller.isSyncing.value
-                                  ? '同步中...'
-                                  : '同步配置',
-                              icon: Icons.sync_rounded,
-                              onPressed: controller.isSyncing.value
-                                  ? null
-                                  : controller.refreshConfig,
-                            ),
-                          ),
-                          PrimaryButton.outline(
-                            label: '恢复默认',
-                            icon: Icons.restart_alt_rounded,
-                            onPressed: controller.restoreDefaults,
-                          ),
-                        ];
-
-                        if (constraints.maxWidth < 360) {
-                          return Column(
-                            children: buttons
-                                .expand<Widget>(
-                                  (Widget child) => <Widget>[
-                                    child,
-                                    const SizedBox(height: 10),
-                                  ],
-                                )
-                                .toList()
-                              ..removeLast(),
-                          );
-                        }
-
-                        return Column(
-                          children: <Widget>[
-                            buttons.first,
-                            const SizedBox(height: 10),
-                            Row(
-                              children: <Widget>[
-                                Expanded(child: buttons[1]),
-                                const SizedBox(width: 10),
-                                Expanded(child: buttons[2]),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
                     ),
                   ],
                 ),
@@ -166,166 +69,6 @@ class AppSettingsPage extends GetView<AppSettingsController> {
           );
         }),
       ),
-    );
-  }
-}
-
-class _SectionChip extends StatelessWidget {
-  const _SectionChip({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppTheme.primary.withValues(alpha: 0.14)
-                : Colors.white.withValues(alpha: 0.74),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Column(
-            children: <Widget>[
-              Icon(
-                icon,
-                color:
-                    selected ? AppTheme.primary : theme.colorScheme.onSurface,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: selected ? AppTheme.primary : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LlmSettingsForm extends GetView<AppSettingsController> {
-  const _LlmSettingsForm({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      key: key,
-      children: <Widget>[
-        LargeTextField(
-          controller: controller.llmBaseUrlController,
-          label: '服务地址',
-          hintText: AppConstants.defaultLlmBaseUrl,
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 12),
-        LargeTextField(
-          controller: controller.llmModelController,
-          label: '模型名称',
-          hintText: AppConstants.defaultLlmModel,
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 12),
-        LargeTextField(
-          controller: controller.llmApiKeyController,
-          label: 'API Key',
-          hintText: AppConstants.defaultLlmApiKeyPlaceholder,
-          textInputAction: TextInputAction.done,
-        ),
-      ],
-    );
-  }
-}
-
-class _VideoSettingsForm extends GetView<AppSettingsController> {
-  const _VideoSettingsForm({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      key: key,
-      children: <Widget>[
-        LargeTextField(
-          controller: controller.videoBaseUrlController,
-          label: '服务地址',
-          hintText: AppConstants.defaultVideoBaseUrl,
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 12),
-        LargeTextField(
-          controller: controller.videoModelController,
-          label: '模型名称',
-          hintText: AppConstants.defaultVideoModel,
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 12),
-        LargeTextField(
-          controller: controller.videoApiKeyController,
-          label: 'API Key',
-          hintText: '请输入视频服务密钥',
-          textInputAction: TextInputAction.done,
-        ),
-      ],
-    );
-  }
-}
-
-class _SpeechSettingsForm extends GetView<AppSettingsController> {
-  const _SpeechSettingsForm({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      key: key,
-      children: <Widget>[
-        Text(
-          '\u5f53\u524d App \u521b\u4f5c\u9875\u7684\u8bed\u97f3\u8f6c\u6587\u5b57\u4f18\u5148\u4f7f\u7528\u7cfb\u7edf\u539f\u751f\u8bc6\u522b\uff0c\u8fd9\u91cc\u7684\u914d\u7f6e\u4ec5\u4f9b\u540e\u7aef\u5907\u7528\u8f6c\u5199\u548c\u65e5\u5fd7\u6392\u67e5\u4f7f\u7528\u3002',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 12),
-        LargeTextField(
-          controller: controller.speechBaseUrlController,
-          label: '服务地址',
-          hintText: AppConstants.defaultSpeechBaseUrl,
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 12),
-        LargeTextField(
-          controller: controller.speechModelController,
-          label: '模型名称',
-          hintText: AppConstants.defaultSpeechModel,
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 12),
-        LargeTextField(
-          controller: controller.speechApiKeyController,
-          label: 'API Key',
-          hintText: '请输入语音服务密钥',
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => controller.save(),
-        ),
-      ],
     );
   }
 }

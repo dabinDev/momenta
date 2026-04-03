@@ -15,7 +15,7 @@ class User(BaseModel, TimestampMixin):
     is_active = fields.BooleanField(default=True, description="是否激活", index=True)
     is_superuser = fields.BooleanField(default=False, description="是否为超级管理员", index=True)
     last_login = fields.DatetimeField(null=True, description="最后登录时间", index=True)
-    roles = fields.ManyToManyField("models.Role", related_name="user_roles")
+    roles = fields.ManyToManyField("models.Role", related_name="user_roles", db_constraint=False)
     dept_id = fields.IntField(null=True, description="部门ID", index=True)
 
     class Meta:
@@ -25,8 +25,8 @@ class User(BaseModel, TimestampMixin):
 class Role(BaseModel, TimestampMixin):
     name = fields.CharField(max_length=20, unique=True, description="角色名称", index=True)
     desc = fields.CharField(max_length=500, null=True, description="角色描述")
-    menus = fields.ManyToManyField("models.Menu", related_name="role_menus")
-    apis = fields.ManyToManyField("models.Api", related_name="role_apis")
+    menus = fields.ManyToManyField("models.Menu", related_name="role_menus", db_constraint=False)
+    apis = fields.ManyToManyField("models.Api", related_name="role_apis", db_constraint=False)
 
     class Meta:
         table = "role"

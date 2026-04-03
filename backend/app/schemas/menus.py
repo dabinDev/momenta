@@ -1,7 +1,13 @@
-from enum import StrEnum
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+try:
+    from enum import StrEnum
+except ImportError:
+    class StrEnum(str, Enum):
+        pass
 
 
 class MenuType(StrEnum):

@@ -10,10 +10,10 @@ class AppConstants {
   static const String updateHint = '如有新版本，重新安装新的 APK 即可覆盖更新。';
   static const String authServerBaseUrl = String.fromEnvironment(
     'AUTH_SERVER_BASE_URL',
-    defaultValue: 'http://192.168.101.21:10099',
+    defaultValue: 'https://api.memovideos.cn',
   );
   static const String serverBaseUrl = authServerBaseUrl;
-  static const String legacyServerBaseUrl = 'http://1.15.227.223:3000';
+  static const String legacyServerBaseUrl = '';
   static const String defaultLlmBaseUrl = 'https://api.99hub.top';
   static const String defaultLlmModel = 'gpt-5.4-mini';
   static const String defaultLlmApiKeyPlaceholder =

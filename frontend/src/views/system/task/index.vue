@@ -20,6 +20,7 @@ import api from '@/api'
 const loading = ref(false)
 const rows = ref([])
 const syncingId = ref(null)
+const retryingId = ref(null)
 const detailVisible = ref(false)
 const activeTask = ref(null)
 const queryForm = ref({
@@ -167,7 +168,7 @@ const columns = [
     width: 180,
     fixed: 'right',
     render(row) {
-      return h('div', { class: 'task-actions' }, [
+      const children = [
         h(
           NButton,
           {
@@ -188,7 +189,23 @@ const columns = [
           },
           { default: () => '同步状态' }
         ),
-      ])
+      ]
+      if (row.status === 'failed') {
+        children.push(
+          h(
+            NButton,
+            {
+              size: 'small',
+              quaternary: true,
+              type: 'warning',
+              loading: retryingId.value === row.id,
+              onClick: () => handleRetry(row.id),
+            },
+            { default: () => '重新生成' }
+          )
+        )
+      }
+      return h('div', { class: 'task-actions' }, children)
     },
   },
 ]
@@ -222,6 +239,17 @@ async function handleSync(taskId) {
     await fetchTasks()
   } finally {
     syncingId.value = null
+  }
+}
+
+async function handleRetry(taskId) {
+  retryingId.value = taskId
+  try {
+    await api.retryTask({ task_id: taskId })
+    window.$message?.success('任务已重新提交')
+    await fetchTasks()
+  } finally {
+    retryingId.value = null
   }
 }
 
@@ -292,7 +320,7 @@ function buildTaskDownloadUrl(taskId) {
 }
 
 function openTaskVideo(task) {
-  if (!task?.video_url) {
+  if (task?.status !== 'completed' || !task?.video_url) {
     window.$message?.error('当前任务还没有可预览的视频')
     return
   }
@@ -300,7 +328,7 @@ function openTaskVideo(task) {
 }
 
 async function downloadTaskVideo(task) {
-  if (!task?.id || !task?.video_url) {
+  if (task?.status !== 'completed' || !task?.id) {
     window.$message?.error('当前任务还没有可保存的视频')
     return
   }
@@ -451,7 +479,9 @@ async function handleTaskVideoDownload(task) {
             </article>
             <article class="task-detail__card">
               <span>视频地址</span>
-              <p v-if="!activeTask.video_url">{{ readText(activeTask.video_url) }}</p>
+              <p v-if="activeTask.status !== 'completed' || !activeTask.video_url">
+                {{ readText(activeTask.video_url) }}
+              </p>
               <a
                 v-else
                 class="task-detail__link"
@@ -491,7 +521,10 @@ async function handleTaskVideoDownload(task) {
           <NEmpty v-else description="未上传参考图" />
         </section>
 
-        <section v-if="activeTask.video_url" class="task-detail__section">
+        <section
+          v-if="activeTask.status === 'completed' && activeTask.video_url"
+          class="task-detail__section"
+        >
           <h4>视频预览与下载</h4>
           <article class="task-detail__card task-detail__card--wide">
             <video
@@ -507,6 +540,18 @@ async function handleTaskVideoDownload(task) {
               </NButton>
               <NButton quaternary type="primary" @click="handleTaskVideoDownload(activeTask)">
                 保存到本地
+              </NButton>
+            </div>
+          </article>
+        </section>
+        <section
+          v-if="activeTask.status === 'failed'"
+          class="task-detail__section"
+        >
+          <article class="task-detail__card task-detail__card--wide">
+            <div class="task-detail__video-actions">
+              <NButton type="warning" secondary @click="handleRetry(activeTask.id)">
+                重新生成
               </NButton>
             </div>
           </article>

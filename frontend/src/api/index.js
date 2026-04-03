@@ -43,6 +43,7 @@ export default {
   // task center
   getTaskList: (params = {}) => request.get('/task/list', { params }),
   syncTask: (params = {}) => request.post('/task/sync', null, { params }),
+  retryTask: (params = {}) => request.post('/task/retry', null, { params }),
   getVoiceLogList: (params = {}) => request.get('/voice_log/list', { params }),
   // user app config
   getUserAppConfigList: (params = {}) => request.get('/app_config/list', { params }),

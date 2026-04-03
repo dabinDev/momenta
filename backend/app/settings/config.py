@@ -36,12 +36,21 @@ class Settings(BaseSettings):
     BASE_DIR: str = os.path.abspath(os.path.join(PROJECT_ROOT, os.pardir))
     LOGS_ROOT: str = os.path.join(BASE_DIR, "app/logs")
     MEDIA_ROOT: str = os.path.join(BASE_DIR, "media")
-    SERVER_BASE_URL: str = "http://1.15.227.223:3000"
-    PUBLIC_BASE_URL: str = "http://192.168.101.21:9999"
+    SERVER_BASE_URL: str = "http://127.0.0.1:10099"
+    PUBLIC_BASE_URL: str = "http://127.0.0.1:10099"
     IMAGE_PROXY_UPLOAD_URL: str = "https://imageproxy.zhongzhuan.chat/api/upload"
-    SECRET_KEY: str = "3488a63e1765035d386f05409663f55c83bfae3b3c61a932744b20ad14244dcf"  # openssl rand -hex 32
+    SECRET_KEY: str = "change-me-in-env"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 day
+    DB_ENGINE: str = "sqlite"
+    DB_HOST: str = "127.0.0.1"
+    DB_PORT: int = 3306
+    DB_USER: str = "root"
+    DB_PASSWORD: str = ""
+    DB_NAME: str = "momenta"
+    DB_CHARSET: str = "utf8mb4"
+    DB_POOL_MINSIZE: int = 1
+    DB_POOL_MAXSIZE: int = 5
     XFYUN_ASR_APP_ID: str = ""
     XFYUN_ASR_API_KEY: str = ""
     XFYUN_ASR_API_SECRET: str = ""
@@ -56,72 +65,48 @@ class Settings(BaseSettings):
     XFYUN_ASR_DHW: str = ""
     XFYUN_ASR_SAMPLE_RATE: int = 16000
     XFYUN_ASR_MAX_SECONDS: int = 60
-    TORTOISE_ORM: dict = {
-        "connections": {
-            # SQLite configuration
-            "sqlite": {
-                "engine": "tortoise.backends.sqlite",
-                "credentials": {"file_path": f"{BASE_DIR}/db.sqlite3"},  # Path to SQLite database file
-            },
-            # MySQL/MariaDB configuration
-            # Install with: tortoise-orm[asyncmy]
-            # "mysql": {
-            #     "engine": "tortoise.backends.mysql",
-            #     "credentials": {
-            #         "host": "localhost",  # Database host address
-            #         "port": 3306,  # Database port
-            #         "user": "yourusername",  # Database username
-            #         "password": "yourpassword",  # Database password
-            #         "database": "yourdatabase",  # Database name
-            #     },
-            # },
-            # PostgreSQL configuration
-            # Install with: tortoise-orm[asyncpg]
-            # "postgres": {
-            #     "engine": "tortoise.backends.asyncpg",
-            #     "credentials": {
-            #         "host": "localhost",  # Database host address
-            #         "port": 5432,  # Database port
-            #         "user": "yourusername",  # Database username
-            #         "password": "yourpassword",  # Database password
-            #         "database": "yourdatabase",  # Database name
-            #     },
-            # },
-            # MSSQL/Oracle configuration
-            # Install with: tortoise-orm[asyncodbc]
-            # "oracle": {
-            #     "engine": "tortoise.backends.asyncodbc",
-            #     "credentials": {
-            #         "host": "localhost",  # Database host address
-            #         "port": 1433,  # Database port
-            #         "user": "yourusername",  # Database username
-            #         "password": "yourpassword",  # Database password
-            #         "database": "yourdatabase",  # Database name
-            #     },
-            # },
-            # SQLServer configuration
-            # Install with: tortoise-orm[asyncodbc]
-            # "sqlserver": {
-            #     "engine": "tortoise.backends.asyncodbc",
-            #     "credentials": {
-            #         "host": "localhost",  # Database host address
-            #         "port": 1433,  # Database port
-            #         "user": "yourusername",  # Database username
-            #         "password": "yourpassword",  # Database password
-            #         "database": "yourdatabase",  # Database name
-            #     },
-            # },
-        },
-        "apps": {
-            "models": {
-                "models": ["app.models"],
-                "default_connection": "sqlite",
-            },
-        },
-        "use_tz": False,  # Whether to use timezone-aware datetimes
-        "timezone": "Asia/Shanghai",  # Timezone setting
-    }
     DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
+
+    @property
+    def TORTOISE_ORM(self) -> dict:
+        db_engine = (self.DB_ENGINE or "sqlite").strip().lower()
+        if db_engine == "mysql":
+            connections = {
+                "mysql": {
+                    "engine": "tortoise.backends.mysql",
+                    "credentials": {
+                        "host": self.DB_HOST,
+                        "port": self.DB_PORT,
+                        "user": self.DB_USER,
+                        "password": self.DB_PASSWORD,
+                        "database": self.DB_NAME,
+                        "charset": self.DB_CHARSET,
+                        "minsize": self.DB_POOL_MINSIZE,
+                        "maxsize": self.DB_POOL_MAXSIZE,
+                    },
+                },
+            }
+            default_connection = "mysql"
+        else:
+            connections = {
+                "sqlite": {
+                    "engine": "tortoise.backends.sqlite",
+                    "credentials": {"file_path": f"{self.BASE_DIR}/db.sqlite3"},
+                },
+            }
+            default_connection = "sqlite"
+
+        return {
+            "connections": connections,
+            "apps": {
+                "models": {
+                    "models": ["app.models"],
+                    "default_connection": default_connection,
+                },
+            },
+            "use_tz": False,
+            "timezone": "Asia/Shanghai",
+        }
 
 
 settings = Settings()
