@@ -412,6 +412,43 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.post('/api/auth/register', async (req, res) => {
+  const username = String(req.body?.username || '').trim();
+  const email = String(req.body?.email || '').trim();
+  const password = String(req.body?.password || '').trim();
+  const inviteCode = String(req.body?.inviteCode || '').trim();
+  const alias = String(req.body?.alias || '').trim();
+  const phone = String(req.body?.phone || '').trim();
+
+  if (!username || !email || !password || !inviteCode) {
+    return res.status(400).json({
+      success: false,
+      error: '请完整填写用户名、邮箱、密码和邀请码。',
+    });
+  }
+
+  return proxyJsonRequest(req, res, {
+    method: 'POST',
+    targetPath: '/api/v1/base/register',
+    auth: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      email,
+      password,
+      invite_code: inviteCode,
+      ...(alias ? { alias } : {}),
+      ...(phone ? { phone } : {}),
+    }),
+    successMapper: (payload) => ({
+      success: true,
+      data: unwrapEnvelope(payload) || {},
+      message: readErrorMessage(payload, '注册成功'),
+    }),
+    fallbackError: '注册失败',
+  });
+});
+
 app.get('/api/auth/me', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     targetPath: '/api/v1/base/userinfo',

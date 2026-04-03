@@ -61,11 +61,12 @@ const APP_LIMITS = {
 };
 
 const APP_META = Object.freeze({
-  version: '1.0.0',
-  buildNumber: '1',
+  version: '1.1.0',
+  buildNumber: '2',
   platform: 'android',
   channel: 'lan',
   updateHint: '如有新版本，重新安装新的 APK 即可覆盖更新。',
+  apkDownloadUrl: 'https://memovideos.cn/file/v1.1.apk',
 });
 
 const state = {
@@ -287,7 +288,7 @@ function handleUnauthorized() {
   fillAiConfigForm(DEFAULT_AI_CONFIG);
   renderHistorySummary();
   renderVersionInfo();
-  ['editProfileDialog', 'changePasswordDialog', 'forgotPasswordDialog', 'videoModal'].forEach((id) => {
+  ['editProfileDialog', 'changePasswordDialog', 'forgotPasswordDialog', 'registerDialog', 'videoModal'].forEach((id) => {
     setDialogOpen(id, false);
   });
   showLoginShell();
@@ -330,25 +331,22 @@ function renderHistorySummary() {
 function renderVersionInfo() {
   const info = state.latestUpdateInfo;
   const latest = info?.latest || null;
-  const statusText = !info
-    ? '尚未检查更新'
-    : info.has_update
-      ? (info.is_force_update ? '发现强制更新' : '发现可用更新')
-      : '当前已是最新版本';
   const latestVersion = latest
     ? `V${latest.version_name || latest.versionName || '--'} (${latest.build_number || latest.buildNumber || '--'})`
-    : '暂无新版本';
+    : '请点击下方按钮获取下载地址';
+  const downloadUrl = String(
+    latest?.download_url || latest?.downloadUrl || APP_META.apkDownloadUrl,
+  ).trim();
   $('versionMeta').innerHTML = [
-    `当前版本：${escapeHtml(versionLabel())}`,
-    `更新状态：${escapeHtml(statusText)}`,
-    `最新版本：${escapeHtml(latestVersion)}`,
+    `H5 版本：${escapeHtml(versionLabel())}`,
+    `安卓安装包：${escapeHtml(latestVersion)}`,
     `发布渠道：${escapeHtml(APP_META.channel)}`,
+    `下载地址：${escapeHtml(downloadUrl || '暂未配置')}`,
   ].map((item) => `<div>${item}</div>`).join('');
   $('updateNotes').textContent = String(
     latest?.release_notes
     || latest?.releaseNotes
-    || info?.message
-    || APP_META.updateHint,
+    || 'H5 页面不参与版本更新检测，如需在安卓手机安装 App，请点击下方按钮获取 APK 下载链接。'
   ).trim() || APP_META.updateHint;
 }
 
@@ -1678,7 +1676,7 @@ function applyRefinedSettingsUx() {
   if (checkUpdateBtn) {
     const oldButtonRow = checkUpdateBtn.closest('.button-row');
     checkUpdateBtn.className = 'btn btn--ghost btn--small';
-    checkUpdateBtn.textContent = '检查更新';
+    checkUpdateBtn.textContent = '下载安卓 APK';
     toolbar.append(checkUpdateBtn);
     oldButtonRow?.remove();
   }
@@ -2065,6 +2063,74 @@ function resetForgotPasswordForm() {
   $('forgotConfirmPassword').value = '';
 }
 
+function resetRegisterForm() {
+  $('registerUsername').value = '';
+  $('registerEmail').value = '';
+  $('registerAlias').value = '';
+  $('registerPhone').value = '';
+  $('registerInviteCode').value = '';
+  $('registerPassword').value = '';
+  $('registerConfirmPassword').value = '';
+}
+
+function openRegisterDialog() {
+  resetRegisterForm();
+  $('registerUsername').value = $('loginUsername').value.trim();
+  openDialog('registerDialog');
+}
+
+function closeRegisterDialog() {
+  closeDialog('registerDialog');
+}
+
+async function submitRegister() {
+  const username = $('registerUsername').value.trim();
+  const email = $('registerEmail').value.trim();
+  const alias = $('registerAlias').value.trim();
+  const phone = $('registerPhone').value.trim();
+  const inviteCode = $('registerInviteCode').value.trim();
+  const password = $('registerPassword').value.trim();
+  const confirmPassword = $('registerConfirmPassword').value.trim();
+
+  if (!username || !email || !inviteCode || !password || !confirmPassword) {
+    showToast('请完整填写注册信息。', 'error');
+    return;
+  }
+  if (password.length < 6) {
+    showToast('密码至少 6 位。', 'error');
+    return;
+  }
+  if (password !== confirmPassword) {
+    showToast('两次输入的密码不一致。', 'error');
+    return;
+  }
+
+  $('submitRegisterBtn').disabled = true;
+  $('submitRegisterBtn').textContent = '提交中...';
+  try {
+    await apiFetch('/api/auth/register', {
+      method: 'POST',
+      body: {
+        username,
+        email,
+        alias,
+        phone,
+        inviteCode,
+        password,
+      },
+    }, false);
+    $('loginUsername').value = username;
+    closeRegisterDialog();
+    resetRegisterForm();
+    showToast('注册成功，请返回登录。', 'success');
+  } catch (error) {
+    showToast(error.message || '注册失败。', 'error');
+  } finally {
+    $('submitRegisterBtn').disabled = false;
+    $('submitRegisterBtn').textContent = '确认注册';
+  }
+}
+
 function openForgotPasswordDialog() {
   $('forgotUsername').value = state.currentUser?.username || $('loginUsername').value.trim();
   resetForgotPasswordForm();
@@ -2217,32 +2283,40 @@ async function submitChangePassword() {
   }
 }
 
-async function loadUpdateInfo(silent = false) {
+async function openApkDownload(silent = false) {
   const button = $('checkUpdateBtn');
   button.disabled = true;
-  button.textContent = silent ? '同步版本中...' : '检查中...';
+  button.textContent = silent ? '准备中...' : '获取中...';
   try {
     const params = new URLSearchParams({
       platform: APP_META.platform,
       channel: APP_META.channel,
-      currentVersion: APP_META.version,
-      currentBuildNumber: APP_META.buildNumber,
+      currentVersion: '0.0.0',
+      currentBuildNumber: '0',
     });
     const result = await apiFetch(`/api/app-release/latest?${params.toString()}`, {}, false);
     state.latestUpdateInfo = result.info || null;
     renderVersionInfo();
+    const latest = state.latestUpdateInfo?.latest || null;
+    const downloadUrl = String(
+      latest?.download_url || latest?.downloadUrl || APP_META.apkDownloadUrl,
+    ).trim();
+    if (!downloadUrl) {
+      throw new Error('当前未配置安卓安装包下载地址。');
+    }
+    window.open(downloadUrl, '_blank', 'noopener');
     if (!silent) {
-      const hasUpdate = state.latestUpdateInfo?.has_update === true;
-      showToast(hasUpdate ? '检测到可用更新。' : '当前已是最新版本。', hasUpdate ? 'success' : 'info');
+      window.prompt('请复制或直接打开下面的 APK 下载地址：', downloadUrl);
+      showToast('已为你打开 APK 下载链接。', 'success');
     }
   } catch (error) {
     renderVersionInfo();
     if (!silent) {
-      showToast(error.message || '检查更新失败。', 'error');
+      showToast(error.message || '获取 APK 下载地址失败。', 'error');
     }
   } finally {
     button.disabled = false;
-    button.textContent = '检查更新';
+    button.textContent = '下载安卓 APK';
   }
 }
 
@@ -2262,7 +2336,7 @@ async function loadSettingsPage() {
     fillAiConfigForm(DEFAULT_AI_CONFIG);
     updateUserUI();
   }
-  await loadUpdateInfo(true);
+  renderVersionInfo();
   updateUserUI();
 }
 
@@ -2461,6 +2535,72 @@ function bindDialogMaskClose(id, onClose) {
   });
 }
 
+function ensureRegisterUi() {
+  const forgotPasswordBtn = $('forgotPasswordBtn');
+  if (forgotPasswordBtn && !$('registerBtn')) {
+    const registerBtn = document.createElement('button');
+    registerBtn.className = 'text-action';
+    registerBtn.id = 'registerBtn';
+    registerBtn.type = 'button';
+    registerBtn.textContent = '注册账号';
+    forgotPasswordBtn.parentElement?.appendChild(registerBtn);
+  }
+
+  if ($('registerDialog')) {
+    return;
+  }
+
+  const dialog = document.createElement('div');
+  dialog.className = 'dialog hidden';
+  dialog.id = 'registerDialog';
+  dialog.innerHTML = `
+    <div class="dialog-card dialog-card--form">
+      <div class="dialog-head">
+        <div class="dialog-icon">注</div>
+        <div>
+          <h3>注册账号</h3>
+          <p>注册必须填写后台生成的邀请码，没有邀请码的用户不能注册。</p>
+        </div>
+      </div>
+      <div class="field-stack">
+        <label class="field">
+          <span class="field-label">用户名</span>
+          <input class="input" id="registerUsername" type="text" placeholder="请输入用户名">
+        </label>
+        <label class="field">
+          <span class="field-label">邮箱</span>
+          <input class="input" id="registerEmail" type="email" placeholder="请输入邮箱">
+        </label>
+        <label class="field">
+          <span class="field-label">昵称</span>
+          <input class="input" id="registerAlias" type="text" placeholder="选填">
+        </label>
+        <label class="field">
+          <span class="field-label">手机号</span>
+          <input class="input" id="registerPhone" type="tel" placeholder="选填">
+        </label>
+        <label class="field">
+          <span class="field-label">邀请码</span>
+          <input class="input" id="registerInviteCode" type="text" placeholder="请输入邀请码">
+        </label>
+        <label class="field">
+          <span class="field-label">密码</span>
+          <input class="input" id="registerPassword" type="password" placeholder="请输入密码">
+        </label>
+        <label class="field">
+          <span class="field-label">确认密码</span>
+          <input class="input" id="registerConfirmPassword" type="password" placeholder="请再次输入密码">
+        </label>
+      </div>
+      <div class="button-row">
+        <button class="btn btn--primary" id="submitRegisterBtn" type="button">确认注册</button>
+        <button class="btn btn--ghost" id="closeRegisterBtn" type="button">关闭</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(dialog);
+}
+
 function bindEvents() {
   $('loginBtn').addEventListener('click', login);
   $('clearLoginBtn').addEventListener('click', () => {
@@ -2469,8 +2609,11 @@ function bindEvents() {
     clearLoginError();
   });
   $('forgotPasswordBtn').addEventListener('click', openForgotPasswordDialog);
+  $('registerBtn').addEventListener('click', openRegisterDialog);
   $('submitForgotPasswordBtn').addEventListener('click', submitForgotPassword);
+  $('submitRegisterBtn').addEventListener('click', submitRegister);
   $('closeForgotPasswordBtn').addEventListener('click', closeForgotPasswordDialog);
+  $('closeRegisterBtn').addEventListener('click', closeRegisterDialog);
   $('loginPassword').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       login();
@@ -2552,7 +2695,7 @@ function bindEvents() {
     } catch (_) {
     }
   });
-  $('checkUpdateBtn').addEventListener('click', () => loadUpdateInfo(false));
+  $('checkUpdateBtn').addEventListener('click', () => openApkDownload(false));
 
   $$('[data-settings-section]').forEach((button) => {
     button.addEventListener('click', () => switchSettingsSection(button.dataset.settingsSection || 'llm'));
@@ -2571,6 +2714,7 @@ function bindEvents() {
   });
 
   bindDialogMaskClose('forgotPasswordDialog', closeForgotPasswordDialog);
+  bindDialogMaskClose('registerDialog', closeRegisterDialog);
   bindDialogMaskClose('editProfileDialog', closeEditProfileDialog);
   bindDialogMaskClose('changePasswordDialog', closeChangePasswordDialog);
 
@@ -2772,6 +2916,7 @@ function renderHistory(records, totalPages) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  ensureRegisterUi();
   bindEvents();
   readSession();
   updateUserUI();

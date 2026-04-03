@@ -56,6 +56,15 @@ class ForgotPasswordRequest(BaseModel):
     new_password: str = Field(description="New password", min_length=6)
 
 
+class RegisterRequest(BaseModel):
+    username: str = Field(description="Username", min_length=3)
+    email: EmailStr = Field(description="Email")
+    password: str = Field(description="Password", min_length=6)
+    invite_code: str = Field(description="Invite code", min_length=1)
+    alias: Optional[str] = Field(default=None, description="Alias")
+    phone: Optional[str] = Field(default=None, description="Phone")
+
+
 class UpdateCurrentUserProfile(BaseModel):
     email: EmailStr = Field(description="Email")
     alias: Optional[str] = Field(default=None, description="Alias")

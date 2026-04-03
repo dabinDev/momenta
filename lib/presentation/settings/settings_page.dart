@@ -151,31 +151,38 @@ class _BasicInfoCard extends StatelessWidget {
       subtitle: '关键信息收纳在这里',
       icon: Icons.badge_outlined,
       accentColor: AppTheme.sky,
-      child: Column(
-        children: <Widget>[
-          _InfoRow(
-            label: '账号',
-            value: user?.username.trim().isNotEmpty == true
-                ? user!.username
-                : '未设置',
-          ),
-          Divider(color: Theme.of(context).colorScheme.outlineVariant),
-          _InfoRow(
-            label: '手机号',
-            value: user?.phone.trim().isNotEmpty == true ? user!.phone : '未设置',
-          ),
-          Divider(color: Theme.of(context).colorScheme.outlineVariant),
-          _InfoRow(
-            label: '版本号',
-            value: controller.versionLabel,
-          ),
-          const SizedBox(height: 16),
-          PrimaryButton.outline(
-            label: '个人信息',
-            icon: Icons.chevron_right_rounded,
-            onPressed: controller.openProfileDetail,
-          ),
-        ],
+      child: Obx(
+        () => Column(
+          children: <Widget>[
+            _InfoRow(
+              label: '账号',
+              value: user?.username.trim().isNotEmpty == true
+                  ? user!.username
+                  : '未设置',
+            ),
+            Divider(color: Theme.of(context).colorScheme.outlineVariant),
+            _InfoRow(
+              label: '手机号',
+              value: user?.phone.trim().isNotEmpty == true ? user!.phone : '未设置',
+            ),
+            Divider(color: Theme.of(context).colorScheme.outlineVariant),
+            _InfoRow(
+              label: '版本号',
+              value: controller.versionLabel,
+              onTap: controller.isCheckingUpdate.value
+                  ? null
+                  : controller.checkForUpdates,
+              trailing:
+                  controller.isCheckingUpdate.value ? '检查中...' : '检查更新',
+            ),
+            const SizedBox(height: 16),
+            PrimaryButton.outline(
+              label: '个人信息',
+              icon: Icons.chevron_right_rounded,
+              onPressed: controller.openProfileDetail,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -185,14 +192,18 @@ class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.label,
     required this.value,
+    this.onTap,
+    this.trailing,
   });
 
   final String label;
   final String value;
+  final VoidCallback? onTap;
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final Widget content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: <Widget>[
@@ -210,7 +221,30 @@ class _InfoRow extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
+          if (trailing != null) ...<Widget>[
+            const SizedBox(width: 12),
+            Text(
+              trailing!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: onTap != null ? AppTheme.primary : AppTheme.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
         ],
+      ),
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: content,
       ),
     );
   }

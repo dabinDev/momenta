@@ -24,7 +24,7 @@ class ProfileDetailPage extends GetView<SettingsController> {
         children: <Widget>[
           SectionCard(
             title: '账号管理',
-            subtitle: '常用设置放在这里',
+            subtitle: '常用设置集中在这里',
             icon: Icons.manage_accounts_outlined,
             accentColor: AppTheme.sky,
             child: Column(
@@ -57,12 +57,18 @@ class ProfileDetailPage extends GetView<SettingsController> {
             final AppUpdateInfoModel? updateInfo =
                 controller.latestUpdateInfo.value;
             final AppReleaseModel? latest = updateInfo?.latest;
-            final String latestVersion = latest?.versionLabel ?? '暂无新版本';
+            final String latestVersion =
+                latest?.versionLabel.isNotEmpty == true
+                    ? latest!.versionLabel
+                    : '暂无新版本';
             final String statusText = updateInfo == null
                 ? '尚未检查更新'
                 : updateInfo.hasUpdate
                     ? (updateInfo.isForceUpdate ? '发现强制更新' : '发现可用更新')
-                    : '当前已是最新版本';
+                    : '当前已经是最新版本';
+            final bool hasDownloadUrl =
+                latest?.downloadUrl.trim().isNotEmpty == true;
+            final bool hasUpdate = updateInfo?.hasUpdate == true;
 
             return SectionCard(
               title: '版本信息',
@@ -91,6 +97,21 @@ class ProfileDetailPage extends GetView<SettingsController> {
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
                   ),
+                  if (hasUpdate) ...<Widget>[
+                    const SizedBox(height: 16),
+                    Obx(
+                      () => PrimaryButton.outline(
+                        label: controller.isOpeningUpdateUrl.value
+                            ? '打开中...'
+                            : (hasDownloadUrl ? '立即更新' : '未配置下载地址'),
+                        icon: Icons.download_rounded,
+                        onPressed: hasDownloadUrl &&
+                                !controller.isOpeningUpdateUrl.value
+                            ? controller.openUpdateUrl
+                            : null,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   PrimaryButton(
                     label:

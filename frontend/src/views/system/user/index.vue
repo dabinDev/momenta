@@ -1,19 +1,6 @@
 <script setup>
 import { computed, h, onMounted, ref, resolveDirective, watch, withDirectives } from 'vue'
-import {
-  NButton,
-  NCheckbox,
-  NCheckboxGroup,
-  NEmpty,
-  NForm,
-  NFormItem,
-  NInput,
-  NPopconfirm,
-  NSwitch,
-  NTag,
-  NTree,
-  NTreeSelect,
-} from 'naive-ui'
+import { NButton, NCheckbox, NCheckboxGroup, NEmpty, NForm, NFormItem, NInput, NPopconfirm, NTag, NTree, NTreeSelect } from 'naive-ui'
 
 import CommonPage from '@/components/page/CommonPage.vue'
 import QueryBarItem from '@/components/query-bar/QueryBarItem.vue'
@@ -87,7 +74,6 @@ watch(
 )
 
 const deptTreeData = computed(() => filterDeptTree(deptOption.value, deptKeyword.value))
-const totalDeptCount = computed(() => countDeptNodes(deptOption.value))
 const visibleDeptCount = computed(() => countDeptNodes(deptTreeData.value))
 const selectedDeptName = computed(() => findDeptNameById(deptOption.value, selectedDeptId.value) || '全部部门')
 const activeFilters = computed(() => {
@@ -97,6 +83,7 @@ const activeFilters = computed(() => {
   if (queryItems.value.email) filters.push({ type: 'warning', label: `邮箱：${queryItems.value.email}` })
   return filters
 })
+
 const overviewStats = computed(() => [
   {
     label: '当前页用户',
@@ -109,14 +96,14 @@ const overviewStats = computed(() => [
     hint: '可正常登录',
   },
   {
-    label: '管理员',
-    value: tableRows.value.filter(item => item.is_superuser).length,
-    hint: '超级用户',
+    label: '已封禁账号',
+    value: tableRows.value.filter(item => !item.is_active).length,
+    hint: '已不可登录',
   },
   {
-    label: '部门范围',
-    value: totalDeptCount.value,
-    hint: `当前可见 ${visibleDeptCount.value}`,
+    label: '邀请码注册',
+    value: tableRows.value.filter(item => item.registration_source === 'invite').length,
+    hint: '受邀注册用户',
   },
 ])
 
@@ -124,7 +111,7 @@ const columns = [
   {
     title: '用户',
     key: 'username',
-    width: 160,
+    width: 170,
     ellipsis: { tooltip: true },
     render(row) {
       return h('div', { class: 'user-name-cell' }, [
@@ -140,6 +127,31 @@ const columns = [
     ellipsis: { tooltip: true },
   },
   {
+    title: '来源',
+    key: 'registration_source',
+    width: 120,
+    render(row) {
+      const fromInvite = row.registration_source === 'invite'
+      return h(
+        NTag,
+        {
+          size: 'small',
+          round: true,
+          type: fromInvite ? 'success' : 'default',
+        },
+        { default: () => (fromInvite ? '邀请码注册' : '后台创建') }
+      )
+    },
+  },
+  {
+    title: '邀请码',
+    key: 'invite_code',
+    width: 140,
+    render(row) {
+      return row.invite_code?.code || '--'
+    },
+  },
+  {
     title: '角色',
     key: 'role',
     width: 220,
@@ -149,9 +161,7 @@ const columns = [
       return h(
         'div',
         { class: 'user-role-tags' },
-        roles.map(role =>
-          h(NTag, { size: 'small', type: 'info', round: true }, { default: () => role.name })
-        )
+        roles.map(role => h(NTag, { size: 'small', type: 'info', round: true }, { default: () => role.name }))
       )
     },
   },
@@ -183,45 +193,54 @@ const columns = [
   {
     title: '最近登录',
     key: 'last_login',
-    width: 190,
+    width: 180,
     render(row) {
-      return h(
-        NButton,
-        {
-          size: 'small',
-          text: true,
-          type: 'primary',
-        },
-        {
-          default: () => (row.last_login ? formatDate(row.last_login) : '暂无记录'),
-          icon: renderIcon('mdi:update', { size: 16 }),
-        }
-      )
+      return row.last_login ? formatDate(row.last_login) : '暂无记录'
     },
   },
   {
     title: '状态',
     key: 'is_active',
-    width: 110,
+    width: 120,
     render(row) {
-      return h(NSwitch, {
-        size: 'small',
-        rubberBand: false,
-        value: row.is_active,
-        loading: !!row.publishing,
-        checkedValue: true,
-        uncheckedValue: false,
-        onUpdateValue: value => handleUpdateDisable(row, value),
-      })
+      return h(
+        NTag,
+        {
+          size: 'small',
+          round: true,
+          type: row.is_active ? 'success' : 'error',
+        },
+        { default: () => (row.is_active ? '启用中' : '已封禁') }
+      )
     },
   },
   {
     title: '操作',
     key: 'actions',
-    width: 240,
+    width: 360,
     fixed: 'right',
     render(row) {
       return h('div', { class: 'user-action-list' }, [
+        withDirectives(
+          h(
+            NButton,
+            {
+              size: 'small',
+              quaternary: true,
+              type: row.is_active ? 'warning' : 'success',
+              loading: !!row.publishing,
+              onClick: () => handleToggleStatus(row, !row.is_active),
+            },
+            {
+              default: () => (row.is_active ? '封禁' : '启用'),
+              icon: renderIcon(
+                row.is_active ? 'material-symbols:block' : 'material-symbols:check-circle-outline',
+                { size: 16 }
+              ),
+            }
+          ),
+          [[vPermission, 'post/api/v1/user/update']]
+        ),
         withDirectives(
           h(
             NButton,
@@ -303,19 +322,9 @@ const columns = [
 ]
 
 const validateAddUser = {
-  username: [
-    {
-      required: true,
-      message: '请输入用户名',
-      trigger: ['input', 'blur'],
-    },
-  ],
+  username: [{ required: true, message: '请输入用户名', trigger: ['input', 'blur'] }],
   email: [
-    {
-      required: true,
-      message: '请输入邮箱地址',
-      trigger: ['input', 'change'],
-    },
+    { required: true, message: '请输入邮箱地址', trigger: ['input', 'change'] },
     {
       trigger: ['blur'],
       validator: (rule, value, callback) => {
@@ -328,19 +337,9 @@ const validateAddUser = {
       },
     },
   ],
-  password: [
-    {
-      required: true,
-      message: '请输入密码',
-      trigger: ['input', 'blur', 'change'],
-    },
-  ],
+  password: [{ required: true, message: '请输入密码', trigger: ['input', 'blur', 'change'] }],
   confirmPassword: [
-    {
-      required: true,
-      message: '请再次输入密码',
-      trigger: ['input'],
-    },
+    { required: true, message: '请再次输入密码', trigger: ['input'] },
     {
       trigger: ['blur'],
       validator: (rule, value, callback) => {
@@ -352,14 +351,7 @@ const validateAddUser = {
       },
     },
   ],
-  role_ids: [
-    {
-      type: 'array',
-      required: true,
-      message: '请至少选择一个角色',
-      trigger: ['blur', 'change'],
-    },
-  ],
+  role_ids: [{ type: 'array', required: true, message: '请至少选择一个角色', trigger: ['blur', 'change'] }],
 }
 
 function handleTableDataChange(data = []) {
@@ -381,39 +373,37 @@ function openEditModal(row) {
   modalForm.value.is_active = row.is_active ?? true
   modalForm.value.is_superuser = row.is_superuser ?? false
   delete modalForm.value.dept
+  delete modalForm.value.invite_code
 }
 
-async function handleUpdateDisable(row, value) {
+async function handleToggleStatus(row, value) {
   if (!row.id) return
   if (userStore.userId === row.id && !value) {
-    $message.error('当前登录用户不能被停用')
+    $message.error('当前登录用户不能封禁自己')
     return
   }
 
-  const previousValue = row.is_active
-  row.publishing = true
-  row.is_active = value
-  row.role_ids = (row.roles ?? []).map(item => item.id)
-  row.dept_id = row.dept?.id ?? row.dept_id ?? null
+  const payload = {
+    ...row,
+    is_active: value,
+    role_ids: (row.roles ?? []).map(item => item.id),
+    dept_id: row.dept?.id ?? row.dept_id ?? null,
+  }
+  delete payload.roles
+  delete payload.dept
+  delete payload.invite_code
+  delete payload.publishing
 
+  row.publishing = true
   try {
-    await api.updateUser(row)
-    $message.success(row.is_active ? '已启用该用户' : '已停用该用户')
+    await api.updateUser(payload)
+    $message.success(value ? '用户已启用' : '用户已封禁')
     $table.value?.handleSearch()
   } catch (error) {
-    row.is_active = previousValue
+    $message.error(error.message || '更新用户状态失败')
   } finally {
     row.publishing = false
   }
-}
-
-function applyDeptFilter(deptId) {
-  selectedDeptId.value = deptId
-  queryItems.value = {
-    ...queryItems.value,
-    dept_id: deptId,
-  }
-  $table.value?.handleSearch()
 }
 
 function clearDeptFilter() {
@@ -431,7 +421,12 @@ function handleDeptNodeClick(option) {
     clearDeptFilter()
     return
   }
-  applyDeptFilter(option.id)
+  selectedDeptId.value = option.id
+  queryItems.value = {
+    ...queryItems.value,
+    dept_id: option.id,
+  }
+  $table.value?.handleSearch()
 }
 
 function nodeProps({ option }) {
@@ -445,14 +440,10 @@ function nodeProps({ option }) {
 function filterDeptTree(nodes = [], keyword = '') {
   const normalizedKeyword = keyword.trim()
   if (!normalizedKeyword) return nodes
-
   return nodes.reduce((result, node) => {
     const children = filterDeptTree(node.children ?? [], normalizedKeyword)
     if ((node.name || '').includes(normalizedKeyword) || children.length) {
-      result.push({
-        ...node,
-        children,
-      })
+      result.push({ ...node, children })
     }
     return result
   }, [])
@@ -480,7 +471,7 @@ function findDeptNameById(nodes = [], targetId) {
         <div class="user-page__header-copy">
           <p class="user-page__eyebrow">SYSTEM USERS</p>
           <h2>用户管理</h2>
-          <p>按部门、用户名和邮箱快速筛选，常用操作保持在同一工作区内完成。</p>
+          <p>统一管理后台创建用户、邀请码注册用户，以及启用、封禁、重置密码等操作。</p>
         </div>
         <div class="user-page__header-actions">
           <div class="user-page__scope">
@@ -501,7 +492,7 @@ function findDeptNameById(nodes = [], targetId) {
           <div>
             <p class="user-overview__label">工作区概览</p>
             <h3>当前视图以 {{ selectedDeptName }} 为主</h3>
-            <p>顶部信息保持简短，只保留筛选范围和关键数量，减少管理干扰。</p>
+            <p>支持查看注册来源、邀请码、启用状态和封禁状态，便于运营与风控统一管理。</p>
           </div>
           <div class="user-overview__filters">
             <NTag v-for="item in activeFilters" :key="item.label" round :type="item.type">
@@ -530,11 +521,7 @@ function findDeptNameById(nodes = [], targetId) {
             <NButton v-if="selectedDeptId" text type="primary" @click="clearDeptFilter">重置</NButton>
           </div>
 
-          <NInput
-            v-model:value="deptKeyword"
-            clearable
-            placeholder="搜索部门"
-          />
+          <NInput v-model:value="deptKeyword" clearable placeholder="搜索部门" />
 
           <div class="dept-panel__summary">
             <span>当前查看</span>
@@ -561,8 +548,8 @@ function findDeptNameById(nodes = [], targetId) {
           <div class="user-table-panel__header">
             <div>
               <p class="user-table-panel__eyebrow">用户列表</p>
-              <h3>账户状态与权限配置</h3>
-              <p>启用、停用、编辑和密码重置都保留在表格内，减少页面跳转。</p>
+              <h3>账号状态与邀请来源</h3>
+              <p>启用、封禁、编辑、删除和密码重置都保持在同一张表中，减少跳转成本。</p>
             </div>
           </div>
 
@@ -571,7 +558,7 @@ function findDeptNameById(nodes = [], targetId) {
             v-model:query-items="queryItems"
             :columns="columns"
             :get-data="api.getUserList"
-            :scroll-x="1280"
+            :scroll-x="1560"
             @on-data-change="handleTableDataChange"
           >
             <template #queryBar>
@@ -598,12 +585,7 @@ function findDeptNameById(nodes = [], targetId) {
         </section>
       </div>
 
-      <CrudModal
-        v-model:visible="modalVisible"
-        :title="modalTitle"
-        :loading="modalLoading"
-        @save="handleSave"
-      >
+      <CrudModal v-model:visible="modalVisible" :title="modalTitle" :loading="modalLoading" @save="handleSave">
         <NForm
           ref="modalFormRef"
           label-placement="left"
@@ -639,29 +621,15 @@ function findDeptNameById(nodes = [], targetId) {
           <NFormItem label="角色" path="role_ids">
             <NCheckboxGroup v-model:value="modalForm.role_ids">
               <div class="modal-role-grid">
-                <NCheckbox
-                  v-for="item in roleOption"
-                  :key="item.id"
-                  :value="item.id"
-                  :label="item.name"
-                />
+                <NCheckbox v-for="item in roleOption" :key="item.id" :value="item.id" :label="item.name" />
               </div>
             </NCheckboxGroup>
           </NFormItem>
           <NFormItem label="管理员" path="is_superuser">
-            <NSwitch
-              v-model:value="modalForm.is_superuser"
-              size="small"
-              :checked-value="true"
-              :unchecked-value="false"
-            />
+            <NCheckbox v-model:checked="modalForm.is_superuser">设为管理员</NCheckbox>
           </NFormItem>
           <NFormItem label="启用" path="is_active">
-            <NSwitch
-              v-model:value="modalForm.is_active"
-              :checked-value="true"
-              :unchecked-value="false"
-            />
+            <NCheckbox v-model:checked="modalForm.is_active">允许登录</NCheckbox>
           </NFormItem>
           <NFormItem label="部门" path="dept_id">
             <NTreeSelect
@@ -765,8 +733,6 @@ function findDeptNameById(nodes = [], targetId) {
 }
 
 .user-overview {
-  position: relative;
-  overflow: hidden;
   padding: 20px 22px;
   border: 1px solid var(--shell-border);
   border-radius: 18px;
@@ -775,17 +741,11 @@ function findDeptNameById(nodes = [], targetId) {
   backdrop-filter: blur(20px);
 }
 
-.user-overview::before {
-  display: none;
-}
-
 .user-overview__intro {
-  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  z-index: 1;
 }
 
 .user-overview__filters {
@@ -811,8 +771,6 @@ function findDeptNameById(nodes = [], targetId) {
   border: 1px solid rgba(255, 105, 0, 0.08);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.46);
-  box-shadow: none;
-  backdrop-filter: blur(12px);
 }
 
 .user-stat strong {

@@ -8,7 +8,7 @@ from app.core.dependency import DependAuth
 from app.models.admin import Api, Dept, Menu, Role, User
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema, JWTPayload, JWTOut
-from app.schemas.users import ForgotPasswordRequest, UpdateCurrentUserProfile, UpdatePassword
+from app.schemas.users import ForgotPasswordRequest, RegisterRequest, UpdateCurrentUserProfile, UpdatePassword
 from app.settings import settings
 from app.utils.jwt_utils import create_access_token
 
@@ -118,6 +118,19 @@ async def change_user_password(req_in: UpdatePassword):
 async def forgot_password(req_in: ForgotPasswordRequest):
     await user_controller.forgot_password(req_in)
     return Success(msg="Password reset successfully")
+
+
+@router.post("/register", summary="Register account")
+async def register(req_in: RegisterRequest):
+    user_obj = await user_controller.register_user(req_in)
+    return Success(
+        msg="Registered successfully",
+        data={
+            "id": user_obj.id,
+            "username": user_obj.username,
+            "email": user_obj.email,
+        },
+    )
 
 
 @router.post("/update_profile", summary="Update current user profile", dependencies=[DependAuth])

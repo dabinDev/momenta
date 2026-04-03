@@ -109,72 +109,79 @@ async def init_menus():
             "component": "/system/user",
         },
         {
+            "name": "邀请码管理",
+            "path": "invite-code",
+            "order": 2,
+            "icon": "material-symbols:key-outline-rounded",
+            "component": "/system/invite-code",
+        },
+        {
             "name": "角色管理",
             "path": "role",
-            "order": 2,
+            "order": 3,
             "icon": "carbon:user-role",
             "component": "/system/role",
         },
         {
             "name": "菜单管理",
             "path": "menu",
-            "order": 3,
+            "order": 4,
             "icon": "material-symbols:list-alt-outline",
             "component": "/system/menu",
         },
         {
             "name": "接口管理",
             "path": "api",
-            "order": 4,
+            "order": 5,
             "icon": "ant-design:api-outlined",
             "component": "/system/api",
         },
         {
             "name": "部门管理",
             "path": "dept",
-            "order": 5,
+            "order": 6,
             "icon": "mingcute:department-line",
             "component": "/system/dept",
         },
         {
             "name": "审计日志",
             "path": "auditlog",
-            "order": 6,
+            "order": 7,
             "icon": "ph:clipboard-text-bold",
             "component": "/system/auditlog",
         },
         {
             "name": "视频任务",
             "path": "task",
-            "order": 7,
+            "order": 8,
             "icon": "material-symbols:movie-outline-rounded",
             "component": "/system/task",
         },
         {
             "name": "语音日志",
             "path": "voice-log",
-            "order": 8,
+            "order": 9,
             "icon": "material-symbols:graphic-eq-rounded",
             "component": "/system/voice-log",
         },
         {
             "name": "版本发布",
             "path": "app-release",
-            "order": 9,
+            "order": 10,
             "icon": "material-symbols:system-update-alt-rounded",
             "component": "/system/app-release",
         },
         {
             "name": "应用配置",
             "path": "app-config",
-            "order": 10,
+            "order": 11,
             "icon": "material-symbols:tune-rounded",
             "component": "/system/app-config",
         },
         {
             "name": "AI调试",
             "path": "ai-debug",
-            "order": 11,
+            "order": 12,
             "icon": "material-symbols:experiment-outline-rounded",
             "component": "/system/ai-debug",
         },
@@ -236,29 +243,142 @@ async def init_apis():
 async def init_db():
     await Tortoise.init(config=settings.TORTOISE_ORM)
     await Tortoise.generate_schemas(safe=True)
-    await ensure_sqlite_compat_schema()
+    await ensure_runtime_schema()
 
 
-async def ensure_sqlite_compat_schema():
+async def ensure_runtime_schema():
     default_connection = settings.TORTOISE_ORM["apps"]["models"]["default_connection"]
     connection = Tortoise.get_connection(default_connection)
-    if connection.capabilities.dialect != "sqlite":
+    dialect = connection.capabilities.dialect
+
+    if dialect == "sqlite":
+        await _ensure_sqlite_schema(connection)
         return
 
-    columns = await connection.execute_query_dict("PRAGMA table_info('user_app_config')")
-    existing_columns = {str(item.get("name") or "").strip() for item in columns}
-    missing_columns = {
+    if dialect == "mysql":
+        await _ensure_mysql_schema(connection)
+
+
+async def _ensure_sqlite_schema(connection):
+    statements: list[str] = []
+
+    app_config_columns = await connection.execute_query_dict("PRAGMA table_info('user_app_config')")
+    existing_app_config_columns = {str(item.get("name") or "").strip() for item in app_config_columns}
+    app_config_missing_columns = {
         "speech_base_url": "VARCHAR(255) NOT NULL DEFAULT 'https://api.99hub.top'",
         "speech_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
         "speech_model": "VARCHAR(100) NOT NULL DEFAULT 'gpt-4o-mini-audio-preview'",
     }
-    statements = [
+    statements.extend(
         f'ALTER TABLE "user_app_config" ADD COLUMN "{column}" {definition};'
-        for column, definition in missing_columns.items()
-        if column not in existing_columns
-    ]
+        for column, definition in app_config_missing_columns.items()
+        if column not in existing_app_config_columns
+    )
+
+    user_columns = await connection.execute_query_dict("PRAGMA table_info('user')")
+    existing_user_columns = {str(item.get("name") or "").strip() for item in user_columns}
+    user_missing_columns = {
+        "registration_source": "VARCHAR(20) NOT NULL DEFAULT 'admin'",
+        "invite_code_id": "BIGINT NULL",
+    }
+    statements.extend(
+        f'ALTER TABLE "user" ADD COLUMN "{column}" {definition};'
+        for column, definition in user_missing_columns.items()
+        if column not in existing_user_columns
+    )
+
+    invite_code_tables = await connection.execute_query_dict(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='invite_code'"
+    )
+    if not invite_code_tables:
+        statements.append(
+            """
+            CREATE TABLE "invite_code" (
+              "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+              "code" VARCHAR(64) NOT NULL UNIQUE,
+              "remark" VARCHAR(255),
+              "max_uses" INT NOT NULL DEFAULT 1,
+              "used_count" INT NOT NULL DEFAULT 0,
+              "is_active" INT NOT NULL DEFAULT 1,
+              "expires_at" TIMESTAMP,
+              "created_by_user_id" BIGINT,
+              "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX "idx_invite_code_code" ON "invite_code" ("code");
+            CREATE INDEX "idx_invite_code_is_active" ON "invite_code" ("is_active");
+            """
+        )
+
     if statements:
         await connection.execute_script("".join(statements))
+
+
+async def _ensure_mysql_schema(connection):
+    current_db = settings.DB_NAME
+
+    app_config_columns = await connection.execute_query_dict(
+        f"""
+        SELECT COLUMN_NAME AS name
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = '{current_db}' AND TABLE_NAME = 'user_app_config'
+        """
+    )
+    existing_app_config_columns = {str(item.get("name") or "").strip() for item in app_config_columns}
+    app_config_missing_columns = {
+        "speech_base_url": "VARCHAR(255) NOT NULL DEFAULT 'https://api.99hub.top'",
+        "speech_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "speech_model": "VARCHAR(100) NOT NULL DEFAULT 'gpt-4o-mini-audio-preview'",
+    }
+    for column, definition in app_config_missing_columns.items():
+        if column not in existing_app_config_columns:
+            await connection.execute_script(
+                f"ALTER TABLE `user_app_config` ADD COLUMN `{column}` {definition};"
+            )
+
+    user_columns = await connection.execute_query_dict(
+        f"""
+        SELECT COLUMN_NAME AS name
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = '{current_db}' AND TABLE_NAME = 'user'
+        """
+    )
+    existing_user_columns = {str(item.get("name") or "").strip() for item in user_columns}
+    user_missing_columns = {
+        "registration_source": "VARCHAR(20) NOT NULL DEFAULT 'admin'",
+        "invite_code_id": "BIGINT NULL",
+    }
+    for column, definition in user_missing_columns.items():
+        if column not in existing_user_columns:
+            await connection.execute_script(f"ALTER TABLE `user` ADD COLUMN `{column}` {definition};")
+
+    invite_code_tables = await connection.execute_query_dict(
+        f"""
+        SELECT TABLE_NAME AS name
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = '{current_db}' AND TABLE_NAME = 'invite_code'
+        """
+    )
+    if not invite_code_tables:
+        await connection.execute_script(
+            """
+            CREATE TABLE `invite_code` (
+              `id` BIGINT NOT NULL AUTO_INCREMENT,
+              `code` VARCHAR(64) NOT NULL,
+              `remark` VARCHAR(255) NULL,
+              `max_uses` INT NOT NULL DEFAULT 1,
+              `used_count` INT NOT NULL DEFAULT 0,
+              `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+              `expires_at` DATETIME NULL,
+              `created_by_user_id` BIGINT NULL,
+              `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+              `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+              PRIMARY KEY (`id`),
+              UNIQUE KEY `uid_invite_code_code` (`code`),
+              KEY `idx_invite_code_is_active` (`is_active`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+        )
 
 
 async def init_roles():

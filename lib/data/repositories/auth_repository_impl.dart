@@ -65,6 +65,25 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> register({
+    required String username,
+    required String email,
+    required String password,
+    required String inviteCode,
+    String? alias,
+    String? phone,
+  }) {
+    return _apiService.register(
+      username: username,
+      email: email,
+      password: password,
+      inviteCode: inviteCode,
+      alias: alias,
+      phone: phone,
+    );
+  }
+
+  @override
   Future<UserProfileModel> refreshCurrentUser() async {
     final UserProfileModel user =
         UserProfileModel.fromJson(await _apiService.currentUserInfo());

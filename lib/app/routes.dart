@@ -7,6 +7,8 @@ import '../presentation/auth/forgot_password_page.dart';
 import '../presentation/auth/launch_page.dart';
 import '../presentation/auth/login_binding.dart';
 import '../presentation/auth/login_page.dart';
+import '../presentation/auth/register_binding.dart';
+import '../presentation/auth/register_page.dart';
 import '../presentation/create/create_binding.dart';
 import '../presentation/create/create_page.dart';
 import '../presentation/history/history_binding.dart';
@@ -28,6 +30,7 @@ class AppRoutes {
 
   static const String launch = '/';
   static const String login = '/login';
+  static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
   static const String changePassword = '/change-password';
   static const String home = '/home';
@@ -52,6 +55,11 @@ class AppPages {
       name: AppRoutes.login,
       page: LoginPage.new,
       binding: LoginBinding(),
+    ),
+    GetPage<dynamic>(
+      name: AppRoutes.register,
+      page: RegisterPage.new,
+      binding: RegisterBinding(),
     ),
     GetPage<dynamic>(
       name: AppRoutes.forgotPassword,

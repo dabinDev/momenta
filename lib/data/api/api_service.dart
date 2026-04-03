@@ -352,6 +352,27 @@ class ApiService {
     return _readEnvelopeMap(response.data);
   }
 
+  Future<void> register({
+    required String username,
+    required String email,
+    required String password,
+    required String inviteCode,
+    String? alias,
+    String? phone,
+  }) async {
+    await _authDio.post(
+      '/api/v1/base/register',
+      data: <String, dynamic>{
+        'username': username,
+        'email': email,
+        'password': password,
+        'invite_code': inviteCode,
+        if (alias != null && alias.trim().isNotEmpty) 'alias': alias.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> currentUserInfo({String? token}) async {
     final Response<dynamic> response = await _authDio.get(
       '/api/v1/base/userinfo',

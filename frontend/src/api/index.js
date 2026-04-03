@@ -15,6 +15,12 @@ export default {
   updateUser: (data = {}) => request.post('/user/update', data),
   deleteUser: (params = {}) => request.delete(`/user/delete`, { params }),
   resetPassword: (data = {}) => request.post(`/user/reset_password`, data),
+  // invite codes
+  getInviteCodeList: (params = {}) => request.get('/invite_code/list', { params }),
+  createInviteCode: (data = {}) => request.post('/invite_code/create', data),
+  updateInviteCode: (data = {}) => request.post('/invite_code/update', data),
+  toggleInviteCode: (data = {}) => request.post('/invite_code/toggle', data),
+  deleteInviteCode: (params = {}) => request.delete('/invite_code/delete', { params }),
   // role
   getRoleList: (params = {}) => request.get('/role/list', { params }),
   createRole: (data = {}) => request.post('/role/create', data),

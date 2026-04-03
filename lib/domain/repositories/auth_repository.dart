@@ -6,6 +6,14 @@ abstract class AuthRepository {
     required String username,
     required String password,
   });
+  Future<void> register({
+    required String username,
+    required String email,
+    required String password,
+    required String inviteCode,
+    String? alias,
+    String? phone,
+  });
   Future<UserProfileModel> refreshCurrentUser();
   Future<void> forgotPassword({
     required String username,

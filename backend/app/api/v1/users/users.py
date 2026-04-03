@@ -4,6 +4,7 @@ from fastapi import APIRouter, Body, Query
 from tortoise.expressions import Q
 
 from app.controllers.dept import dept_controller
+from app.controllers.invite_code import invite_code_controller
 from app.controllers.user import user_controller
 from app.schemas.base import Fail, Success, SuccessExtra
 from app.schemas.users import UserCreate, UserUpdate
@@ -31,9 +32,16 @@ async def list_user(
 
     total, user_objs = await user_controller.list(page=page, page_size=page_size, search=q)
     data = [await obj.to_dict(m2m=True, exclude_fields=["password"]) for obj in user_objs]
+    invite_code_ids = [item.get("invite_code_id") for item in data if item.get("invite_code_id")]
+    invite_map = {}
+    if invite_code_ids:
+        invite_objs = await invite_code_controller.model.filter(id__in=invite_code_ids)
+        invite_map = {invite.id: await invite.to_dict() for invite in invite_objs}
     for item in data:
         current_dept_id = item.pop("dept_id", None)
         item["dept"] = await (await dept_controller.get(id=current_dept_id)).to_dict() if current_dept_id else {}
+        invite_code_id = item.get("invite_code_id")
+        item["invite_code"] = invite_map.get(invite_code_id, {}) if invite_code_id else {}
     return SuccessExtra(data=data, total=total, page=page, page_size=page_size)
 
 

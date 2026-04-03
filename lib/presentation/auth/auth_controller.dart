@@ -33,6 +33,24 @@ class AuthController extends GetxController {
     );
   }
 
+  Future<void> register({
+    required String username,
+    required String email,
+    required String password,
+    required String inviteCode,
+    String? alias,
+    String? phone,
+  }) {
+    return _repository.register(
+      username: username,
+      email: email,
+      password: password,
+      inviteCode: inviteCode,
+      alias: alias,
+      phone: phone,
+    );
+  }
+
   Future<void> refreshCurrentUser({bool silent = false}) async {
     try {
       currentUser.value = await _repository.refreshCurrentUser();

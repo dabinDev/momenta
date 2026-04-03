@@ -5,6 +5,7 @@ from datetime import datetime
 from tortoise.expressions import Q
 
 from app.core.crud import CRUDBase
+from fastapi.exceptions import HTTPException
 from app.models.app_release import AppRelease
 from app.schemas.app_release import AppReleaseCreate, AppReleaseUpdate
 
@@ -40,12 +41,14 @@ class AppReleaseController(CRUDBase[AppRelease, AppReleaseCreate, AppReleaseUpda
         )
 
     async def create_release(self, obj_in: AppReleaseCreate) -> AppRelease:
+        self._validate_release(obj_in)
         release = await self.create(obj_in)
         if release.is_active:
             await self._activate_release(release)
         return release
 
     async def update_release(self, obj_in: AppReleaseUpdate) -> AppRelease:
+        self._validate_release(obj_in)
         release = await self.update(id=obj_in.id, obj_in=obj_in)
         if release.is_active:
             await self._activate_release(release)
@@ -76,6 +79,11 @@ class AppReleaseController(CRUDBase[AppRelease, AppReleaseCreate, AppReleaseUpda
             channel=release.channel,
             is_active=True,
         ).exclude(id=release.id).update(is_active=False)
+
+    @staticmethod
+    def _validate_release(obj_in: AppReleaseCreate | AppReleaseUpdate) -> None:
+        if obj_in.is_active and not (obj_in.download_url or "").strip():
+            raise HTTPException(status_code=400, detail="Active release must provide download URL")
 
 
 app_release_controller = AppReleaseController()

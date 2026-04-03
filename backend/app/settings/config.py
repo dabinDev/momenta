@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     PUBLIC_BASE_URL: str = "http://127.0.0.1:10099"
     IMAGE_PROXY_UPLOAD_URL: str = "https://imageproxy.zhongzhuan.chat/api/upload"
     SECRET_KEY: str = "change-me-in-env"
+    REGISTER_INVITE_CODE: str = ""
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 day
     DB_ENGINE: str = "sqlite"

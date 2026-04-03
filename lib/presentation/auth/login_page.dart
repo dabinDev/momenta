@@ -104,18 +104,9 @@ class _LoginHero extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: <Widget>[
-              _HeroPill(
-                label: '语音输入',
-                tint: AppTheme.coral,
-              ),
-              _HeroPill(
-                label: '一键生成',
-                tint: AppTheme.sky,
-              ),
-              _HeroPill(
-                label: '历史可查',
-                tint: AppTheme.jade,
-              ),
+              _HeroPill(label: '语音输入', tint: AppTheme.coral),
+              _HeroPill(label: '一键生成', tint: AppTheme.sky),
+              _HeroPill(label: '历史可查', tint: AppTheme.jade),
             ],
           ),
           if (wideLayout) const Spacer(),
@@ -218,6 +209,13 @@ class _LoginForm extends GetView<LoginController> {
                   child: const Text('忘记密码'),
                 ),
               ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: controller.openRegister,
+                child: const Text('注册账号'),
+              ),
             ),
           ],
         ),

@@ -34,15 +34,18 @@ const queryItems = ref({
 })
 
 const vPermission = resolveDirective('permission')
+
 const platformOptions = [
   { label: 'Android', value: 'android' },
   { label: 'iOS', value: 'ios' },
 ]
+
 const channelOptions = [
   { label: '局域网', value: 'lan' },
   { label: '公开版', value: 'public' },
   { label: '测试版', value: 'beta' },
 ]
+
 const activeOptions = [
   { label: '全部状态', value: null },
   { label: '已启用', value: true },
@@ -64,7 +67,7 @@ const {
   name: '版本',
   initForm: {
     platform: 'android',
-    channel: 'lan',
+    channel: 'public',
     version_name: '',
     build_number: 1,
     title: '',
@@ -81,37 +84,107 @@ const {
 
 const overviewStats = computed(() => [
   {
-    label: '当前页版本',
+    label: '当前记录',
     value: tableRows.value.length,
-    hint: '表格已加载记录',
+    hint: '已加载的发布记录',
   },
   {
     label: '启用发布',
     value: tableRows.value.filter(item => item.is_active).length,
-    hint: '对外生效版本',
+    hint: '客户端会读取这些版本',
   },
   {
     label: '强制更新',
     value: tableRows.value.filter(item => item.force_update).length,
-    hint: '需要尽快更新',
+    hint: '用户必须升级后继续使用',
   },
   {
     label: 'Android 版本',
     value: tableRows.value.filter(item => item.platform === 'android').length,
-    hint: '移动端主发布面',
+    hint: '当前主要发布平台',
   },
 ])
 
 const activeFilters = computed(() => {
   const filters = []
-  if (queryItems.value.platform) filters.push({ type: 'primary', label: `平台：${queryItems.value.platform}` })
-  if (queryItems.value.channel) filters.push({ type: 'success', label: `通道：${queryItems.value.channel}` })
-  if (queryItems.value.keyword) filters.push({ type: 'warning', label: `检索：${queryItems.value.keyword}` })
+  if (queryItems.value.platform) {
+    filters.push({ type: 'primary', label: `平台：${queryItems.value.platform}` })
+  }
+  if (queryItems.value.channel) {
+    filters.push({ type: 'success', label: `渠道：${queryItems.value.channel}` })
+  }
+  if (queryItems.value.keyword) {
+    filters.push({ type: 'warning', label: `搜索：${queryItems.value.keyword}` })
+  }
   if (queryItems.value.is_active !== null && queryItems.value.is_active !== undefined) {
-    filters.push({ type: 'info', label: queryItems.value.is_active ? '仅启用' : '仅停用' })
+    filters.push({
+      type: 'info',
+      label: queryItems.value.is_active ? '仅看启用' : '仅看停用',
+    })
   }
   return filters
 })
+
+const rules = {
+  version_name: [
+    {
+      required: true,
+      message: '请输入版本号',
+      trigger: ['blur', 'input'],
+    },
+  ],
+  build_number: [
+    {
+      required: true,
+      type: 'number',
+      message: '请输入构建号',
+      trigger: ['blur', 'change'],
+    },
+  ],
+  platform: [
+    {
+      required: true,
+      message: '请选择平台',
+      trigger: ['blur', 'change'],
+    },
+  ],
+  channel: [
+    {
+      required: true,
+      message: '请选择渠道',
+      trigger: ['blur', 'change'],
+    },
+  ],
+  title: [
+    {
+      required: true,
+      message: '请输入版本标题',
+      trigger: ['blur', 'input'],
+    },
+  ],
+  release_notes: [
+    {
+      required: true,
+      message: '请输入版本说明',
+      trigger: ['blur', 'input'],
+    },
+  ],
+  download_url: [
+    {
+      validator: (_rule, value) => {
+        const raw = `${value || ''}`.trim()
+        if (modalForm.value.is_active && !raw) {
+          return new Error('启用发布时必须填写下载地址')
+        }
+        if (raw && !/^https?:\/\//i.test(raw)) {
+          return new Error('下载地址必须以 http:// 或 https:// 开头')
+        }
+        return true
+      },
+      trigger: ['blur', 'input'],
+    },
+  ],
+}
 
 const columns = [
   {
@@ -147,7 +220,7 @@ const columns = [
     },
   },
   {
-    title: '通道',
+    title: '渠道',
     key: 'channel',
     width: 120,
     render(row) {
@@ -182,7 +255,7 @@ const columns = [
   {
     title: '下载地址',
     key: 'download_url',
-    minWidth: 260,
+    minWidth: 320,
     ellipsis: { tooltip: true },
     render(row) {
       return row.download_url || '--'
@@ -241,38 +314,6 @@ const columns = [
   },
 ]
 
-const rules = {
-  version_name: [
-    {
-      required: true,
-      message: '请输入版本号',
-      trigger: ['blur', 'input'],
-    },
-  ],
-  build_number: [
-    {
-      required: true,
-      type: 'number',
-      message: '请输入构建号',
-      trigger: ['blur', 'change'],
-    },
-  ],
-  platform: [
-    {
-      required: true,
-      message: '请选择平台',
-      trigger: ['blur', 'change'],
-    },
-  ],
-  channel: [
-    {
-      required: true,
-      message: '请选择通道',
-      trigger: ['blur', 'change'],
-    },
-  ],
-}
-
 onMounted(() => {
   $table.value?.handleSearch()
 })
@@ -281,10 +322,20 @@ function handleTableDataChange(data = []) {
   tableRows.value = data
 }
 
+function normalizeModalForm() {
+  modalForm.value.build_number = Number(modalForm.value.build_number || 1)
+  modalForm.value.version_name = `${modalForm.value.version_name || ''}`.trim()
+  modalForm.value.title = `${modalForm.value.title || ''}`.trim()
+  modalForm.value.release_notes = `${modalForm.value.release_notes || ''}`.trim()
+  modalForm.value.download_url = `${modalForm.value.download_url || ''}`.trim()
+  modalForm.value.force_update = modalForm.value.force_update === true
+  modalForm.value.is_active = modalForm.value.is_active === true
+}
+
 function openCreateModal() {
   handleAdd()
   modalForm.value.platform = 'android'
-  modalForm.value.channel = 'lan'
+  modalForm.value.channel = 'public'
   modalForm.value.build_number = 1
   modalForm.value.force_update = false
   modalForm.value.is_active = true
@@ -292,9 +343,18 @@ function openCreateModal() {
 
 function openEditModal(row) {
   handleEdit(row)
-  modalForm.value.build_number = Number(row.build_number || 1)
-  modalForm.value.force_update = row.force_update === true
-  modalForm.value.is_active = row.is_active === true
+  normalizeModalForm()
+}
+
+function handleModalSave() {
+  normalizeModalForm()
+  handleSave(() => {
+    if (modalForm.value.is_active) {
+      $message.success('已发布为当前生效版本，客户端会读取这条配置')
+      return
+    }
+    $message.success('版本记录已保存')
+  })
 }
 </script>
 
@@ -305,7 +365,10 @@ function openEditModal(row) {
         <div class="release-page__header-copy">
           <p class="release-page__eyebrow">APP RELEASES</p>
           <h2>版本发布</h2>
-          <p>统一管理 app 版本号、下载地址、发布说明和强制更新状态，保证后台发布和移动端检查更新使用同一份数据。</p>
+          <p>
+            在 Web 管理端统一维护 App 的版本号、下载地址、更新说明和强制更新策略。
+            客户端检查更新时会直接读取这里的启用版本。
+          </p>
         </div>
         <NButton v-permission="'post/api/v1/app_release/create'" type="primary" @click="openCreateModal">
           <TheIcon icon="material-symbols:add" :size="18" class="mr-5" />
@@ -318,9 +381,11 @@ function openEditModal(row) {
       <section class="release-overview">
         <div class="release-overview__intro">
           <div>
-            <p class="release-overview__label">统一发布面</p>
-            <h3>一处维护，app 与后台同步生效</h3>
-            <p>启用中的版本会直接作为 app 的更新检查结果返回；停用记录保留在后台，方便追溯历史发布。</p>
+            <p class="release-overview__label">统一发布面板</p>
+            <h3>一个入口维护所有版本更新配置</h3>
+            <p>
+              启用中的版本会作为 App 的最新版本返回；同平台同渠道下，只会保留一个生效版本。
+            </p>
           </div>
           <div class="release-overview__filters">
             <NTag v-for="item in activeFilters" :key="item.label" round :type="item.type">
@@ -341,8 +406,8 @@ function openEditModal(row) {
         <div class="release-table-panel__header">
           <div>
             <p class="release-table-panel__eyebrow">发布记录</p>
-            <h3>版本号、渠道、下载入口与发布说明</h3>
-            <p>保持配置字段尽量少，但保证 app 检查更新所需信息完整。</p>
+            <h3>版本号、渠道、下载入口与更新说明</h3>
+            <p>建议每次发布都填写完整的标题、说明和 APK 下载地址，便于 App 端直接使用。</p>
           </div>
         </div>
 
@@ -351,7 +416,7 @@ function openEditModal(row) {
           v-model:query-items="queryItems"
           :columns="columns"
           :get-data="api.getAppReleaseList"
-          :scroll-x="1280"
+          :scroll-x="1320"
           @on-data-change="handleTableDataChange"
         >
           <template #queryBar>
@@ -363,12 +428,12 @@ function openEditModal(row) {
                 placeholder="全部平台"
               />
             </QueryBarItem>
-            <QueryBarItem label="通道" :label-width="44">
+            <QueryBarItem label="渠道" :label-width="44">
               <NSelect
                 v-model:value="queryItems.channel"
                 clearable
                 :options="channelOptions"
-                placeholder="全部通道"
+                placeholder="全部渠道"
               />
             </QueryBarItem>
             <QueryBarItem label="状态" :label-width="44">
@@ -378,7 +443,7 @@ function openEditModal(row) {
                 placeholder="全部状态"
               />
             </QueryBarItem>
-            <QueryBarItem label="检索" :label-width="44">
+            <QueryBarItem label="搜索" :label-width="44">
               <NInput
                 v-model:value="queryItems.keyword"
                 clearable
@@ -395,13 +460,13 @@ function openEditModal(row) {
         width="720px"
         :title="modalTitle"
         :loading="modalLoading"
-        @save="handleSave"
+        @save="handleModalSave"
       >
         <NForm
           ref="modalFormRef"
           label-placement="left"
           label-align="left"
-          :label-width="84"
+          :label-width="92"
           :model="modalForm"
           :rules="rules"
         >
@@ -412,37 +477,40 @@ function openEditModal(row) {
               placeholder="请选择平台"
             />
           </NFormItem>
-          <NFormItem label="通道" path="channel">
+          <NFormItem label="渠道" path="channel">
             <NSelect
               v-model:value="modalForm.channel"
               :options="channelOptions"
-              placeholder="请选择通道"
+              placeholder="请选择渠道"
             />
           </NFormItem>
           <NFormItem label="版本号" path="version_name">
-            <NInput v-model:value="modalForm.version_name" placeholder="例如 1.0.1" />
+            <NInput v-model:value="modalForm.version_name" placeholder="例如 1.1.0" />
           </NFormItem>
           <NFormItem label="构建号" path="build_number">
             <NInputNumber
               v-model:value="modalForm.build_number"
               clearable
               :min="1"
-              placeholder="例如 2"
+              placeholder="例如 12"
               style="width: 100%"
             />
           </NFormItem>
-          <NFormItem label="标题" path="title">
-            <NInput v-model:value="modalForm.title" placeholder="例如 首个稳定版本" />
+          <NFormItem label="版本标题" path="title">
+            <NInput v-model:value="modalForm.title" placeholder="例如 v1.1 正式版" />
           </NFormItem>
           <NFormItem label="下载地址" path="download_url">
-            <NInput v-model:value="modalForm.download_url" placeholder="可选，填入 APK 下载地址" />
+            <NInput
+              v-model:value="modalForm.download_url"
+              placeholder="例如 https://memovideos.cn/file/v1.1.apk"
+            />
           </NFormItem>
-          <NFormItem label="发布说明" path="release_notes">
+          <NFormItem label="更新说明" path="release_notes">
             <NInput
               v-model:value="modalForm.release_notes"
               type="textarea"
               :autosize="{ minRows: 4, maxRows: 7 }"
-              placeholder="填写这次版本的主要变化"
+              placeholder="填写本次版本更新内容，App 会直接展示这里的说明"
             />
           </NFormItem>
           <NFormItem label="强制更新" path="force_update">
@@ -451,8 +519,9 @@ function openEditModal(row) {
           <NFormItem label="启用发布" path="is_active">
             <NSwitch v-model:value="modalForm.is_active" />
           </NFormItem>
-          <div v-if="modalAction === 'edit'" class="release-modal__hint">
-            启用当前版本后，同平台同通道下其他启用记录会自动切换为未启用。
+          <div class="release-modal__hint">
+            启用发布后，同平台同渠道下其他已启用版本会自动转为未启用。
+            如果当前版本需要让客户端真正可升级，请同时填写可访问的下载地址。
           </div>
         </NForm>
       </CrudModal>
@@ -475,7 +544,7 @@ function openEditModal(row) {
 }
 
 .release-page__header-copy {
-  max-width: 680px;
+  max-width: 720px;
 }
 
 .release-page__eyebrow,
@@ -520,10 +589,6 @@ function openEditModal(row) {
   backdrop-filter: blur(20px);
 }
 
-.release-overview::before {
-  display: none;
-}
-
 .release-overview__intro {
   position: relative;
   display: flex;
@@ -555,7 +620,6 @@ function openEditModal(row) {
   border: 1px solid rgba(255, 105, 0, 0.08);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.46);
-  box-shadow: none;
   backdrop-filter: blur(12px);
 }
 

@@ -18,7 +18,13 @@ class LoginController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    final String username = _authController.currentUser.value?.username ?? '';
+    final Map<String, dynamic>? arguments = Get.arguments is Map<String, dynamic>
+        ? Get.arguments as Map<String, dynamic>
+        : null;
+    final String username =
+        (arguments?['username'] as String?)?.trim().isNotEmpty == true
+            ? (arguments?['username'] as String).trim()
+            : (_authController.currentUser.value?.username ?? '');
     if (username.isNotEmpty) {
       usernameController.text = username;
     }
@@ -52,6 +58,10 @@ class LoginController extends GetxController {
 
   void openForgotPassword() {
     Get.toNamed(AppRoutes.forgotPassword);
+  }
+
+  void openRegister() {
+    Get.toNamed(AppRoutes.register);
   }
 
   String _readError(Object error, {required String fallback}) {

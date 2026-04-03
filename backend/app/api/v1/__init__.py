@@ -9,6 +9,7 @@ from .app_releases import app_releases_router
 from .auditlog import auditlog_router
 from .base import base_router
 from .depts import depts_router
+from .invite_codes import invite_codes_router
 from .menus import menus_router
 from .roles import roles_router
 from .tasks import tasks_router
@@ -18,6 +19,7 @@ from .voice_logs import voice_logs_router
 v1_router = APIRouter()
 
 v1_router.include_router(base_router, prefix="/base")
+v1_router.include_router(invite_codes_router, prefix="/invite_code", dependencies=[DependPermission])
 v1_router.include_router(users_router, prefix="/user", dependencies=[DependPermission])
 v1_router.include_router(roles_router, prefix="/role", dependencies=[DependPermission])
 v1_router.include_router(menus_router, prefix="/menu", dependencies=[DependPermission])

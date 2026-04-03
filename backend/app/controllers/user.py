@@ -5,8 +5,9 @@ from fastapi.exceptions import HTTPException
 
 from app.core.crud import CRUDBase
 from app.models.admin import User
+from app.controllers.invite_code import invite_code_controller
 from app.schemas.login import CredentialsSchema
-from app.schemas.users import ForgotPasswordRequest, UserCreate, UserUpdate
+from app.schemas.users import ForgotPasswordRequest, RegisterRequest, UserCreate, UserUpdate
 from app.utils.password import get_password_hash, verify_password
 
 from .role import role_controller
@@ -27,7 +28,11 @@ class UserController(CRUDBase[User, UserCreate, UserUpdate]):
 
     async def create_user(self, obj_in: UserCreate) -> User:
         obj_in.password = get_password_hash(password=obj_in.password)
-        return await self.create(obj_in)
+        user = await self.create(obj_in)
+        if not user.registration_source:
+            user.registration_source = "admin"
+            await user.save()
+        return user
 
     async def update_last_login(self, id: int) -> None:
         user = await self.model.get(id=id)
@@ -72,6 +77,39 @@ class UserController(CRUDBase[User, UserCreate, UserUpdate]):
             raise HTTPException(status_code=400, detail="User is disabled")
         user_obj.password = get_password_hash(password=req_in.new_password)
         await user_obj.save()
+
+    async def register_user(self, req_in: RegisterRequest) -> User:
+        email_user, username_user = await self.get_by_email_or_username(
+            email=req_in.email,
+            username=req_in.username,
+        )
+        if email_user:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        if username_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+
+        invite_code = await invite_code_controller.consume_available_code(req_in.invite_code)
+        try:
+            user = await self.create_user(
+                UserCreate(
+                    email=req_in.email,
+                    username=req_in.username,
+                    alias=req_in.alias,
+                    phone=req_in.phone,
+                    password=req_in.password,
+                    is_active=True,
+                    is_superuser=False,
+                    role_ids=[],
+                    dept_id=0,
+                )
+            )
+            user.registration_source = "invite"
+            user.invite_code_id = invite_code.id
+            await user.save()
+            return user
+        except Exception:
+            await invite_code_controller.rollback_consume(invite_code.id)
+            raise
 
     async def update_current_profile(
         self,
