@@ -485,7 +485,12 @@ class CreateController extends GetxController {
   Future<void> generateSimpleVideo() async {
     final String prompt = promptController.text.trim();
     if (prompt.isEmpty) {
-      SnackbarHelper.error('生成视频前请先准备创作提示词');
+      SnackbarHelper.error('??????????????');
+      return;
+    }
+
+    if (selectedImages.isEmpty) {
+      SnackbarHelper.error('????????????? 1 ????');
       return;
     }
 

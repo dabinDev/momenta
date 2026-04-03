@@ -251,7 +251,14 @@ async def list_tasks(
         page_size=limit,
         status=filter,
     )
-    items = [await task_controller.serialize_task(task) for task in tasks]
+    items = []
+    for task in tasks:
+        if task.status in {"queued", "processing"}:
+            try:
+                task = await task_controller.sync_task_status(task)
+            except (LegacyGatewayError, VideoGatewayError, LocalMediaError):
+                pass
+        items.append(await task_controller.serialize_task(task))
     return Success(
         data={
             "items": items,

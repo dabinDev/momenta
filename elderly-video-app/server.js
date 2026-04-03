@@ -22,7 +22,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 const DEFAULT_CONFIG = {
-  backendBaseUrl: 'http://192.168.101.21:9999',
+  backendBaseUrl: 'http://192.168.101.21:10099',
 };
 
 app.use(cors());

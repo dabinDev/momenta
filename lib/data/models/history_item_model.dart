@@ -17,7 +17,7 @@ class HistoryItemModel {
   final int? duration;
   final DateTime? createdAt;
 
-  bool get isProcessing => status == 'processing';
+  bool get isProcessing => status == 'queued' || status == 'processing';
   bool get isCompleted => status == 'completed';
   bool get isFailed => status == 'failed';
 
@@ -53,7 +53,9 @@ class HistoryItemModel {
       prompt: json['prompt']?.toString(),
       videoUrl: json['videoUrl']?.toString() ?? json['video_url']?.toString(),
       errorMessage:
-          json['errorMessage']?.toString() ?? json['error']?.toString(),
+          json['errorMessage']?.toString() ??
+          json['error_message']?.toString() ??
+          json['error']?.toString(),
       duration: int.tryParse((json['duration'] ?? '').toString()),
       createdAt: DateTime.tryParse(
           (json['createdAt'] ?? json['created_at'] ?? '').toString()),

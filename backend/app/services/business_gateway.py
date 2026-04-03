@@ -182,6 +182,19 @@ class BusinessGatewayService:
         )
         return video_gateway_service.provider_name(config), self._merge_video_request(payload, request_context)
 
+    async def recreate_video_from_request_context(
+        self,
+        *,
+        user_id: int,
+        images: list[str],
+        request_context: dict[str, Any],
+    ) -> tuple[str, Any]:
+        return await self._create_video_from_request_context(
+            user_id=user_id,
+            images=images,
+            request_context=request_context,
+        )
+
     async def sync_video_status(self, task: VideoTask) -> Any:
         if task.provider in {"openai_compatible", "relay_video"}:
             config = await get_or_create_user_app_config(task.user_id)

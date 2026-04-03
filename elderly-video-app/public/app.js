@@ -52,8 +52,8 @@ const FALLBACK_MODES = {
 const APP_LIMITS = {
   maxImages: 3,
   defaultDurations: [5, 10, 20],
-  maxPollingTimes: 60,
-  pollingIntervalMs: 2000,
+  maxPollingTimes: 180,
+  pollingIntervalMs: 3000,
   maxSpeechSeconds: 60,
   speechSampleRate: 16000,
 };
@@ -904,7 +904,7 @@ async function generatePrompt() {
       method: 'POST',
       body: compactPayload({
         text: rawText,
-        promptTemplateKey: defaultPromptTemplateKey(state.activeCreateMode),
+        promptTemplateKey: state.selectedPromptTemplateKey || defaultPromptTemplateKey(state.activeCreateMode),
       }),
     });
     const prompt = String(result.prompt || '').trim();
@@ -1032,7 +1032,11 @@ function resolveCorrectedText(currentText) {
 function simplePayload() {
   const prompt = $('promptText').value.trim();
   if (!prompt) {
-    throw new Error('生成视频前请先准备创作提示词。');
+    throw new Error('Please prepare the prompt before generating a video.');
+  }
+
+  if (!state.uploadedImages.length) {
+    throw new Error('Please upload at least 1 reference image before generating a video.');
   }
 
   const currentText = $('inputText').value.trim();
@@ -1044,7 +1048,7 @@ function simplePayload() {
     prompt,
     images: state.uploadedImages.map((item) => item.url),
     duration: state.selectedDuration,
-    promptTemplateKey: defaultPromptTemplateKey('simple'),
+    promptTemplateKey: state.selectedPromptTemplateKey || defaultPromptTemplateKey('simple'),
     videoTemplateKey: state.selectedVideoTemplateKey || defaultVideoTemplateKey('simple'),
   });
 }
@@ -1065,7 +1069,7 @@ function starterPayload() {
     images: state.uploadedImages.map((item) => item.url),
     duration: state.selectedDuration,
     referenceLink,
-    promptTemplateKey: defaultPromptTemplateKey('starter'),
+    promptTemplateKey: state.selectedPromptTemplateKey || defaultPromptTemplateKey('starter'),
     videoTemplateKey: state.selectedVideoTemplateKey || defaultVideoTemplateKey('starter'),
   });
 }
@@ -1086,7 +1090,7 @@ function customPayload() {
     duration: state.selectedDuration,
     referenceLink: $('referenceLink').value.trim(),
     referenceVideoPath: state.uploadedReferenceVideo?.url || '',
-    promptTemplateKey: defaultPromptTemplateKey('custom'),
+    promptTemplateKey: state.selectedPromptTemplateKey || defaultPromptTemplateKey('custom'),
     videoTemplateKey: state.selectedCustomTemplateKey,
   });
 }

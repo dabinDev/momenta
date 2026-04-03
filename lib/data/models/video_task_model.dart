@@ -17,7 +17,7 @@ class VideoTaskModel {
   final String? errorMessage;
   final int? duration;
 
-  bool get isProcessing => status == 'processing';
+  bool get isProcessing => status == 'queued' || status == 'processing';
   bool get isCompleted => status == 'completed';
   bool get isFailed => status == 'failed';
 
@@ -32,7 +32,9 @@ class VideoTaskModel {
       videoUrl: data['videoUrl']?.toString() ?? data['video_url']?.toString(),
       progress: _asDouble(data['progress']),
       errorMessage:
-          data['errorMessage']?.toString() ?? data['error']?.toString(),
+          data['errorMessage']?.toString() ??
+          data['error_message']?.toString() ??
+          data['error']?.toString(),
       duration: _asInt(data['duration']),
     );
   }

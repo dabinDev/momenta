@@ -230,6 +230,7 @@ class AITemplateRegistryService:
                 supports_voice_input=True,
                 supports_text_correction=True,
                 supports_prompt_generation=True,
+                requires_images=True,
             ),
             WorkbenchMode(
                 code="starter",

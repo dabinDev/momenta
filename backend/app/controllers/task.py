@@ -10,6 +10,29 @@ from app.services.business_gateway import business_gateway_service
 
 class TaskController:
     final_statuses = {"completed", "failed", "cancelled"}
+    retryable_failure_markers = (
+        "high_traffic",
+        "high traffic",
+        "生成过程中出现异常，请重新发起请求",
+        "temporarily unavailable",
+        "service unavailable",
+        "please retry",
+        "internal error",
+        "timeout",
+    )
+    non_retryable_failure_markers = (
+        "audio_filtered",
+        "filtered",
+        "safety",
+        "invalid",
+        "parameter",
+        "unsupported",
+        "forbidden",
+        "quota",
+        "余额",
+        "鉴权",
+    )
+    transient_failure_retry_limit = 2
 
     async def create_task(
         self,
@@ -85,6 +108,9 @@ class TaskController:
 
         status = self._read_status(provider_payload, fallback=task.status)
         progress = self._read_progress(provider_payload, fallback=task.progress)
+        if status == "failed" and await self._should_auto_retry(task=task, payload=provider_payload):
+            return await self._retry_task_from_request_context(task=task, payload=provider_payload)
+
         task.status = status
         task.prompt = self._read_prompt(provider_payload) or task.prompt
         task.video_url = self._read_video_url(provider_payload) or task.video_url
@@ -100,6 +126,70 @@ class TaskController:
         if status in self.final_statuses:
             task.finished_at = now
 
+        await task.save()
+        return task
+
+    async def _should_auto_retry(self, *, task: VideoTask, payload: dict[str, Any]) -> bool:
+        if task.provider not in {"openai_compatible", "relay_video"}:
+            return False
+
+        retry_count = self._read_retry_count(task.provider_payload or {})
+        if retry_count >= self.transient_failure_retry_limit:
+            return False
+
+        error_message = (self._read_error_message(payload) or "").strip().lower()
+        if not error_message:
+            return False
+
+        if any(marker in error_message for marker in self.non_retryable_failure_markers):
+            return False
+        return any(marker in error_message for marker in self.retryable_failure_markers)
+
+    async def _retry_task_from_request_context(
+        self,
+        *,
+        task: VideoTask,
+        payload: dict[str, Any],
+    ) -> VideoTask:
+        request_context = self._read_request_context(payload)
+        if not request_context:
+            return task
+
+        images = await VideoTaskAsset.filter(task_id=task.id).order_by("sort_order").values_list("file_url", flat=True)
+        provider, next_payload = await business_gateway_service.recreate_video_from_request_context(
+            user_id=task.user_id,
+            images=list(images),
+            request_context=request_context,
+        )
+        if not isinstance(next_payload, dict):
+            next_payload = {"data": next_payload}
+
+        error_message = self._read_error_message(payload) or ""
+        retry_count = self._read_retry_count(task.provider_payload or {}) + 1
+        next_payload = self._merge_request_context(
+            existing_payload=payload,
+            next_payload=next_payload,
+        )
+        next_payload["app_retry"] = {
+            "count": retry_count,
+            "max": self.transient_failure_retry_limit,
+            "last_error": error_message,
+            "previous_provider_task_id": task.provider_task_id or "",
+        }
+
+        now = datetime.now()
+        task.provider = provider
+        task.provider_task_id = self._read_provider_task_id(next_payload) or task.provider_task_id
+        task.provider_payload = next_payload
+        task.status = self._read_status(next_payload, fallback="queued")
+        task.progress = self._read_progress(next_payload, fallback=0)
+        task.prompt = self._read_prompt(next_payload) or task.prompt
+        task.video_url = self._read_video_url(next_payload) or ""
+        task.cover_image_url = self._read_cover_image(next_payload) or task.cover_image_url
+        task.error_code = None
+        task.error_message = None
+        task.started_at = now
+        task.finished_at = None
         await task.save()
         return task
 
@@ -377,6 +467,17 @@ class TaskController:
             return {}
         request = payload.get("request")
         return request if isinstance(request, dict) else {}
+
+    def _read_retry_count(self, payload: dict[str, Any]) -> int:
+        if not isinstance(payload, dict):
+            return 0
+        app_retry = payload.get("app_retry")
+        if not isinstance(app_retry, dict):
+            return 0
+        try:
+            return max(0, int(app_retry.get("count") or 0))
+        except (TypeError, ValueError):
+            return 0
 
     @staticmethod
     def _file_name(path: str) -> str:
