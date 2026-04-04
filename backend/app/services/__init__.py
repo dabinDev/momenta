@@ -7,6 +7,7 @@ from .config_store import (
 from .legacy_gateway import legacy_gateway_service
 from .llm_gateway import llm_gateway_service
 from .local_media import local_media_service
+from .object_storage import object_storage_service
 from .speech import speech_service
 from .video_gateway import video_gateway_service
 
@@ -18,6 +19,7 @@ __all__ = [
     "legacy_gateway_service",
     "llm_gateway_service",
     "local_media_service",
+    "object_storage_service",
     "speech_service",
     "video_gateway_service",
 ]

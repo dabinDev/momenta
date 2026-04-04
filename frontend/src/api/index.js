@@ -82,4 +82,9 @@ export default {
   createAppRelease: (data = {}) => request.post('/app_release/create', data),
   updateAppRelease: (data = {}) => request.post('/app_release/update', data),
   deleteAppRelease: (params = {}) => request.delete('/app_release/delete', { params }),
+  uploadAppReleasePackage: (data) =>
+    request.post('/app_release/upload_package', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    }),
 }

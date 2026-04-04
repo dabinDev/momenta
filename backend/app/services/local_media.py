@@ -8,8 +8,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
+from loguru import logger
 
 from app.settings import settings
+from app.services.object_storage import ObjectStorageError, object_storage_service
 
 
 class LocalMediaError(Exception):
@@ -107,9 +109,35 @@ class LocalMediaService:
         target_dir = self._media_root / "generated_videos"
         target_dir.mkdir(parents=True, exist_ok=True)
         target_file = target_dir / f"task_{task_id}.mp4"
+        cached_content: bytes | None = None
+
+        if object_storage_service.generated_video_storage_enabled():
+            if target_file.exists():
+                cached_content = target_file.read_bytes()
+            else:
+                cached_content = await content_fetcher(provider_task_id)
+
+            try:
+                public_url = await object_storage_service.upload_generated_video(
+                    task_id=task_id,
+                    file_name=target_file.name,
+                    content=cached_content,
+                )
+                if settings.GENERATED_VIDEO_KEEP_LOCAL_COPY and not target_file.exists():
+                    target_file.write_bytes(cached_content)
+                return public_url
+            except ObjectStorageError as exc:
+                logger.warning(
+                    "generated video upload fallback to local storage for task_id={} provider_task_id={}: {}",
+                    task_id,
+                    provider_task_id,
+                    exc,
+                )
+                if cached_content is not None and not target_file.exists():
+                    target_file.write_bytes(cached_content)
 
         if not target_file.exists():
-            content = await content_fetcher(provider_task_id)
+            content = cached_content if cached_content is not None else await content_fetcher(provider_task_id)
             target_file.write_bytes(content)
 
         return self.media_url(f"/media/generated_videos/{target_file.name}")

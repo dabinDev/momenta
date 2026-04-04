@@ -324,9 +324,9 @@ class SpeechRecognitionService:
     @staticmethod
     def _fallback_transcription_model(model: str) -> str | None:
         normalized = model.lower()
-        if normalized == "gpt-4o-mini-audio-preview":
+        if normalized.startswith("gpt-4o-mini-audio-preview"):
             return "gpt-4o-mini-transcribe"
-        if normalized == "gpt-4o-audio-preview":
+        if normalized.startswith("gpt-4o-audio-preview"):
             return "gpt-4o-transcribe"
         return None
 

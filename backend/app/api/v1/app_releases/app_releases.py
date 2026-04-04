@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, Query, UploadFile
 
 from app.controllers.app_release import app_release_controller
 from app.schemas.app_release import AppReleaseCreate, AppReleaseUpdate
@@ -44,3 +44,16 @@ async def update_app_release(release_in: AppReleaseUpdate):
 async def delete_app_release(id: int = Query(..., description="Release ID")):
     await app_release_controller.remove(id=id)
     return Success(msg="Deleted successfully")
+
+
+@router.post("/upload_package", summary="Upload app release package")
+async def upload_app_release_package(file: UploadFile = File(...)):
+    try:
+        payload = await app_release_controller.upload_release_package(
+            file_name=file.filename or "app-release.apk",
+            content=await file.read(),
+            content_type=file.content_type,
+        )
+    finally:
+        await file.close()
+    return Success(data=payload, msg="Uploaded successfully")

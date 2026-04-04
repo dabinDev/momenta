@@ -26,6 +26,8 @@ defineOptions({ name: '版本发布' })
 
 const $table = ref(null)
 const tableRows = ref([])
+const packageUploading = ref(false)
+const packageInputRef = ref(null)
 const queryItems = ref({
   platform: null,
   channel: null,
@@ -377,6 +379,38 @@ function handleModalSave() {
     $message.success('版本记录已保存')
   })
 }
+
+function triggerPackagePicker() {
+  packageInputRef.value?.click()
+}
+
+async function handlePackageChange(event) {
+  const [file] = Array.from(event?.target?.files || [])
+  if (!file) {
+    return
+  }
+
+  const isApk = /\.apk$/i.test(file.name) || file.type === 'application/vnd.android.package-archive'
+  if (!isApk) {
+    window.$message?.warning('请选择 APK 安装包文件')
+    event.target.value = ''
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  packageUploading.value = true
+  try {
+    const res = await api.uploadAppReleasePackage(formData)
+    const data = res.data || {}
+    modalForm.value.download_url = `${data.download_url || data.url || ''}`.trim()
+    window.$message?.success('安装包已上传到 COS，并自动填入下载地址')
+  } finally {
+    packageUploading.value = false
+    event.target.value = ''
+  }
+}
 </script>
 
 <template>
@@ -521,9 +555,21 @@ function handleModalSave() {
             <NInput v-model:value="modalForm.title" placeholder="例如 V1.2.0 正式版" />
           </NFormItem>
           <NFormItem label="下载地址" path="download_url">
-            <NInput
-              v-model:value="modalForm.download_url"
-              placeholder="例如 https://memovideos.cn/file/V1.2.0.apk"
+            <div class="release-upload-field">
+              <NInput
+                v-model:value="modalForm.download_url"
+                placeholder="例如 https://memofile-1251742036.cos.ap-shanghai.myqcloud.com/file/V1.2.0.apk"
+              />
+              <NButton type="primary" secondary :loading="packageUploading" @click="triggerPackagePicker">
+                上传 APK 到 COS
+              </NButton>
+            </div>
+            <input
+              ref="packageInputRef"
+              class="release-upload-field__input"
+              type="file"
+              accept=".apk,application/vnd.android.package-archive"
+              @change="handlePackageChange"
             />
           </NFormItem>
           <NFormItem label="更新说明" path="release_notes">
@@ -710,6 +756,17 @@ function handleModalSave() {
   line-height: 1.6;
 }
 
+.release-upload-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  width: 100%;
+}
+
+.release-upload-field__input {
+  display: none;
+}
+
 :deep(.n-data-table-th) {
   background: #fff5ee;
 }
@@ -747,6 +804,10 @@ function handleModalSave() {
   }
 
   .release-overview__stats {
+    grid-template-columns: 1fr;
+  }
+
+  .release-upload-field {
     grid-template-columns: 1fr;
   }
 }
