@@ -3,15 +3,15 @@ from fastapi import APIRouter, Query
 from app.controllers.app_release import app_release_controller
 from app.schemas.base import Success
 
-router = APIRouter(prefix="/app/releases", tags=["App Release"])
+router = APIRouter(prefix="/app/releases", tags=["版本发布"])
 
 
-@router.get("/latest", summary="Get latest app release")
+@router.get("/latest", summary="获取最新版本信息")
 async def latest_release(
-    platform: str = Query("android", description="Target platform"),
-    channel: str = Query("lan", description="Release channel"),
-    current_version: str = Query("", description="Current version"),
-    current_build_number: int = Query(0, ge=0, description="Current build number"),
+    platform: str = Query("android", description="平台类型，例如 android。"),
+    channel: str = Query("lan", description="发布渠道。"),
+    current_version: str = Query("", description="当前版本号。"),
+    current_build_number: int = Query(0, ge=0, description="当前构建号。"),
 ):
     latest = await app_release_controller.get_latest_active_release(platform=platform, channel=channel)
     if latest is None:
@@ -23,7 +23,7 @@ async def latest_release(
                 "current_build_number": current_build_number,
                 "has_update": False,
                 "is_force_update": False,
-                "message": "No active release found",
+                "message": "暂无可用版本",
                 "latest": None,
             }
         )
@@ -38,7 +38,7 @@ async def latest_release(
             "current_build_number": current_build_number,
             "has_update": has_update,
             "is_force_update": bool(has_update and latest.force_update),
-            "message": "Update available" if has_update else "Current version is up to date",
+            "message": "发现新版本" if has_update else "当前已是最新版本",
             "latest": latest_data,
         }
     )

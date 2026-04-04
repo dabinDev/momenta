@@ -240,7 +240,7 @@ async function handleRefreshApi() {
     <template #header>
       <div class="api-page__header">
         <div class="api-page__header-copy">
-          <p class="api-page__eyebrow">API REGISTRY</p>
+          <p class="api-page__eyebrow">接口台账</p>
           <h2>接口管理</h2>
           <p>用更清楚的路径、方法和模块标签层级来整理接口清单，方便后台人员快速定位。</p>
         </div>

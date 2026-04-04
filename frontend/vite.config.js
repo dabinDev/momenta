@@ -44,8 +44,23 @@ export default defineConfig(({ command, mode }) => {
     build: {
       target: 'es2015',
       outDir: OUTPUT_DIR || 'dist',
-      reportCompressedSize: false, // 启用/禁用 gzip 压缩大小报告
-      chunkSizeWarningLimit: 1024, // chunk 大小警告的限制（单位kb）
+      reportCompressedSize: false,
+      chunkSizeWarningLimit: 1024,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return
+            }
+            if (id.includes('naive-ui')) {
+              return 'naive-ui'
+            }
+            if (id.includes('echarts')) {
+              return 'echarts'
+            }
+          },
+        },
+      },
     },
   }
 })

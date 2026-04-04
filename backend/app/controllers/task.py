@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import ast
 import asyncio
+import json
 from datetime import datetime, timedelta
 from typing import Any
 
+from app.core.exceptions import normalize_error_message as normalize_api_error_message
 from app.models.admin import User
 from app.models.video_task import VideoTask, VideoTaskAsset, VoiceTranscriptionLog
 from app.services.business_gateway import business_gateway_service
@@ -24,7 +27,7 @@ class VideoGenerationRateLimitError(Exception):
 class TaskController:
     final_statuses = {"completed", "failed", "cancelled"}
     processing_statuses = {"queued", "processing"}
-    auto_retry_enabled = False
+    auto_retry_enabled = True
     generation_cooldown = timedelta(minutes=5)
     generation_request_hold = timedelta(seconds=30)
     retryable_failure_markers = (
@@ -458,7 +461,7 @@ class TaskController:
         data["prompt"] = task.prompt or ""
         data["display_text"] = self._display_text(task)
         data["video_url"] = task.video_url or ""
-        data["error_message"] = task.error_message or ""
+        data["error_message"] = self._normalize_error_message(task.error_message) or ""
         data["provider_task_id"] = task.provider_task_id or ""
         data["progress"] = float(task.progress or 0)
         data["is_deleted"] = task.is_deleted
@@ -590,7 +593,7 @@ class TaskController:
     def _read_error_message(self, payload: dict[str, Any]) -> str | None:
         data = self._read_payload(payload)
         value = data.get("error_message") or data.get("errorMessage") or data.get("error") or data.get("msg")
-        return str(value) if value else None
+        return self._normalize_error_message(value)
 
     def _read_request_context(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(payload, dict):
@@ -613,6 +616,53 @@ class TaskController:
     def _file_name(path: str) -> str:
         clean_path = path.replace("\\", "/")
         return clean_path.rsplit("/", 1)[-1]
+
+    def _normalize_error_message(self, value: Any) -> str | None:
+        extracted = self._extract_error_message(value)
+        if not extracted:
+            return None
+        return normalize_api_error_message(extracted)
+
+    def _extract_error_message(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            candidate = (
+                value.get("message")
+                or value.get("msg")
+                or value.get("detail")
+                or value.get("error_message")
+                or value.get("errorMessage")
+                or value.get("error")
+            )
+            return self._extract_error_message(candidate)
+        if isinstance(value, list):
+            for item in value:
+                candidate = self._extract_error_message(item)
+                if candidate:
+                    return candidate
+            return None
+
+        message = str(value).strip()
+        if not message:
+            return None
+        if not (message.startswith("{") or message.startswith("[")):
+            return message
+
+        parsed = self._parse_message_payload(message)
+        if parsed is None:
+            return message
+        return self._extract_error_message(parsed)
+
+    @staticmethod
+    def _parse_message_payload(message: str) -> Any | None:
+        try:
+            return json.loads(message)
+        except json.JSONDecodeError:
+            try:
+                return ast.literal_eval(message)
+            except (ValueError, SyntaxError):
+                return None
 
 
 task_controller = TaskController()

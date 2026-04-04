@@ -342,7 +342,11 @@ async function downloadTaskVideo(task) {
     let message = '保存视频失败'
     try {
       const payload = JSON.parse(await response.text())
-      message = payload?.detail || payload?.msg || payload?.message || message
+      const rawMessage = payload?.detail || payload?.msg || payload?.message || message
+      message =
+        typeof rawMessage === 'string' && !rawMessage.trim().startsWith('{')
+          ? rawMessage
+          : message
     } catch (_) {
       // Keep fallback message.
     }

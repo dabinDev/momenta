@@ -275,7 +275,7 @@ async function openAuthorizeDrawer(row) {
       item => `${String(item.method).toLowerCase()}${item.path}`
     )
   } catch (error) {
-    $message.error(`加载权限数据失败：${error.message}`)
+    $message.error(error?.message || '加载权限数据失败')
     active.value = false
   } finally {
     drawerLoading.value = false

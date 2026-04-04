@@ -2,8 +2,8 @@ class AppConstants {
   AppConstants._();
 
   static const String appTitle = '拾光视频';
-  static const String appVersion = '1.1.0';
-  static const String appBuildNumber = '2';
+  static const String appVersion = '1.2.0';
+  static const String appBuildNumber = '3';
   static const String releasePlatform = 'android';
   static const String releaseChannelCode = 'lan';
   static const String updateChannel = '局域网安装包';
@@ -14,14 +14,6 @@ class AppConstants {
   );
   static const String serverBaseUrl = authServerBaseUrl;
   static const String legacyServerBaseUrl = '';
-  static const String defaultLlmBaseUrl = 'https://api.99hub.top';
-  static const String defaultLlmModel = 'gpt-5.4-mini';
-  static const String defaultLlmApiKeyPlaceholder =
-      'sk-xxxxxxxxxxxxxxxxxxxxxxxx';
-  static const String defaultVideoBaseUrl = 'https://api.99hub.top';
-  static const String defaultVideoModel = 'veo_3_1-fast-components-4K';
-  static const String defaultSpeechBaseUrl = 'https://api.99hub.top';
-  static const String defaultSpeechModel = 'gpt-4o-mini-audio-preview';
   static const int maxImages = 3;
   static const int pollingIntervalSeconds = 3;
   static const int maxPollingTimes = 180;

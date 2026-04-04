@@ -87,7 +87,7 @@ class HybridVideoService:
         payload: dict[str, Any] = {
             "model": config.video_model,
             "prompt": prompt,
-            "enhance_prompt": True,
+            "enhance_prompt": False,
             "enable_upsample": True,
             "aspect_ratio": self._size_to_aspect_ratio(size),
         }

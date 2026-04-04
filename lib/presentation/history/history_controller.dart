@@ -1,12 +1,9 @@
-import 'dart:io';
-
 import 'package:get/get.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../app/constants.dart';
 import '../../app/routes.dart';
 import '../../core/errors/app_exception.dart';
+import '../../core/services/download_manager_service.dart';
 import '../../core/utils/file_utils.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../core/utils/video_save_helper.dart';
@@ -20,11 +17,13 @@ class HistoryController extends GetxController {
   HistoryController()
       : _historyRepository = Get.find<HistoryRepository>(),
         _videoRepository = Get.find<VideoRepository>(),
-        _apiService = Get.find<ApiService>();
+        _apiService = Get.find<ApiService>(),
+        _downloadManager = Get.find<DownloadManagerService>();
 
   final HistoryRepository _historyRepository;
   final VideoRepository _videoRepository;
   final ApiService _apiService;
+  final DownloadManagerService _downloadManager;
 
   final RxList<HistoryItemModel> items = <HistoryItemModel>[].obs;
   final RxBool isLoading = false.obs;
@@ -136,6 +135,7 @@ class HistoryController extends GetxController {
       arguments: <String, dynamic>{
         'url': videoUrl,
         'title': '历史视频播放',
+        'taskId': item.id,
       },
     );
   }
@@ -163,24 +163,19 @@ class HistoryController extends GetxController {
       SnackbarHelper.error('该记录没有可下载的视频');
       return;
     }
+    if (_downloadManager.latestForTask(item.id)?.isDownloading == true) {
+      SnackbarHelper.info('该记录已在下载中，可在下载管理查看进度');
+      return;
+    }
 
     try {
-      final Directory baseDir = await getApplicationDocumentsDirectory();
-      final File file = File(
-        p.join(
-          baseDir.path,
-          'downloads',
-          'history_${item.id}_${DateTime.now().millisecondsSinceEpoch}.mp4',
-        ),
-      );
-      await FileUtils.ensureParentDirectory(file);
-      final File downloaded = await _apiService.downloadTaskVideo(
+      await _downloadManager.startTaskDownload(
         taskId: item.id,
-        savePath: file.path,
+        title: item.displayTitle,
       );
-      SnackbarHelper.success('视频已保存到: ${downloaded.path}');
+      SnackbarHelper.info('已加入下载队列，可在下载管理查看进度');
     } catch (error) {
-      SnackbarHelper.error(_readError(error, fallback: '下载失败'));
+      SnackbarHelper.error(_readError(error, fallback: '加入下载队列失败'));
     }
   }
 

@@ -1,349 +1,266 @@
 <script setup>
-import { computed, h, onMounted, ref, resolveDirective, withDirectives } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   NButton,
-  NDataTable,
   NDrawer,
   NDrawerContent,
+  NEmpty,
   NForm,
   NFormItem,
   NInput,
   NPagination,
-  NPopconfirm,
+  NSwitch,
   NTag,
 } from 'naive-ui'
 
 import CommonPage from '@/components/page/CommonPage.vue'
-import { formatDate, renderIcon } from '@/utils'
 import api from '@/api'
 
-defineOptions({ name: '应用配置' })
+defineOptions({ name: '平台配置' })
 
-const DEFAULTS = {
-  llm_base_url: 'https://api.99hub.top',
-  llm_model: 'gpt-5.4-mini',
-  video_base_url: 'https://api.99hub.top',
-  video_model: 'veo_3_1-fast-components-4K',
-  speech_base_url: 'https://api.99hub.top',
-  speech_model: 'gpt-4o-mini-audio-preview',
-}
+const router = useRouter()
 
 const loading = ref(false)
-const rows = ref([])
-const keyword = ref('')
-const drawerVisible = ref(false)
-const drawerLoading = ref(false)
 const saveLoading = ref(false)
 const resetLoading = ref(false)
-const activeItem = ref(null)
-const formRef = ref(null)
-const form = ref(createEmptyForm())
-const pagination = ref({
+const globalForm = ref(createGlobalForm())
+const privateDrawerVisible = ref(false)
+const privateListLoading = ref(false)
+const privateDetailLoading = ref(false)
+const privateSaveLoading = ref(false)
+const privateResetLoading = ref(false)
+const privateKeyword = ref('')
+const privateRows = ref([])
+const privatePagination = ref({
   page: 1,
-  pageSize: 10,
+  pageSize: 8,
   itemCount: 0,
 })
+const activePrivateUserId = ref(null)
+const privateForm = ref(createPrivateForm())
 
-const vPermission = resolveDirective('permission')
-
-const summaryItems = computed(() => [
+const summaryCards = computed(() => [
   {
-    label: '当前页用户',
-    value: rows.value.length,
-    hint: `共 ${pagination.value.itemCount} 位用户`,
+    key: 'text',
+    label: '文字解析',
+    model: globalForm.value.llm_model || '未配置',
+    hint: globalForm.value.llm_configured ? '已接入全局通道' : '等待配置平台密钥',
+    type: globalForm.value.llm_configured ? 'success' : 'default',
   },
   {
-    label: '文案服务已配置',
-    value: rows.value.filter(item => item.llm_configured).length,
-    hint: '提示词生成与文案校验',
+    key: 'video',
+    label: '视频生成',
+    model: globalForm.value.video_model || '未配置',
+    hint: globalForm.value.video_configured ? '全站统一使用该模型' : '等待配置平台密钥',
+    type: globalForm.value.video_configured ? 'warning' : 'default',
   },
   {
-    label: '视频服务已配置',
-    value: rows.value.filter(item => item.video_configured).length,
-    hint: '简单 / 入门 / 自定义生成',
+    key: 'speech',
+    label: '音频解析',
+    model: globalForm.value.speech_model || '未配置',
+    hint: globalForm.value.speech_configured ? '语音识别统一走该模型' : '等待配置平台密钥',
+    type: globalForm.value.speech_configured ? 'info' : 'default',
   },
   {
-    label: '语音服务已配置',
-    value: rows.value.filter(item => item.speech_configured).length,
-    hint: '语音转文字接口',
+    key: 'image',
+    label: '图片生成',
+    model: globalForm.value.image_model || '未应用',
+    hint: globalForm.value.image_configured ? '能力已打通，暂未公开使用' : '先去模型管理页选择模型',
+    type: globalForm.value.image_configured ? 'primary' : 'default',
   },
 ])
 
-const drawerTitle = computed(() => {
-  const user = activeItem.value?.user || {}
-  return user.alias || user.username || '应用配置'
+const privateListTitle = computed(() => {
+  const current = privateRows.value.find(item => item.user_id === activePrivateUserId.value)
+  return current?.user?.alias || current?.user?.username || '内部专属通道'
 })
 
-const rules = {
-  llm_base_url: [{ required: true, message: '请输入文案服务地址', trigger: ['input', 'blur'] }],
-  llm_model: [{ required: true, message: '请输入文案模型名称', trigger: ['input', 'blur'] }],
-  video_base_url: [{ required: true, message: '请输入视频服务地址', trigger: ['input', 'blur'] }],
-  video_model: [{ required: true, message: '请输入视频模型名称', trigger: ['input', 'blur'] }],
-  speech_base_url: [{ required: true, message: '请输入语音服务地址', trigger: ['input', 'blur'] }],
-  speech_model: [{ required: true, message: '请输入语音模型名称', trigger: ['input', 'blur'] }],
-}
-
-const columns = [
-  {
-    title: '用户',
-    key: 'user',
-    width: 220,
-    render(row) {
-      return h('div', { class: 'config-user' }, [
-        h('strong', {}, row.user?.alias || row.user?.username || '--'),
-        h('span', {}, row.user?.username ? `@${row.user.username}` : row.user?.email || '--'),
-      ])
-    },
-  },
-  {
-    title: '文案服务',
-    key: 'llm',
-    minWidth: 250,
-    render(row) {
-      return h('div', { class: 'config-provider' }, [
-        h('strong', {}, row.llm_model || '--'),
-        h('span', {}, shortHost(row.llm_base_url)),
-        h(
-          NTag,
-          { size: 'small', type: row.llm_configured ? 'success' : 'default', round: false },
-          { default: () => (row.llm_configured ? row.llm_api_key_masked : '未配置密钥') }
-        ),
-      ])
-    },
-  },
-  {
-    title: '视频服务',
-    key: 'video',
-    minWidth: 250,
-    render(row) {
-      return h('div', { class: 'config-provider' }, [
-        h('strong', {}, row.video_model || '--'),
-        h('span', {}, shortHost(row.video_base_url)),
-        h(
-          NTag,
-          { size: 'small', type: row.video_configured ? 'warning' : 'default', round: false },
-          { default: () => (row.video_configured ? row.video_api_key_masked : '未配置密钥') }
-        ),
-      ])
-    },
-  },
-  {
-    title: '语音服务',
-    key: 'speech',
-    minWidth: 250,
-    render(row) {
-      return h('div', { class: 'config-provider' }, [
-        h('strong', {}, row.speech_model || '--'),
-        h('span', {}, shortHost(row.speech_base_url)),
-        h(
-          NTag,
-          { size: 'small', type: row.speech_configured ? 'info' : 'default', round: false },
-          { default: () => (row.speech_configured ? row.speech_api_key_masked : '未配置密钥') }
-        ),
-      ])
-    },
-  },
-  {
-    title: '最近更新',
-    key: 'updated_at',
-    width: 180,
-    render(row) {
-      return row.updated_at ? formatDate(row.updated_at) : '使用默认配置'
-    },
-  },
-  {
-    title: '状态',
-    key: 'status',
-    width: 180,
-    render(row) {
-      return h('div', { class: 'config-status' }, [
-        h(
-          NTag,
-          { size: 'small', type: row.user?.is_active ? 'primary' : 'default', round: false },
-          { default: () => (row.user?.is_active ? '账号启用' : '账号停用') }
-        ),
-        row.has_custom_config
-          ? h(NTag, { size: 'small', type: 'info', round: false }, { default: () => '已落库' })
-          : h(NTag, { size: 'small', round: false }, { default: () => '默认模板' }),
-      ])
-    },
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 180,
-    fixed: 'right',
-    render(row) {
-      return h('div', { class: 'config-actions' }, [
-        withDirectives(
-          h(
-            NButton,
-            {
-              size: 'small',
-              quaternary: true,
-              type: 'primary',
-              onClick: () => openEditor(row),
-            },
-            {
-              default: () => '编辑',
-              icon: renderIcon('material-symbols:edit-outline', { size: 16 }),
-            }
-          ),
-          [[vPermission, 'get/api/v1/app_config/get']]
-        ),
-        h(
-          NPopconfirm,
-          {
-            onPositiveClick: () => handleResetRow(row),
-          },
-          {
-            trigger: () =>
-              withDirectives(
-                h(
-                  NButton,
-                  {
-                    size: 'small',
-                    quaternary: true,
-                    type: 'warning',
-                    loading: resetLoading.value === row.user_id,
-                  },
-                  {
-                    default: () => '恢复默认',
-                    icon: renderIcon('material-symbols:settings-backup-restore-rounded', { size: 16 }),
-                  }
-                ),
-                [[vPermission, 'post/api/v1/app_config/reset']]
-              ),
-            default: () => '确认恢复该用户的默认 AI 配置？',
-          }
-        ),
-      ])
-    },
-  },
-]
-
-onMounted(() => {
-  fetchList()
+const privateStatusLabel = computed(() => {
+  if (!privateForm.value.user_id) return '未选择用户'
+  if (privateForm.value.using_private_override) return '已使用专属通道'
+  if (privateForm.value.allow_private_ai_override) return '已开通，暂未启用'
+  return '未开通'
 })
 
-async function fetchList() {
+onMounted(async () => {
+  await loadGlobalConfig()
+})
+
+async function loadGlobalConfig() {
   loading.value = true
   try {
-    const res = await api.getUserAppConfigList({
-      page: pagination.value.page,
-      page_size: pagination.value.pageSize,
-      keyword: keyword.value || undefined,
-    })
-    rows.value = res.data || []
-    pagination.value.itemCount = res.total || 0
+    const res = await api.getGlobalAppConfig()
+    globalForm.value = toGlobalForm(res.data || {})
   } finally {
     loading.value = false
   }
 }
 
-async function openEditor(row) {
-  drawerVisible.value = true
-  drawerLoading.value = true
+async function handleSaveGlobal() {
+  saveLoading.value = true
   try {
-    const res = await api.getUserAppConfigDetail({ user_id: row.user_id })
-    activeItem.value = res.data
-    form.value = toForm(res.data)
+    const res = await api.updateGlobalAppConfig(globalForm.value)
+    globalForm.value = toGlobalForm(res.data || {})
+    window.$message?.success('平台配置已保存')
   } finally {
-    drawerLoading.value = false
+    saveLoading.value = false
   }
 }
 
-async function handleSave() {
-  formRef.value?.validate(async (errors) => {
-    if (errors) return
-    saveLoading.value = true
-    try {
-      const res = await api.updateUserAppConfig(form.value)
-      activeItem.value = res.data
-      form.value = toForm(res.data)
-      window.$message?.success('配置已保存')
-      await fetchList()
-    } finally {
-      saveLoading.value = false
-    }
-  })
-}
-
-async function handleResetRow(row) {
-  resetLoading.value = row.user_id
+async function handleResetGlobal() {
+  resetLoading.value = true
   try {
-    const res = await api.resetUserAppConfig({ user_id: row.user_id })
-    if (activeItem.value?.user_id === row.user_id) {
-      activeItem.value = res.data
-      form.value = toForm(res.data)
-    }
-    window.$message?.success('已恢复默认配置')
-    await fetchList()
+    const res = await api.resetGlobalAppConfig()
+    globalForm.value = toGlobalForm(res.data || {})
+    window.$message?.success('平台配置已恢复默认')
   } finally {
     resetLoading.value = false
   }
 }
 
-async function handleResetDrawer() {
-  if (!form.value.user_id) return
-  resetLoading.value = form.value.user_id
+function openModelCenter() {
+  router.push('/config/model-center')
+}
+
+async function openPrivateDrawer() {
+  privateDrawerVisible.value = true
+  await loadPrivateList()
+}
+
+async function loadPrivateList() {
+  privateListLoading.value = true
   try {
-    const res = await api.resetUserAppConfig({ user_id: form.value.user_id })
-    activeItem.value = res.data
-    form.value = toForm(res.data)
-    window.$message?.success('已恢复默认配置')
-    await fetchList()
+    const res = await api.getUserAppConfigList({
+      page: privatePagination.value.page,
+      page_size: privatePagination.value.pageSize,
+      keyword: privateKeyword.value || undefined,
+    })
+    privateRows.value = Array.isArray(res.data) ? res.data : []
+    privatePagination.value.itemCount = res.total || 0
+    if (!activePrivateUserId.value && privateRows.value.length) {
+      await openPrivateUser(privateRows.value[0].user_id)
+    }
+    if (activePrivateUserId.value && !privateRows.value.some(item => item.user_id === activePrivateUserId.value)) {
+      const first = privateRows.value[0]
+      if (first) {
+        await openPrivateUser(first.user_id)
+      } else {
+        activePrivateUserId.value = null
+        privateForm.value = createPrivateForm()
+      }
+    }
   } finally {
-    resetLoading.value = false
+    privateListLoading.value = false
   }
 }
 
-function handleSearch() {
-  pagination.value.page = 1
-  fetchList()
+async function openPrivateUser(userId) {
+  if (!userId) return
+  activePrivateUserId.value = userId
+  privateDetailLoading.value = true
+  try {
+    const res = await api.getUserAppConfigDetail({ user_id: userId })
+    privateForm.value = toPrivateForm(res.data || {})
+  } finally {
+    privateDetailLoading.value = false
+  }
 }
 
-function handlePageChange(page) {
-  pagination.value.page = page
-  fetchList()
+async function handleSavePrivate() {
+  if (!privateForm.value.user_id) return
+  privateSaveLoading.value = true
+  try {
+    const res = await api.updateUserAppConfig(privateForm.value)
+    privateForm.value = toPrivateForm(res.data || {})
+    window.$message?.success('专属通道已保存')
+    await loadPrivateList()
+  } finally {
+    privateSaveLoading.value = false
+  }
 }
 
-function createEmptyForm() {
+async function handleResetPrivate() {
+  if (!privateForm.value.user_id) return
+  privateResetLoading.value = true
+  try {
+    const res = await api.resetUserAppConfig({ user_id: privateForm.value.user_id })
+    privateForm.value = toPrivateForm(res.data || {})
+    window.$message?.success('专属通道已关闭')
+    await loadPrivateList()
+  } finally {
+    privateResetLoading.value = false
+  }
+}
+
+async function handlePrivateSearch() {
+  privatePagination.value.page = 1
+  await loadPrivateList()
+}
+
+async function handlePrivatePageChange(page) {
+  privatePagination.value.page = page
+  await loadPrivateList()
+}
+
+function createGlobalForm() {
+  return {
+    provider_base_url: 'https://api.99hub.top',
+    provider_api_key: '',
+    llm_base_url: '',
+    llm_api_key: '',
+    llm_model: 'gpt-5.4-mini',
+    video_base_url: '',
+    video_api_key: '',
+    video_model: 'veo_3_1-fast-components-4K',
+    speech_base_url: '',
+    speech_api_key: '',
+    speech_model: 'gpt-4o-mini-audio-preview',
+    image_base_url: '',
+    image_api_key: '',
+    image_model: '',
+    llm_configured: false,
+    video_configured: false,
+    speech_configured: false,
+    image_configured: false,
+  }
+}
+
+function toGlobalForm(item = {}) {
+  return {
+    ...createGlobalForm(),
+    ...item,
+  }
+}
+
+function createPrivateForm() {
   return {
     user_id: null,
-    llm_base_url: DEFAULTS.llm_base_url,
+    allow_private_ai_override: false,
+    override_enabled: false,
+    using_private_override: false,
+    provider_base_url: '',
+    provider_api_key: '',
+    llm_base_url: '',
     llm_api_key: '',
-    llm_model: DEFAULTS.llm_model,
-    video_base_url: DEFAULTS.video_base_url,
+    llm_model: '',
+    video_base_url: '',
     video_api_key: '',
-    video_model: DEFAULTS.video_model,
-    speech_base_url: DEFAULTS.speech_base_url,
+    video_model: '',
+    speech_base_url: '',
     speech_api_key: '',
-    speech_model: DEFAULTS.speech_model,
+    speech_model: '',
+    image_base_url: '',
+    image_api_key: '',
+    image_model: '',
+    user: null,
   }
 }
 
-function toForm(item = {}) {
+function toPrivateForm(item = {}) {
   return {
-    user_id: item.user_id ?? null,
-    llm_base_url: item.llm_base_url || DEFAULTS.llm_base_url,
-    llm_api_key: item.llm_api_key || '',
-    llm_model: item.llm_model || DEFAULTS.llm_model,
-    video_base_url: item.video_base_url || DEFAULTS.video_base_url,
-    video_api_key: item.video_api_key || '',
-    video_model: item.video_model || DEFAULTS.video_model,
-    speech_base_url: item.speech_base_url || DEFAULTS.speech_base_url,
-    speech_api_key: item.speech_api_key || '',
-    speech_model: item.speech_model || DEFAULTS.speech_model,
-  }
-}
-
-function shortHost(url = '') {
-  if (!url) return '--'
-  try {
-    return new URL(url).host
-  } catch (error) {
-    return url
+    ...createPrivateForm(),
+    ...item,
   }
 }
 </script>
@@ -351,210 +268,231 @@ function shortHost(url = '') {
 <template>
   <CommonPage show-footer>
     <template #header>
-      <div class="config-header">
-        <div class="config-header__copy">
-          <p class="config-header__eyebrow">应用配置</p>
-          <h2>用户应用配置</h2>
-          <p>统一维护 App、H5 和后端共用的文案、视频、语音三类 AI 配置，保证接口字段和默认值完全一致。</p>
+      <div class="platform-header">
+        <div class="platform-header__copy">
+          <p class="platform-header__eyebrow">平台配置</p>
+          <h2>统一维护全局模型与平台密钥</h2>
+          <p>默认所有用户、App、H5、后台调试台都共用这一套平台能力。模型切换放在模型管理页，当前页只负责全局接入和隐藏的专属通道。</p>
         </div>
-        <div class="config-header__actions">
-          <NInput
-            v-model:value="keyword"
-            clearable
-            placeholder="搜索用户名、别名或邮箱"
-            @keyup.enter="handleSearch"
-          />
-          <NButton type="primary" @click="handleSearch">查询</NButton>
+        <div class="platform-header__actions">
+          <NButton quaternary @click="loadGlobalConfig">刷新配置</NButton>
+          <NButton type="primary" @click="openModelCenter">进入模型管理</NButton>
         </div>
       </div>
     </template>
 
-    <div class="config-page">
-      <aside class="config-rail">
-        <section class="config-rail__section">
-          <p class="config-rail__label">配置覆盖</p>
-          <div class="config-rail__stats">
-            <div v-for="item in summaryItems" :key="item.label" class="config-stat">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.hint }}</small>
+    <div class="platform-page">
+      <section class="platform-summary">
+        <article v-for="item in summaryCards" :key="item.key" class="platform-card">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.model }}</strong>
+          <small>{{ item.hint }}</small>
+          <NTag :type="item.type" :round="false">{{ item.type === 'default' ? '待完善' : '已生效' }}</NTag>
+        </article>
+      </section>
+
+      <div class="platform-grid">
+        <section class="platform-panel">
+          <div class="platform-panel__head">
+            <div>
+              <p class="platform-panel__eyebrow">全局接入</p>
+              <h3>统一平台地址与全局 SK</h3>
+              <p>平台提供的是统一 base URL 与统一 SK，管理员只需要维护这一份，全站即可同步生效。</p>
             </div>
           </div>
-        </section>
 
-        <section class="config-rail__section">
-          <p class="config-rail__label">使用说明</p>
-          <ul class="config-rail__list">
-            <li>未落库的用户会直接使用统一默认模板。</li>
-            <li>填写密钥后，App 与 H5 会优先使用该用户独立的 AI 通道。</li>
-            <li>恢复默认不会影响历史任务，只影响后续新请求。</li>
-          </ul>
-        </section>
-      </aside>
+          <NForm label-placement="top" :model="globalForm" class="platform-form">
+            <NFormItem label="平台 Base URL">
+              <NInput v-model:value="globalForm.provider_base_url" placeholder="https://api.memovideos.cn 或第三方平台地址" />
+            </NFormItem>
+            <NFormItem label="全局平台 SK">
+              <NInput v-model:value="globalForm.provider_api_key" type="password" show-password-on="mousedown" placeholder="输入全局共享 SK" />
+            </NFormItem>
 
-      <section class="config-table">
-        <div class="config-table__header">
-          <div>
-            <p class="config-table__eyebrow">PER USER</p>
-            <h3>统一查看每个账号的 AI 通道</h3>
+            <div class="platform-form__models">
+              <div class="platform-model-chip">
+                <span>文字解析</span>
+                <strong>{{ globalForm.llm_model || '未配置' }}</strong>
+              </div>
+              <div class="platform-model-chip">
+                <span>视频生成</span>
+                <strong>{{ globalForm.video_model || '未配置' }}</strong>
+              </div>
+              <div class="platform-model-chip">
+                <span>音频解析</span>
+                <strong>{{ globalForm.speech_model || '未配置' }}</strong>
+              </div>
+              <div class="platform-model-chip">
+                <span>图片生成</span>
+                <strong>{{ globalForm.image_model || '未应用' }}</strong>
+              </div>
+            </div>
+          </NForm>
+
+          <div class="platform-panel__footer">
+            <NButton quaternary type="warning" :loading="resetLoading" @click="handleResetGlobal">恢复默认</NButton>
+            <NButton type="primary" :loading="saveLoading" @click="handleSaveGlobal">保存平台配置</NButton>
           </div>
-          <NButton quaternary @click="fetchList">刷新列表</NButton>
-        </div>
+        </section>
 
-        <NDataTable
-          :loading="loading"
-          :columns="columns"
-          :data="rows"
-          :scroll-x="1480"
-          remote
-        />
+        <section class="platform-panel">
+          <div class="platform-panel__head">
+            <div>
+              <p class="platform-panel__eyebrow">能力说明</p>
+              <h3>模型应用规则</h3>
+              <p>管理端手动应用某个能力的模型后，后续所有普通用户都会直接走新的全局模型。少量付费用户如果开通专属通道，才会覆盖全局配置。</p>
+            </div>
+          </div>
 
-        <div class="config-table__pagination">
-          <NPagination
-            :page="pagination.page"
-            :page-size="pagination.pageSize"
-            :item-count="pagination.itemCount"
-            @update:page="handlePageChange"
-          />
-        </div>
-      </section>
+          <div class="platform-rules">
+            <article class="platform-rule">
+              <strong>默认生效</strong>
+              <p>视频生成、提示词生成、语音识别与后台 AI 调试台，都会优先读取平台全局模型。</p>
+            </article>
+            <article class="platform-rule">
+              <strong>管理员手动切换</strong>
+              <p>去模型管理页同步目录、查看推荐模型并点击应用，即可切换对应能力的全局模型。</p>
+            </article>
+            <article class="platform-rule">
+              <strong>隐藏付费能力</strong>
+              <p>专属 SK 与私有模型覆盖不出现在公开菜单中，只能通过当前页右上角的隐藏入口进入。</p>
+            </article>
+          </div>
+
+          <div class="platform-mini-actions">
+            <NButton quaternary type="primary" @click="openModelCenter">查看模型管理</NButton>
+          </div>
+
+          <p class="platform-secret" @dblclick="openPrivateDrawer">内部运维位</p>
+        </section>
+      </div>
     </div>
   </CommonPage>
 
-  <NDrawer v-model:show="drawerVisible" placement="right" :width="560">
+  <NDrawer v-model:show="privateDrawerVisible" placement="right" :width="920">
     <NDrawerContent closable>
       <template #header>
-        <div class="config-drawer__header">
+        <div class="private-header">
           <div>
-            <p class="config-drawer__eyebrow">USER CONFIG</p>
-            <h3>{{ drawerTitle }}</h3>
-            <p>{{ activeItem?.user?.email || '当前用户配置详情' }}</p>
+            <p class="platform-panel__eyebrow">内部专属通道</p>
+            <h3>{{ privateListTitle }}</h3>
+            <p>只有少量付费用户才需要开通。留空表示继续跟随平台全局配置。</p>
           </div>
-          <div v-if="activeItem" class="config-drawer__tags">
-            <NTag :type="activeItem.llm_configured ? 'success' : 'default'" :round="false">
-              {{ activeItem.llm_configured ? '文案服务已启用' : '文案服务默认' }}
-            </NTag>
-            <NTag :type="activeItem.video_configured ? 'warning' : 'default'" :round="false">
-              {{ activeItem.video_configured ? '视频服务已启用' : '视频服务默认' }}
-            </NTag>
-            <NTag :type="activeItem.speech_configured ? 'info' : 'default'" :round="false">
-              {{ activeItem.speech_configured ? '语音服务已启用' : '语音服务默认' }}
-            </NTag>
-          </div>
+          <NTag type="warning" :round="false">{{ privateStatusLabel }}</NTag>
         </div>
       </template>
 
-      <div v-if="drawerLoading" class="config-drawer__loading">正在读取配置...</div>
-
-      <div v-else-if="activeItem" class="config-drawer">
-        <div class="config-drawer__meta">
-          <div>
-            <span>用户账号</span>
-            <strong>{{ activeItem.user?.username || '--' }}</strong>
+      <div class="private-layout">
+        <aside class="private-list">
+          <div class="private-list__toolbar">
+            <NInput v-model:value="privateKeyword" clearable placeholder="搜索用户名 / 别名 / 邮箱" @keyup.enter="handlePrivateSearch" />
+            <NButton type="primary" @click="handlePrivateSearch">查询</NButton>
           </div>
-          <div>
-            <span>最近更新</span>
-            <strong>{{ activeItem.updated_at ? formatDate(activeItem.updated_at) : '默认模板' }}</strong>
+
+          <div v-if="privateRows.length" class="private-list__items">
+            <button
+              v-for="item in privateRows"
+              :key="item.user_id"
+              type="button"
+              class="private-user"
+              :class="{ 'private-user--active': item.user_id === activePrivateUserId }"
+              @click="openPrivateUser(item.user_id)"
+            >
+              <strong>{{ item.user?.alias || item.user?.username }}</strong>
+              <span>@{{ item.user?.username }}</span>
+              <small>{{ item.using_private_override ? '已启用专属通道' : item.allow_private_ai_override ? '已开通，未启用' : '未开通' }}</small>
+            </button>
           </div>
-        </div>
+          <NEmpty v-else :description="privateListLoading ? '正在加载用户' : '暂无可选用户'" />
 
-        <NForm
-          ref="formRef"
-          :model="form"
-          :rules="rules"
-          label-placement="top"
-          class="config-form"
-        >
-          <section class="config-form__group">
-            <div class="config-form__heading">
-              <p>文案服务</p>
-              <span>用于输入纠错、文本校准和提示词生成。</span>
+          <div class="private-list__pagination">
+            <NPagination
+              :page="privatePagination.page"
+              :page-size="privatePagination.pageSize"
+              :item-count="privatePagination.itemCount"
+              @update:page="handlePrivatePageChange"
+            />
+          </div>
+        </aside>
+
+        <section class="private-panel">
+          <div v-if="privateDetailLoading" class="private-panel__loading">正在读取用户专属配置...</div>
+          <NEmpty v-else-if="!privateForm.user_id" description="请先从左侧选择用户" />
+          <template v-else>
+            <div class="private-switches">
+              <div class="private-switch">
+                <span>允许专属通道</span>
+                <NSwitch v-model:value="privateForm.allow_private_ai_override" />
+              </div>
+              <div class="private-switch">
+                <span>立即启用覆盖</span>
+                <NSwitch v-model:value="privateForm.override_enabled" :disabled="!privateForm.allow_private_ai_override" />
+              </div>
             </div>
-            <NFormItem label="服务地址" path="llm_base_url">
-              <NInput v-model:value="form.llm_base_url" :placeholder="DEFAULTS.llm_base_url" />
-            </NFormItem>
-            <NFormItem label="API Key" path="llm_api_key">
-              <NInput v-model:value="form.llm_api_key" type="password" show-password-on="mousedown" />
-            </NFormItem>
-            <NFormItem label="模型名称" path="llm_model">
-              <NInput v-model:value="form.llm_model" :placeholder="DEFAULTS.llm_model" />
-            </NFormItem>
-          </section>
 
-          <section class="config-form__group">
-            <div class="config-form__heading">
-              <p>视频服务</p>
-              <span>用于简单、入门、自定义三种视频生成任务。</span>
+            <NForm label-placement="top" :model="privateForm" class="private-form">
+              <NFormItem label="专属 Base URL">
+                <NInput v-model:value="privateForm.provider_base_url" placeholder="留空则跟随平台全局地址" />
+              </NFormItem>
+              <NFormItem label="专属 SK">
+                <NInput v-model:value="privateForm.provider_api_key" type="password" show-password-on="mousedown" placeholder="留空则继续使用平台全局 SK" />
+              </NFormItem>
+              <div class="private-form__models">
+                <NFormItem label="文字模型">
+                  <NInput v-model:value="privateForm.llm_model" placeholder="留空则跟随平台文字模型" />
+                </NFormItem>
+                <NFormItem label="视频模型">
+                  <NInput v-model:value="privateForm.video_model" placeholder="留空则跟随平台视频模型" />
+                </NFormItem>
+                <NFormItem label="音频模型">
+                  <NInput v-model:value="privateForm.speech_model" placeholder="留空则跟随平台音频模型" />
+                </NFormItem>
+                <NFormItem label="图片模型">
+                  <NInput v-model:value="privateForm.image_model" placeholder="留空则跟随平台图片模型" />
+                </NFormItem>
+              </div>
+            </NForm>
+
+            <div class="private-panel__footer">
+              <NButton quaternary type="warning" :loading="privateResetLoading" @click="handleResetPrivate">关闭专属通道</NButton>
+              <NButton type="primary" :loading="privateSaveLoading" @click="handleSavePrivate">保存专属配置</NButton>
             </div>
-            <NFormItem label="服务地址" path="video_base_url">
-              <NInput v-model:value="form.video_base_url" :placeholder="DEFAULTS.video_base_url" />
-            </NFormItem>
-            <NFormItem label="API Key" path="video_api_key">
-              <NInput v-model:value="form.video_api_key" type="password" show-password-on="mousedown" />
-            </NFormItem>
-            <NFormItem label="模型名称" path="video_model">
-              <NInput v-model:value="form.video_model" :placeholder="DEFAULTS.video_model" />
-            </NFormItem>
-          </section>
-
-          <section class="config-form__group">
-            <div class="config-form__heading">
-              <p>语音服务</p>
-              <span>用于音频上传转文字，与 App 的语音识别设置保持一致。</span>
-            </div>
-            <NFormItem label="服务地址" path="speech_base_url">
-              <NInput v-model:value="form.speech_base_url" :placeholder="DEFAULTS.speech_base_url" />
-            </NFormItem>
-            <NFormItem label="API Key" path="speech_api_key">
-              <NInput v-model:value="form.speech_api_key" type="password" show-password-on="mousedown" />
-            </NFormItem>
-            <NFormItem label="模型名称" path="speech_model">
-              <NInput v-model:value="form.speech_model" :placeholder="DEFAULTS.speech_model" />
-            </NFormItem>
-          </section>
-        </NForm>
-
-        <div class="config-drawer__footer">
-          <NButton
-            v-permission="'post/api/v1/app_config/reset'"
-            quaternary
-            type="warning"
-            :loading="resetLoading === form.user_id"
-            @click="handleResetDrawer"
-          >
-            恢复默认
-          </NButton>
-          <NButton
-            v-permission="'post/api/v1/app_config/update'"
-            type="primary"
-            :loading="saveLoading"
-            @click="handleSave"
-          >
-            保存配置
-          </NButton>
-        </div>
+          </template>
+        </section>
       </div>
     </NDrawerContent>
   </NDrawer>
 </template>
 
 <style scoped>
-.config-header {
+.platform-header,
+.platform-header__actions,
+.platform-panel__footer,
+.platform-mini-actions,
+.private-header,
+.private-list__toolbar,
+.private-switches,
+.private-panel__footer {
   display: flex;
+  gap: 12px;
+}
+
+.platform-header,
+.private-header {
   align-items: flex-end;
   justify-content: space-between;
-  gap: 20px;
+}
+
+.platform-header {
   width: 100%;
 }
 
-.config-header__copy {
-  max-width: 660px;
+.platform-header__copy {
+  max-width: 760px;
 }
 
-.config-header__eyebrow,
-.config-rail__label,
-.config-table__eyebrow,
-.config-drawer__eyebrow {
+.platform-header__eyebrow,
+.platform-panel__eyebrow {
   margin: 0 0 8px;
   color: var(--brand-primary);
   font-size: 12px;
@@ -563,217 +501,213 @@ function shortHost(url = '') {
   text-transform: uppercase;
 }
 
-.config-header h2,
-.config-table h3,
-.config-drawer h3 {
+.platform-header h2,
+.platform-panel h3,
+.private-header h3 {
   margin: 0;
   color: var(--app-text);
 }
 
-.config-header__copy p:last-child,
-.config-table__header p:last-child,
-.config-drawer__header p:last-child {
+.platform-header p:last-child,
+.platform-panel p:last-child,
+.private-header p:last-child {
   margin: 10px 0 0;
-  color: var(--app-muted);
-  line-height: 1.6;
-}
-
-.config-header__actions {
-  display: grid;
-  grid-template-columns: minmax(280px, 340px) auto;
-  gap: 12px;
-}
-
-.config-page {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 22px;
-}
-
-.config-rail,
-.config-table {
-  min-width: 0;
-  border: 1px solid var(--shell-border);
-  background: var(--surface-card);
-}
-
-.config-rail {
-  display: grid;
-  align-content: start;
-}
-
-.config-rail__section {
-  padding: 20px;
-}
-
-.config-rail__section + .config-rail__section {
-  border-top: 1px solid var(--shell-divider);
-}
-
-.config-rail__stats {
-  display: grid;
-  gap: 14px;
-}
-
-.config-stat {
-  display: grid;
-  gap: 6px;
-}
-
-.config-stat span,
-.config-drawer__meta span,
-.config-provider span,
-.config-user span {
-  color: var(--app-muted);
-  font-size: 12px;
-}
-
-.config-stat strong {
-  color: var(--app-text);
-  font-size: 28px;
-  line-height: 1;
-}
-
-.config-stat small {
-  color: var(--app-muted);
-  line-height: 1.4;
-}
-
-.config-rail__list {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding-left: 18px;
   color: var(--app-muted);
   line-height: 1.7;
 }
 
-.config-table {
+.platform-page {
+  display: grid;
+  gap: 22px;
+}
+
+.platform-summary,
+.platform-grid,
+.private-layout,
+.platform-form__models,
+.platform-rules,
+.private-form__models {
   display: grid;
   gap: 16px;
+}
+
+.platform-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.platform-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.platform-card,
+.platform-panel,
+.platform-model-chip,
+.platform-rule,
+.private-list,
+.private-panel,
+.private-user {
+  border: 1px solid var(--shell-border);
+  border-radius: 20px;
+  background: rgba(255, 251, 248, 0.72);
+  box-shadow: var(--soft-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.platform-card,
+.platform-model-chip,
+.platform-rule,
+.private-user {
+  display: grid;
+  gap: 8px;
   padding: 18px;
 }
 
-.config-table__header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+.platform-panel,
+.private-list,
+.private-panel {
+  padding: 22px;
 }
 
-.config-table__pagination {
-  display: flex;
-  justify-content: flex-end;
+.platform-card span,
+.platform-model-chip span,
+.platform-rule p,
+.private-user span,
+.private-user small,
+.private-panel__loading {
+  color: var(--app-muted);
 }
 
-.config-user,
-.config-provider {
-  display: grid;
-  gap: 6px;
-}
-
-.config-user strong,
-.config-provider strong {
+.platform-card strong,
+.platform-model-chip strong,
+.platform-rule strong,
+.private-user strong {
   color: var(--app-text);
-  font-size: 14px;
 }
 
-.config-status,
-.config-actions,
-.config-drawer__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.platform-card strong {
+  font-size: 20px;
+  line-height: 1.3;
 }
 
-.config-drawer {
+.platform-panel {
   display: grid;
   gap: 18px;
 }
 
-.config-drawer__header {
+.platform-panel__head {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
-.config-drawer__loading {
-  padding: 28px 0;
-  color: var(--app-muted);
-}
-
-.config-drawer__meta {
+.platform-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  padding: 14px 16px;
-  background: var(--surface-2);
 }
 
-.config-drawer__meta strong {
-  color: var(--app-text);
-  font-size: 14px;
+.platform-form__models,
+.private-form__models {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.config-form {
+.platform-panel__footer,
+.platform-mini-actions,
+.private-panel__footer {
+  justify-content: flex-end;
+}
+
+.platform-secret {
+  margin: 2px 0 0;
+  color: rgba(120, 126, 139, 0.48);
+  font-size: 12px;
+  text-align: right;
+  user-select: none;
+}
+
+.private-layout {
+  grid-template-columns: 300px minmax(0, 1fr);
+  height: 100%;
+}
+
+.private-list,
+.private-panel {
   display: grid;
-  gap: 16px;
+  align-content: start;
 }
 
-.config-form__group {
-  padding: 16px;
-  border: 1px solid var(--shell-divider);
-  background: var(--surface-2);
+.private-list__items {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
 }
 
-.config-form__heading {
-  margin-bottom: 8px;
+.private-user {
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.config-form__heading p {
-  margin: 0;
-  color: var(--app-text);
-  font-size: 15px;
-  font-weight: 600;
+.private-user--active {
+  border-color: rgba(255, 105, 0, 0.28);
+  transform: translateY(-1px);
 }
 
-.config-form__heading span {
-  display: block;
-  margin-top: 6px;
-  color: var(--app-muted);
-  line-height: 1.6;
-}
-
-.config-drawer__footer {
+.private-list__pagination {
+  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+
+.private-panel {
+  gap: 18px;
+}
+
+.private-switches {
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.private-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--app-text);
+}
+
+.private-form {
+  display: grid;
   gap: 12px;
 }
 
 @media (max-width: 1200px) {
-  .config-page {
+  .platform-summary,
+  .platform-grid,
+  .private-layout {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 900px) {
-  .config-header,
-  .config-table__header,
-  .config-drawer__header {
+@media (max-width: 768px) {
+  .platform-header,
+  .platform-panel__head,
+  .private-header {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
   }
 
-  .config-header__actions {
+  .platform-summary,
+  .platform-form__models,
+  .private-form__models {
     grid-template-columns: 1fr;
   }
 
-  .config-drawer__meta {
-    grid-template-columns: 1fr;
-  }
-
-  .config-drawer__footer {
+  .platform-panel__footer,
+  .platform-mini-actions,
+  .private-panel__footer {
     flex-direction: column;
   }
 }

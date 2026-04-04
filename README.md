@@ -34,7 +34,6 @@ Web Admin (Vue3) -----------------/         +--> SQLite (backend/db.sqlite3)
 
 App/H5 业务接口：
 
-- `/api/config`：读取和保存当前用户 AI 配置
 - `/api/create-workbench`：下发创作工作台配置
 - `/api/prompt-templates`：提示词模板列表
 - `/api/video-templates`：视频模板列表
@@ -149,14 +148,16 @@ App/H5 业务接口：
 
 ### 4.3 AI 配置的真实生效方式
 
-当前代码不是把 LLM / 视频 / 语音模型统一写死在 `.env` 里运行，而是按“当前用户”存储在后端数据库里。
+当前代码已经改成“后端统一维护，全局生效”模式。
 
-- `/api/config` 会读写用户自己的 `UserAppConfig`
-- App 和 H5 都可以通过设置页写入
-- 后端调用第三方 AI 时，会优先读取当前登录用户自己的配置
+- 平台 `base URL` 与全局 `SK` 由管理端“平台配置”统一维护
+- 图片生成、视频生成、音频解析、文字解析四类模型由管理端“模型管理”统一维护
+- App、H5、后台 AI 调试台默认都读取这一套全局模型配置
+- 少量付费用户如果开通专属通道，才会覆盖全局配置，且入口隐藏在管理端内部
 
 当前代码默认值对应的是：
 
+- 图片模型：`gemini-2.5-flash-image`
 - 文案模型：`gpt-5.4-mini`
 - 视频模型：`veo_3_1-fast-components-4K`
 - 语音识别模型：`gpt-4o-mini-audio-preview`
@@ -164,8 +165,8 @@ App/H5 业务接口：
 
 说明：
 
-- `.env.example` 里的 LLM / VIDEO 仅可作为部署参考，不能等同于当前线上真实 AI 配置
-- 发布前至少要用一个测试账号登录 App 或 H5，把 `/api/config` 配好并验证一遍
+- `.env.example` 里的平台地址与默认模型仅作为部署参考
+- 发布前应在管理端确认“平台配置”和“模型管理”两页都已配置完成
 
 ### 4.4 本地开发启动
 
@@ -270,7 +271,8 @@ server {
 ### 4.9 生产验收清单
 
 - `GET /api/app/releases/latest` 可正常返回
-- `/api/config` 可读写
+- 管理端“平台配置”可读取并保存全局平台配置
+- 管理端“模型管理”可同步目录、推荐模型并应用为全局模型
 - `/api/create-workbench` 能拿到 3 种模式和模板列表
 - 图片上传后 `/media/*` 可外网访问
 - 简单 / 入门 / 自定义任务都能创建
@@ -392,7 +394,7 @@ server {
 - 托管 `public/` 页面
 - 处理登录
 - 转发 App 业务接口到后端
-- 通过 `config.json` 或 `/api/proxy-config` 动态切换后端地址
+- 通过 `config.json` 或环境变量切换后端地址
 
 ### 6.2 本地开发启动
 
@@ -435,7 +437,6 @@ BACKEND_BASE_URL=http://127.0.0.1:10099
 ### 6.4 H5 对后端依赖的关键接口
 
 - `/api/auth/login`
-- `/api/config`
 - `/api/create-workbench`
 - `/api/prompt-templates`
 - `/api/video-templates`
@@ -618,7 +619,7 @@ App 不直接内置安装包地址，而是通过后端接口查询：
 ### 通用
 
 - 用户能正常登录
-- `/api/config` 保存后重新进入仍能读到
+- H5 与 App 设置页不再展示服务器地址和 AI 配置
 - `/api/create-workbench` 返回 3 个模式
 - 模板列表正常显示
 

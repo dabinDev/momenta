@@ -25,14 +25,7 @@ class VideoSaveHelper {
     final File tempFile = File(p.join(tempDir.path, fileName));
 
     try {
-      final bool hasAccess = await Gal.hasAccess(toAlbum: true);
-      if (!hasAccess) {
-        final bool granted = await Gal.requestAccess(toAlbum: true);
-        if (!granted) {
-          throw const AppException('未获得相册权限，请在系统设置中允许后重试');
-        }
-      }
-
+      await _ensureGalleryAccess();
       await FileUtils.ensureParentDirectory(tempFile);
       await apiService.downloadVideo(
         url: videoUrl,
@@ -61,14 +54,7 @@ class VideoSaveHelper {
     final File tempFile = File(p.join(tempDir.path, fileName));
 
     try {
-      final bool hasAccess = await Gal.hasAccess(toAlbum: true);
-      if (!hasAccess) {
-        final bool granted = await Gal.requestAccess(toAlbum: true);
-        if (!granted) {
-          throw const AppException('鏈幏寰楃浉鍐屾潈闄愶紝璇峰湪绯荤粺璁剧疆涓厑璁稿悗閲嶈瘯');
-        }
-      }
-
+      await _ensureGalleryAccess();
       await FileUtils.ensureParentDirectory(tempFile);
       await apiService.downloadTaskVideo(
         taskId: taskId,
@@ -83,6 +69,33 @@ class VideoSaveHelper {
       if (await tempFile.exists()) {
         await tempFile.delete();
       }
+    }
+  }
+
+  static Future<void> saveLocalVideoToGallery({
+    required String filePath,
+  }) async {
+    final File file = File(filePath);
+    if (!await file.exists()) {
+      throw const AppException('本地视频文件不存在，请重新下载');
+    }
+
+    try {
+      await _ensureGalleryAccess();
+      await Gal.putVideo(file.path, album: albumName);
+    } on GalException catch (error) {
+      throw AppException(_readGalError(error));
+    }
+  }
+
+  static Future<void> _ensureGalleryAccess() async {
+    final bool hasAccess = await Gal.hasAccess(toAlbum: true);
+    if (hasAccess) {
+      return;
+    }
+    final bool granted = await Gal.requestAccess(toAlbum: true);
+    if (!granted) {
+      throw const AppException('未获得相册权限，请在系统设置中允许后重试');
     }
   }
 

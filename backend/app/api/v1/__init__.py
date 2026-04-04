@@ -11,6 +11,7 @@ from .base import base_router
 from .depts import depts_router
 from .invite_codes import invite_codes_router
 from .menus import menus_router
+from .model_catalogs import model_catalogs_router
 from .roles import roles_router
 from .tasks import tasks_router
 from .users import users_router
@@ -25,6 +26,7 @@ v1_router.include_router(roles_router, prefix="/role", dependencies=[DependPermi
 v1_router.include_router(menus_router, prefix="/menu", dependencies=[DependPermission])
 v1_router.include_router(apis_router, prefix="/api", dependencies=[DependPermission])
 v1_router.include_router(app_configs_router, prefix="/app_config", dependencies=[DependPermission])
+v1_router.include_router(model_catalogs_router, prefix="/model_catalog", dependencies=[DependPermission])
 v1_router.include_router(ai_debug_router, prefix="/ai_debug", dependencies=[DependPermission])
 v1_router.include_router(app_releases_router, prefix="/app_release", dependencies=[DependPermission])
 v1_router.include_router(depts_router, prefix="/dept", dependencies=[DependPermission])

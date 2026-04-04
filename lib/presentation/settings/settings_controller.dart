@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/constants.dart';
 import '../../app/routes.dart';
+import '../../core/services/download_manager_service.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../data/api/api_service.dart';
 import '../../data/models/app_update_info_model.dart';
@@ -12,10 +13,12 @@ import '../auth/auth_controller.dart';
 class SettingsController extends GetxController {
   SettingsController()
       : authController = Get.find<AuthController>(),
-        _apiService = Get.find<ApiService>();
+        _apiService = Get.find<ApiService>(),
+        downloadManager = Get.find<DownloadManagerService>();
 
   final AuthController authController;
   final ApiService _apiService;
+  final DownloadManagerService downloadManager;
 
   final RxBool isLoading = false.obs;
   final RxBool isCheckingUpdate = false.obs;
@@ -42,10 +45,6 @@ class SettingsController extends GetxController {
     }
   }
 
-  void openAppSettings() {
-    Get.toNamed(AppRoutes.appSettings);
-  }
-
   void openEditProfile() {
     Get.toNamed(AppRoutes.editProfile);
   }
@@ -56,6 +55,10 @@ class SettingsController extends GetxController {
 
   void openProfileDetail() {
     Get.toNamed(AppRoutes.profileDetail);
+  }
+
+  void openDownloadManager() {
+    Get.toNamed(AppRoutes.downloadManager);
   }
 
   Future<void> logout() async {

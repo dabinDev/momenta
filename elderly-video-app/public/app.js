@@ -7,18 +7,6 @@ const STORE_KEYS = {
   username: 'sg_video_auth_username',
 };
 
-const DEFAULT_AI_CONFIG = Object.freeze({
-  llmBaseUrl: 'https://api.99hub.top',
-  llmApiKey: '',
-  llmModel: 'gpt-5.4-mini',
-  videoBaseUrl: 'https://api.99hub.top',
-  videoApiKey: '',
-  videoModel: 'veo_3_1-fast-components-4K',
-  speechBaseUrl: 'https://api.99hub.top',
-  speechApiKey: '',
-  speechModel: 'gpt-4o-mini-audio-preview',
-});
-
 const BrowserSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 
 const FALLBACK_MODES = {
@@ -61,12 +49,12 @@ const APP_LIMITS = {
 };
 
 const APP_META = Object.freeze({
-  version: '1.1.0',
-  buildNumber: '2',
+  version: '1.2.0',
+  buildNumber: '3',
   platform: 'android',
   channel: 'lan',
   updateHint: '如有新版本，重新安装新的 APK 即可覆盖更新。',
-  apkDownloadUrl: 'https://memovideos.cn/file/v1.1.apk',
+  apkDownloadUrl: 'https://memovideos.cn/file/V1.2.0.apk',
 });
 
 const state = {
@@ -108,6 +96,10 @@ const state = {
     interimText: '',
     shouldTranscribe: false,
     errorMessage: '',
+  },
+  wechatGuide: {
+    copyValue: '',
+    copySuccessText: '地址已复制，请到系统浏览器中打开',
   },
 };
 
@@ -180,6 +172,9 @@ function compactPayload(payload) {
 }
 
 function setHidden(target, shouldHide) {
+  if (!target) {
+    return;
+  }
   target.classList.toggle('hidden', shouldHide);
 }
 
@@ -191,6 +186,88 @@ function setDialogOpen(id, open) {
   setHidden(target, !open);
 }
 
+function isWeChatBrowser() {
+  return /MicroMessenger/i.test(window.navigator.userAgent || '');
+}
+
+async function copyPlainText(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    throw new Error('当前没有可复制的地址');
+  }
+
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'readonly');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) {
+    throw new Error('复制失败，请手动长按复制地址');
+  }
+}
+
+function openWechatGuide({
+  title = '微信内暂不支持直接下载',
+  subtitle = '请点击右上角“…”后选择“在浏览器打开”，再继续下载。',
+  copyValue = window.location.href,
+  copyLabel = '可复制地址',
+  copyTip = '复制后请到系统浏览器中打开。',
+  copySuccessText = '地址已复制，请到系统浏览器中打开',
+} = {}) {
+  state.wechatGuide = {
+    copyValue: String(copyValue || window.location.href || '').trim(),
+    copySuccessText: sanitizeUiMessage(copySuccessText, '地址已复制，请到系统浏览器中打开'),
+  };
+  if ($('wechatGuideTitle')) {
+    $('wechatGuideTitle').textContent = title;
+  }
+  if ($('wechatGuideSubtitle')) {
+    $('wechatGuideSubtitle').textContent = subtitle;
+  }
+  if ($('wechatGuideFieldLabel')) {
+    $('wechatGuideFieldLabel').textContent = copyLabel;
+  }
+  if ($('wechatGuideCopyTip')) {
+    $('wechatGuideCopyTip').textContent = copyTip;
+  }
+  if ($('wechatGuideCopyValue')) {
+    $('wechatGuideCopyValue').value = state.wechatGuide.copyValue;
+  }
+  setDialogOpen('wechatGuideDialog', true);
+}
+
+function closeWechatGuide() {
+  setDialogOpen('wechatGuideDialog', false);
+}
+
+async function copyWechatGuideValue() {
+  try {
+    await copyPlainText(state.wechatGuide.copyValue);
+    showToast(state.wechatGuide.copySuccessText, 'success');
+  } catch (error) {
+    showToast(sanitizeUiMessage(error.message, '复制地址失败，请手动长按复制'), 'error');
+  }
+}
+
+function interceptWeChatDownload(options = {}) {
+  if (!isWeChatBrowser()) {
+    return false;
+  }
+  openWechatGuide(options);
+  return true;
+}
+
 function versionLabel() {
   return `V${APP_META.version} (${APP_META.buildNumber})`;
 }
@@ -198,7 +275,7 @@ function versionLabel() {
 function showToast(message, type = 'info') {
   const toast = document.createElement('div');
   toast.className = `toast toast--${type}`;
-  toast.textContent = message;
+  toast.textContent = sanitizeUiMessage(message);
   document.body.appendChild(toast);
   setTimeout(() => {
     toast.style.opacity = '0';
@@ -208,12 +285,52 @@ function showToast(message, type = 'info') {
   }, 2600);
 }
 
+function sanitizeUiMessage(message, fallback = '操作失败，请稍后重试。') {
+  const text = String(message || '').trim();
+  if (!text) {
+    return fallback;
+  }
+  if (text.startsWith('{') || text.startsWith('[')) {
+    return fallback;
+  }
+  return text;
+}
+
+function extractPayloadMessage(payload, fallback = '请求失败。') {
+  if (payload == null) {
+    return fallback;
+  }
+  if (typeof payload === 'string') {
+    return sanitizeUiMessage(payload, fallback);
+  }
+  if (typeof payload !== 'object') {
+    return sanitizeUiMessage(String(payload), fallback);
+  }
+  const candidate =
+    payload.msg ??
+    payload.message ??
+    payload.detail ??
+    payload.error?.message ??
+    payload.error?.msg ??
+    payload.error?.detail ??
+    payload.error;
+  return extractPayloadMessage(candidate, fallback);
+}
+
+function unwrapApiPayload(payload) {
+  if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, 'data')) {
+    return payload.data ?? {};
+  }
+  return payload;
+}
+
 function readSession() {
   state.authToken = localStorage.getItem(STORE_KEYS.token) || '';
   state.currentUser = safeParse(localStorage.getItem(STORE_KEYS.user) || '', null);
   const username = localStorage.getItem(STORE_KEYS.username) || '';
-  if (username && !$('loginUsername').value) {
-    $('loginUsername').value = username;
+  const loginUsernameInput = $('loginUsername');
+  if (username && loginUsernameInput && !loginUsernameInput.value) {
+    loginUsernameInput.value = username;
   }
 }
 
@@ -267,28 +384,33 @@ async function apiFetch(url, options = {}, authRequired = true) {
   try {
     payload = await response.json();
   } catch (_) {
-    payload = { success: false, error: '服务返回了无效数据。' };
+    payload = { success: false, msg: '服务返回了无效数据。' };
   }
 
   if (response.status === 401) {
     handleUnauthorized();
-    throw new Error(payload.error || '登录已过期，请重新登录。');
+    throw new Error(extractPayloadMessage(payload, '登录已过期，请重新登录。'));
   }
 
-  if (!response.ok || payload.success === false) {
-    throw new Error(payload.error || '请求失败。');
+  const isFailure =
+    !response.ok ||
+    payload.success === false ||
+    (typeof payload.code === 'number' && payload.code !== 200);
+
+  if (isFailure) {
+    throw new Error(extractPayloadMessage(payload, '请求失败。'));
   }
-  return payload;
+
+  return unwrapApiPayload(payload);
 }
 
 function handleUnauthorized() {
   stopTaskPolling();
   clearSession();
   updateUserUI();
-  fillAiConfigForm(DEFAULT_AI_CONFIG);
   renderHistorySummary();
   renderVersionInfo();
-  ['editProfileDialog', 'changePasswordDialog', 'forgotPasswordDialog', 'registerDialog', 'videoModal'].forEach((id) => {
+  ['editProfileDialog', 'changePasswordDialog', 'forgotPasswordDialog', 'registerDialog', 'wechatGuideDialog', 'videoModal'].forEach((id) => {
     setDialogOpen(id, false);
   });
   showLoginShell();
@@ -303,7 +425,7 @@ function hideLoginShell() {
 }
 
 function showLoginError(message) {
-  $('authError').textContent = message;
+  $('authError').textContent = sanitizeUiMessage(message, '登录失败，请稍后重试。');
   $('authError').classList.add('active');
 }
 
@@ -391,7 +513,6 @@ async function logout() {
   } catch (_) {
   }
   clearSession();
-  fillAiConfigForm(DEFAULT_AI_CONFIG);
   updateUserUI();
   showLoginShell();
   showToast('已退出登录。', 'info');
@@ -419,112 +540,6 @@ async function bootstrapAfterLogin() {
   if (state.activePage === 'history') {
     await loadHistory(1);
   }
-}
-
-function fillAiConfigForm(config = {}) {
-  const nextConfig = { ...DEFAULT_AI_CONFIG, ...(config || {}) };
-  $('llmBaseUrl').value = nextConfig.llmBaseUrl || DEFAULT_AI_CONFIG.llmBaseUrl;
-  $('llmApiKey').value = nextConfig.llmApiKey || '';
-  $('llmModel').value = nextConfig.llmModel || DEFAULT_AI_CONFIG.llmModel;
-  $('videoBaseUrl').value = nextConfig.videoBaseUrl || DEFAULT_AI_CONFIG.videoBaseUrl;
-  $('videoApiKey').value = nextConfig.videoApiKey || '';
-  $('videoModel').value = nextConfig.videoModel || DEFAULT_AI_CONFIG.videoModel;
-  $('speechBaseUrl').value = nextConfig.speechBaseUrl || DEFAULT_AI_CONFIG.speechBaseUrl;
-  $('speechApiKey').value = nextConfig.speechApiKey || '';
-  $('speechModel').value = nextConfig.speechModel || DEFAULT_AI_CONFIG.speechModel;
-}
-
-function readAiConfigForm() {
-  return {
-    llmBaseUrl: $('llmBaseUrl').value.trim() || DEFAULT_AI_CONFIG.llmBaseUrl,
-    llmApiKey: $('llmApiKey').value.trim(),
-    llmModel: $('llmModel').value.trim() || DEFAULT_AI_CONFIG.llmModel,
-    videoBaseUrl: $('videoBaseUrl').value.trim() || DEFAULT_AI_CONFIG.videoBaseUrl,
-    videoApiKey: $('videoApiKey').value.trim(),
-    videoModel: $('videoModel').value.trim() || DEFAULT_AI_CONFIG.videoModel,
-    speechBaseUrl: $('speechBaseUrl').value.trim() || DEFAULT_AI_CONFIG.speechBaseUrl,
-    speechApiKey: $('speechApiKey').value.trim(),
-    speechModel: $('speechModel').value.trim() || DEFAULT_AI_CONFIG.speechModel,
-  };
-}
-
-async function loadProxySettings() {
-  try {
-    const result = await apiFetch('/api/proxy-config', {}, false);
-    $('backendBaseUrl').value = result.backendBaseUrl || '';
-  } catch (_) {
-  }
-}
-
-async function saveProxySettings() {
-  const backendBaseUrl = $('backendBaseUrl').value.trim();
-  if (!backendBaseUrl) {
-    showToast('请先填写后端服务地址。', 'error');
-    return;
-  }
-  try {
-    await apiFetch('/api/proxy-config', {
-      method: 'POST',
-      body: { backendBaseUrl },
-    }, false);
-    showToast('代理地址已保存，如切换环境请重新登录。', 'success');
-  } catch (error) {
-    showToast(error.message || '保存代理地址失败。', 'error');
-  }
-}
-
-async function loadAiConfig() {
-  if (!state.authToken) {
-    fillAiConfigForm(DEFAULT_AI_CONFIG);
-    return;
-  }
-  const result = await apiFetch('/api/config');
-  fillAiConfigForm(result);
-}
-
-async function saveAiConfig() {
-  if (!state.authToken) {
-    showToast('请先登录后再保存 AI 配置。', 'error');
-    return;
-  }
-  try {
-    const result = await apiFetch('/api/config', {
-      method: 'POST',
-      body: readAiConfigForm(),
-    });
-    fillAiConfigForm(result);
-    showToast('AI 配置已保存。', 'success');
-  } catch (error) {
-    showToast(error.message || '保存 AI 配置失败。', 'error');
-  }
-}
-
-function resetAiDefaults() {
-  fillAiConfigForm(DEFAULT_AI_CONFIG);
-  showToast('表单已恢复默认值，保存后才会生效。', 'info');
-}
-
-async function loadSettingsPage() {
-  await loadProxySettings();
-  if (state.authToken) {
-    try {
-      await loadAiConfig();
-    } catch (error) {
-      showToast(error.message || '读取 AI 配置失败。', 'error');
-    }
-  } else {
-    fillAiConfigForm(DEFAULT_AI_CONFIG);
-  }
-  updateUserUI();
-}
-
-function switchSettingsSection(section) {
-  $$('[data-settings-section]').forEach((button) => {
-    button.classList.toggle('active', button.dataset.settingsSection === section);
-  });
-  ['llm', 'video', 'speech'].forEach((name) => {
-    setHidden($(`settingsSection-${name}`), name !== section);
-  });
 }
 
 function availableModes() {
@@ -887,7 +902,7 @@ async function refreshTemplates() {
     await loadWorkbench();
     showToast('模板和创作配置已刷新。', 'success');
   } catch (error) {
-    showToast(error.message || '刷新模板失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '刷新模板失败。'), 'error');
   }
 }
 
@@ -919,7 +934,7 @@ async function correctText() {
     $('inputText').value = corrected;
     showToast('已完成 AI 校验。', 'success');
   } catch (error) {
-    showToast(error.message || 'AI 校验失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, 'AI 校验失败。'), 'error');
   } finally {
     $('correctBtn').disabled = false;
     $('correctBtn').textContent = 'AI校验';
@@ -952,7 +967,7 @@ async function generatePrompt() {
     $('promptText').value = prompt;
     showToast('创作提示词已生成，可继续修改。', 'success');
   } catch (error) {
-    showToast(error.message || '提示词生成失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '提示词生成失败。'), 'error');
   } finally {
     $('promptBtn').disabled = false;
     $('promptBtn').textContent = '生成提示词';
@@ -981,7 +996,7 @@ async function uploadImages(files) {
     renderImages();
     showToast('图片上传成功。', 'success');
   } catch (error) {
-    showToast(error.message || '图片上传失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '图片上传失败。'), 'error');
   }
 }
 
@@ -1026,7 +1041,7 @@ async function uploadReferenceVideo(file) {
       throw new Error('参考视频时长不能超过 1 分钟。');
     }
   } catch (error) {
-    showToast(error.message || '读取参考视频信息失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '读取参考视频信息失败。'), 'error');
     return;
   }
 
@@ -1044,7 +1059,7 @@ async function uploadReferenceVideo(file) {
     showToast('参考视频已上传。', 'success');
   } catch (error) {
     clearReferenceVideo();
-    showToast(error.message || '参考视频上传失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '参考视频上传失败。'), 'error');
   } finally {
     state.isUploadingReferenceVideo = false;
     renderReferenceVideo();
@@ -1197,7 +1212,7 @@ function renderTaskStatusPanel() {
   $('taskStatusChip').textContent = descriptor.label;
 
   const label = state.currentTask?.error
-    ? state.currentTask.error
+    ? sanitizeUiMessage(state.currentTask.error, '视频生成失败，请稍后重试。')
     : state.isSubmitting
       ? `正在跟进任务进度 ${state.pollingCount}/${APP_LIMITS.maxPollingTimes}`
       : state.currentTask?.id
@@ -1291,10 +1306,16 @@ async function downloadCurrentTask() {
   }
 
   try {
-    await downloadTaskById(state.currentTask.id, '拾光视频');
-    showToast('视频已开始保存到本地。', 'success');
+    const started = await downloadTaskById(
+      state.currentTask.id,
+      '拾光视频',
+      state.currentTask.videoUrl || '',
+    );
+    if (started) {
+      showToast('视频已开始保存到本地。', 'success');
+    }
   } catch (error) {
-    showToast(error.message || '保存视频失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '保存视频失败。'), 'error');
   }
 }
 
@@ -1341,7 +1362,7 @@ function markTaskFailed(task) {
   state.currentTask = task;
   setSubmitting(false);
   renderTaskStatusPanel();
-  showToast(task.error || '视频生成失败。', 'error');
+  showToast(sanitizeUiMessage(task.error, '视频生成失败，请稍后重试。'), 'error');
   if (state.activePage === 'history') {
     loadHistory(state.historyPage);
   }
@@ -1373,7 +1394,7 @@ function startTaskPolling(taskId) {
     } catch (error) {
       stopTaskPolling();
       setSubmitting(false);
-      showToast(error.message || '任务状态查询失败。', 'error');
+      showToast(sanitizeUiMessage(error.message, '任务状态查询失败。'), 'error');
       return;
     }
 
@@ -1393,7 +1414,7 @@ async function generateVideo() {
   try {
     payload = buildGeneratePayload();
   } catch (error) {
-    showToast(error.message || '提交参数不完整。', 'error');
+    showToast(sanitizeUiMessage(error.message, '提交参数不完整。'), 'error');
     return;
   }
 
@@ -1495,7 +1516,7 @@ async function loadHistory(page = 1) {
     const result = await apiFetch(`/api/history?page=${page}&limit=10`);
     renderHistory(result.records || [], result.totalPages || 1);
   } catch (error) {
-    $('historyList').innerHTML = `<div class="empty-state">${escapeHtml(error.message || '记录加载失败。')}</div>`;
+    $('historyList').innerHTML = `<div class="empty-state">${escapeHtml(sanitizeUiMessage(error.message, '记录加载失败。'))}</div>`;
     $('pagination').innerHTML = '';
   }
 }
@@ -1512,7 +1533,7 @@ async function deleteHistory(taskId) {
     showToast('记录已删除。', 'success');
     await loadHistory(state.historyPage);
   } catch (error) {
-    showToast(error.message || '删除记录失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '删除记录失败。'), 'error');
   }
 }
 
@@ -1561,145 +1582,6 @@ function friendlyBrowserSpeechError(code) {
 }
 
 function ensureRecordingDialogExtras() {}
-
-function applySpeechUxCopy() {
-  const settingsPage = $('page-settings');
-  if (settingsPage) {
-    const heading = settingsPage.querySelector('.page-head h2');
-    const copy = settingsPage.querySelector('.page-head .page-copy');
-    if (heading) {
-      heading.textContent = '应用设置';
-    }
-    if (copy) {
-      copy.textContent = '管理文案、视频与后台备用语音配置，并维护当前 H5 的代理环境。';
-    }
-  }
-
-  const serviceCards = $$('#page-settings .section-card');
-  const configCard = serviceCards[1] || null;
-  if (configCard) {
-    const title = configCard.querySelector('.section-head h3');
-    const desc = configCard.querySelector('.section-head p');
-    if (title) {
-      title.textContent = '服务配置';
-    }
-    if (desc) {
-      desc.textContent = '分别维护提示词、视频生成和后台备用语音配置。当前 App/H5 创作页语音转文字优先使用系统原生识别，这里的语音配置仅用于后端备用调试。';
-    }
-  }
-
-  const speechChip = document.querySelector('[data-settings-section="speech"]');
-  if (speechChip) {
-    speechChip.textContent = '语音备用';
-  }
-
-  const speechSection = $('settingsSection-speech');
-  if (speechSection && !speechSection.querySelector('[data-speech-native-tip]')) {
-    const tip = document.createElement('p');
-    tip.className = 'field-tip';
-    tip.dataset.speechNativeTip = 'true';
-    tip.textContent = '当前 H5 和 App 的创作页不会调用这里做语音转文字，仅保留给后端备用转写和日志排查使用。';
-    speechSection.prepend(tip);
-  }
-}
-
-function applyRefinedSettingsUx() {
-  const settingsPage = $('page-settings');
-  if (!settingsPage) {
-    return;
-  }
-
-  const heading = settingsPage.querySelector('.page-head h2');
-  const copy = settingsPage.querySelector('.page-head .page-copy');
-  if (heading) {
-    heading.textContent = '应用设置';
-  }
-  if (copy) {
-    copy.textContent = '参考 App 只展示账号主信息，其它代理和 AI 调试配置默认收起。';
-  }
-
-  const cards = $$('#page-settings > .section-card');
-  const proxyCard = cards.find((card) => card.querySelector('#backendBaseUrl'));
-  const serviceCard = cards.find((card) => card.querySelector('#saveAiConfigBtn'));
-  const accountCard = cards.find((card) => card.querySelector('#settingsLogoutBtn'));
-  const versionCard = cards.find((card) => card.querySelector('#versionMeta'));
-  if (!proxyCard || !serviceCard || !accountCard || !versionCard) {
-    return;
-  }
-
-  const accountCopy = accountCard.querySelector('.section-head p');
-  if (accountCopy) {
-    accountCopy.textContent = '参考 App 只保留账号主信息，调试和连接配置默认收起。';
-  }
-  const editProfileTitle = $('editProfileBtn')?.querySelector('strong');
-  if (editProfileTitle) {
-    editProfileTitle.textContent = '个人信息';
-  }
-
-  let disclosureCard = $('settingsAdvancedCard');
-  if (!disclosureCard) {
-    disclosureCard = document.createElement('section');
-    disclosureCard.className = 'section-card section-card--subtle settings-disclosure-card';
-    disclosureCard.id = 'settingsAdvancedCard';
-    disclosureCard.innerHTML = `
-      <details class="settings-disclosure">
-        <summary class="settings-disclosure__summary">
-          <div class="settings-disclosure__copy">
-            <strong>高级设置</strong>
-            <span>代理地址、AI 配置和版本检查默认收起，需要时再展开。</span>
-          </div>
-          <span class="settings-disclosure__chevron" aria-hidden="true">⌄</span>
-        </summary>
-        <div class="settings-disclosure__body">
-          <div class="settings-toolbar" id="settingsToolbar"></div>
-          <div class="settings-advanced-grid" id="settingsAdvancedGrid"></div>
-        </div>
-      </details>
-    `;
-    accountCard.insertAdjacentElement('afterend', disclosureCard);
-  }
-
-  const toolbar = $('settingsToolbar');
-  const advancedGrid = $('settingsAdvancedGrid');
-  if (!toolbar || !advancedGrid) {
-    return;
-  }
-
-  const refreshProfileBtn = $('refreshProfileBtn');
-  if (refreshProfileBtn) {
-    refreshProfileBtn.className = 'btn btn--ghost btn--small';
-    refreshProfileBtn.textContent = '同步账号';
-    toolbar.append(refreshProfileBtn);
-  }
-
-  const checkUpdateBtn = $('checkUpdateBtn');
-  if (checkUpdateBtn) {
-    const oldButtonRow = checkUpdateBtn.closest('.button-row');
-    checkUpdateBtn.className = 'btn btn--ghost btn--small';
-    checkUpdateBtn.textContent = '下载安卓 APK';
-    toolbar.append(checkUpdateBtn);
-    oldButtonRow?.remove();
-  }
-
-  proxyCard.classList.add('settings-advanced-block');
-  serviceCard.classList.add('settings-advanced-block');
-  versionCard.classList.add('settings-advanced-block');
-  advancedGrid.append(proxyCard, serviceCard, versionCard);
-
-  const speechChip = document.querySelector('[data-settings-section="speech"]');
-  if (speechChip) {
-    speechChip.textContent = '语音备用';
-  }
-
-  const speechSection = $('settingsSection-speech');
-  if (speechSection && !speechSection.querySelector('[data-speech-native-tip]')) {
-    const tip = document.createElement('p');
-    tip.className = 'field-tip';
-    tip.dataset.speechNativeTip = 'true';
-    tip.textContent = '当前 H5 与 App 的创作页优先使用本机识别，这里的语音配置只保留给后端备用转写与排障。';
-    speechSection.prepend(tip);
-  }
-}
 
 function updateRecordingDialog() {
   $('recordingTime').textContent = `${formatRecordingClock(state.recording.seconds)} / 01:00`;
@@ -1865,7 +1747,7 @@ async function finalizeRecording() {
     clearCorrectionState();
     showToast('\u8bed\u97f3\u5df2\u8f6c\u6210\u6587\u5b57\u3002', 'success');
   } catch (error) {
-    showToast(error.message || '\u8bed\u97f3\u8bc6\u522b\u5931\u8d25\u3002', 'error');
+    showToast(sanitizeUiMessage(error.message, '\u8bed\u97f3\u8bc6\u522b\u5931\u8d25\u3002'), 'error');
   } finally {
     state.isTranscribing = false;
     renderVoiceButton();
@@ -1901,16 +1783,24 @@ function cancelRecording() {
   }
 }
 function switchPage(name) {
+  const isSamePage = state.activePage === name;
   state.activePage = name;
   $$('.page').forEach((page) => page.classList.remove('active'));
   $$('.tab').forEach((tab) => tab.classList.remove('active'));
-  $(`page-${name}`).classList.add('active');
+  const pageNode = $(`page-${name}`);
+  if (!pageNode) {
+    return;
+  }
+  pageNode.classList.add('active');
   document.querySelector(`.tab[data-page="${name}"]`)?.classList.add('active');
   if (name === 'history' && state.authToken) {
     loadHistory(1);
   }
   if (name === 'settings') {
     loadSettingsPage();
+  }
+  if (isSamePage && name === 'create' && state.authToken) {
+    loadWorkbench();
   }
 }
 
@@ -1993,14 +1883,6 @@ function bindEvents() {
     previewCurrentTask();
   });
 
-  $('saveProxySettingsBtn').addEventListener('click', saveProxySettings);
-  $('saveAiConfigBtn').addEventListener('click', saveAiConfig);
-  $('refreshAiConfigBtn').addEventListener('click', loadSettingsPage);
-  $('resetAiDefaultsBtn').addEventListener('click', resetAiDefaults);
-  $$('[data-settings-section]').forEach((button) => {
-    button.addEventListener('click', () => switchSettingsSection(button.dataset.settingsSection || 'llm'));
-  });
-
   $$('.tab').forEach((tab) => {
     tab.addEventListener('click', () => switchPage(tab.dataset.page));
   });
@@ -2043,7 +1925,7 @@ async function syncCurrentUserInfo({ silent = false } = {}) {
     return result.user || null;
   } catch (error) {
     if (!silent) {
-      showToast(error.message || '读取账号信息失败。', 'error');
+      showToast(sanitizeUiMessage(error.message, '读取账号信息失败。'), 'error');
     }
     throw error;
   }
@@ -2066,8 +1948,6 @@ function resetForgotPasswordForm() {
 function resetRegisterForm() {
   $('registerUsername').value = '';
   $('registerEmail').value = '';
-  $('registerAlias').value = '';
-  $('registerPhone').value = '';
   $('registerInviteCode').value = '';
   $('registerPassword').value = '';
   $('registerConfirmPassword').value = '';
@@ -2076,6 +1956,10 @@ function resetRegisterForm() {
 function openRegisterDialog() {
   resetRegisterForm();
   $('registerUsername').value = $('loginUsername').value.trim();
+  const inviteCode = new URLSearchParams(window.location.search).get('inviteCode');
+  if (inviteCode) {
+    $('registerInviteCode').value = String(inviteCode).trim();
+  }
   openDialog('registerDialog');
 }
 
@@ -2086,8 +1970,6 @@ function closeRegisterDialog() {
 async function submitRegister() {
   const username = $('registerUsername').value.trim();
   const email = $('registerEmail').value.trim();
-  const alias = $('registerAlias').value.trim();
-  const phone = $('registerPhone').value.trim();
   const inviteCode = $('registerInviteCode').value.trim();
   const password = $('registerPassword').value.trim();
   const confirmPassword = $('registerConfirmPassword').value.trim();
@@ -2113,8 +1995,6 @@ async function submitRegister() {
       body: {
         username,
         email,
-        alias,
-        phone,
         inviteCode,
         password,
       },
@@ -2124,7 +2004,7 @@ async function submitRegister() {
     resetRegisterForm();
     showToast('注册成功，请返回登录。', 'success');
   } catch (error) {
-    showToast(error.message || '注册失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '注册失败。'), 'error');
   } finally {
     $('submitRegisterBtn').disabled = false;
     $('submitRegisterBtn').textContent = '确认注册';
@@ -2176,7 +2056,7 @@ async function submitForgotPassword() {
     resetForgotPasswordForm();
     showToast('密码已重置，请使用新密码登录。', 'success');
   } catch (error) {
-    showToast(error.message || '重置密码失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '重置密码失败。'), 'error');
   } finally {
     $('submitForgotPasswordBtn').disabled = false;
     $('submitForgotPasswordBtn').textContent = '重置密码';
@@ -2222,7 +2102,7 @@ async function submitProfileUpdate() {
     closeEditProfileDialog();
     showToast('资料已更新。', 'success');
   } catch (error) {
-    showToast(error.message || '更新资料失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '更新资料失败。'), 'error');
   } finally {
     $('submitProfileBtn').disabled = false;
     $('submitProfileBtn').textContent = '保存资料';
@@ -2276,7 +2156,7 @@ async function submitChangePassword() {
     closeChangePasswordDialog();
     showToast('密码已修改。', 'success');
   } catch (error) {
-    showToast(error.message || '修改密码失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '修改密码失败。'), 'error');
   } finally {
     $('submitChangePasswordBtn').disabled = false;
     $('submitChangePasswordBtn').textContent = '确认修改';
@@ -2304,6 +2184,16 @@ async function openApkDownload(silent = false) {
     if (!downloadUrl) {
       throw new Error('当前未配置安卓安装包下载地址。');
     }
+    if (interceptWeChatDownload({
+      title: '微信内无法直接下载 APK',
+      subtitle: '请点击右上角“…”后选择“在浏览器打开”，再下载安装包。',
+      copyValue: downloadUrl,
+      copyLabel: 'APK 下载地址',
+      copyTip: '复制后可在系统浏览器中直接打开并下载 APK。',
+      copySuccessText: 'APK 下载地址已复制，请到系统浏览器中打开',
+    })) {
+      return;
+    }
     window.open(downloadUrl, '_blank', 'noopener');
     if (!silent) {
       window.prompt('请复制或直接打开下面的 APK 下载地址：', downloadUrl);
@@ -2312,7 +2202,7 @@ async function openApkDownload(silent = false) {
   } catch (error) {
     renderVersionInfo();
     if (!silent) {
-      showToast(error.message || '获取 APK 下载地址失败。', 'error');
+      showToast(sanitizeUiMessage(error.message, '获取 APK 下载地址失败。'), 'error');
     }
   } finally {
     button.disabled = false;
@@ -2321,19 +2211,12 @@ async function openApkDownload(silent = false) {
 }
 
 async function loadSettingsPage() {
-  await loadProxySettings();
   if (state.authToken) {
-    try {
-      await loadAiConfig();
-    } catch (error) {
-      showToast(error.message || '读取 AI 配置失败。', 'error');
-    }
     try {
       await syncCurrentUserInfo({ silent: true });
     } catch (_) {
     }
   } else {
-    fillAiConfigForm(DEFAULT_AI_CONFIG);
     updateUserUI();
   }
   renderVersionInfo();
@@ -2354,7 +2237,6 @@ async function logout() {
   } catch (_) {
   }
   clearSession();
-  fillAiConfigForm(DEFAULT_AI_CONFIG);
   renderHistorySummary();
   renderVersionInfo();
   updateUserUI();
@@ -2369,7 +2251,18 @@ async function logout() {
 async function downloadVideoByProxy(url, filenamePrefix = '拾光视频') {
   if (!url) {
     showToast('当前没有可下载的视频。', 'error');
-    return;
+    return false;
+  }
+
+  if (interceptWeChatDownload({
+    title: '微信内无法直接下载视频',
+    subtitle: '请点击右上角“…”后选择“在浏览器打开”，再继续下载视频。',
+    copyValue: url,
+    copyLabel: '视频地址',
+    copyTip: '复制后可在系统浏览器中直接打开视频地址。',
+    copySuccessText: '视频地址已复制，请到系统浏览器中打开',
+  })) {
+    return false;
   }
 
   const filename = `${filenamePrefix}_${Date.now()}.mp4`;
@@ -2395,7 +2288,7 @@ async function downloadVideoByProxy(url, filenamePrefix = '拾光视频') {
     if (response.status === 401) {
       handleUnauthorized();
     }
-    throw new Error(payload.error || '下载视频失败。');
+    throw new Error(extractPayloadMessage(payload, '下载视频失败。'));
   }
 
   const blob = await response.blob();
@@ -2405,13 +2298,14 @@ async function downloadVideoByProxy(url, filenamePrefix = '拾光视频') {
   link.download = filename;
   link.click();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  return true;
 }
 
 async function downloadVideo() {
   try {
     await downloadVideoByProxy(state.currentVideoUrl, '拾光视频');
   } catch (error) {
-    showToast(error.message || '下载视频失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '下载视频失败。'), 'error');
   }
 }
 
@@ -2459,7 +2353,7 @@ function renderHistory(records, totalPages) {
         await downloadVideoByProxy(node.dataset.downloadVideo || '', '历史视频');
         showToast('视频已开始下载。', 'success');
       } catch (error) {
-        showToast(error.message || '下载视频失败。', 'error');
+        showToast(sanitizeUiMessage(error.message, '下载视频失败。'), 'error');
       }
     });
   });
@@ -2502,7 +2396,7 @@ async function loadHistory(page = 1) {
     renderHistory(historyResult.records || [], historyResult.totalPages || 1);
   } catch (error) {
     renderHistorySummary();
-    $('historyList').innerHTML = `<div class="empty-state">${escapeHtml(error.message || '记录加载失败。')}</div>`;
+    $('historyList').innerHTML = `<div class="empty-state">${escapeHtml(sanitizeUiMessage(error.message, '加载历史记录失败。'))}</div>`;
     $('pagination').innerHTML = '';
   }
 }
@@ -2523,13 +2417,17 @@ async function clearAllHistory() {
     renderHistory([], 1);
     showToast('历史记录已清空。', 'success');
   } catch (error) {
-    showToast(error.message || '清空记录失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '清空记录失败。'), 'error');
   }
 }
 
 function bindDialogMaskClose(id, onClose) {
-  $(id).addEventListener('click', (event) => {
-    if (event.target === $(id)) {
+  const target = $(id);
+  if (!target) {
+    return;
+  }
+  target.addEventListener('click', (event) => {
+    if (event.target === target) {
       onClose();
     }
   });
@@ -2554,47 +2452,57 @@ function ensureRegisterUi() {
   dialog.className = 'dialog hidden';
   dialog.id = 'registerDialog';
   dialog.innerHTML = `
-    <div class="dialog-card dialog-card--form">
-      <div class="dialog-head">
-        <div class="dialog-icon">注</div>
-        <div>
-          <h3>注册账号</h3>
-          <p>注册必须填写后台生成的邀请码，没有邀请码的用户不能注册。</p>
+    <div class="dialog-card dialog-card--form dialog-card--register">
+      <div class="register-dialog__hero">
+        <div class="register-dialog__brand">
+          <div class="dialog-icon">注</div>
+          <div>
+            <p class="eyebrow">邀请码注册</p>
+            <h3>注册账号</h3>
+          </div>
+        </div>
+        <p class="register-dialog__copy">沿用当前登录页的浅暖色与轻玻璃层次。注册必须填写后台生成的邀请码，注册成功后会自动进入同一套账号体系。</p>
+        <div class="register-dialog__pills">
+          <span class="hero-pill hero-pill--sky">邀请码校验</span>
+          <span class="hero-pill hero-pill--coral">统一账号</span>
+          <span class="hero-pill hero-pill--jade">后端同步</span>
         </div>
       </div>
-      <div class="field-stack">
-        <label class="field">
-          <span class="field-label">用户名</span>
-          <input class="input" id="registerUsername" type="text" placeholder="请输入用户名">
-        </label>
-        <label class="field">
-          <span class="field-label">邮箱</span>
-          <input class="input" id="registerEmail" type="email" placeholder="请输入邮箱">
-        </label>
-        <label class="field">
-          <span class="field-label">昵称</span>
-          <input class="input" id="registerAlias" type="text" placeholder="选填">
-        </label>
-        <label class="field">
-          <span class="field-label">手机号</span>
-          <input class="input" id="registerPhone" type="tel" placeholder="选填">
-        </label>
-        <label class="field">
-          <span class="field-label">邀请码</span>
-          <input class="input" id="registerInviteCode" type="text" placeholder="请输入邀请码">
-        </label>
-        <label class="field">
-          <span class="field-label">密码</span>
-          <input class="input" id="registerPassword" type="password" placeholder="请输入密码">
-        </label>
-        <label class="field">
-          <span class="field-label">确认密码</span>
-          <input class="input" id="registerConfirmPassword" type="password" placeholder="请再次输入密码">
-        </label>
+      <div class="field-stack field-stack--compact">
+        <div class="register-dialog__grid">
+          <label class="field">
+            <span class="field-label">用户名</span>
+            <input class="input" id="registerUsername" type="text" placeholder="请输入用户名">
+          </label>
+          <label class="field">
+            <span class="field-label">邮箱</span>
+            <input class="input" id="registerEmail" type="email" placeholder="请输入邮箱">
+          </label>
+        </div>
+        <section class="register-dialog__invite">
+          <div class="register-dialog__invite-head">
+            <strong>邀请码</strong>
+            <span>注册成功后可在个人信息里再补充资料</span>
+          </div>
+          <label class="field">
+            <span class="field-label">受邀口令</span>
+            <input class="input" id="registerInviteCode" type="text" placeholder="请输入邀请码">
+          </label>
+        </section>
+        <div class="register-dialog__grid">
+          <label class="field">
+            <span class="field-label">密码</span>
+            <input class="input" id="registerPassword" type="password" placeholder="请输入密码">
+          </label>
+          <label class="field">
+            <span class="field-label">确认密码</span>
+            <input class="input" id="registerConfirmPassword" type="password" placeholder="请再次输入密码">
+          </label>
+        </div>
       </div>
-      <div class="button-row">
+      <div class="button-row register-dialog__actions">
         <button class="btn btn--primary" id="submitRegisterBtn" type="button">确认注册</button>
-        <button class="btn btn--ghost" id="closeRegisterBtn" type="button">关闭</button>
+        <button class="btn btn--ghost" id="closeRegisterBtn" type="button">返回登录</button>
       </div>
     </div>
   `;
@@ -2602,72 +2510,87 @@ function ensureRegisterUi() {
 }
 
 function bindEvents() {
-  $('loginBtn').addEventListener('click', login);
-  $('clearLoginBtn').addEventListener('click', () => {
-    $('loginUsername').value = '';
-    $('loginPassword').value = '';
+  const bind = (id, eventName, handler) => {
+    const node = $(id);
+    if (node) {
+      node.addEventListener(eventName, handler);
+    }
+    return node;
+  };
+
+  bind('loginBtn', 'click', login);
+  bind('clearLoginBtn', 'click', () => {
+    const loginUsername = $('loginUsername');
+    const loginPassword = $('loginPassword');
+    if (loginUsername) {
+      loginUsername.value = '';
+    }
+    if (loginPassword) {
+      loginPassword.value = '';
+    }
     clearLoginError();
   });
-  $('forgotPasswordBtn').addEventListener('click', openForgotPasswordDialog);
-  $('registerBtn').addEventListener('click', openRegisterDialog);
-  $('submitForgotPasswordBtn').addEventListener('click', submitForgotPassword);
-  $('submitRegisterBtn').addEventListener('click', submitRegister);
-  $('closeForgotPasswordBtn').addEventListener('click', closeForgotPasswordDialog);
-  $('closeRegisterBtn').addEventListener('click', closeRegisterDialog);
-  $('loginPassword').addEventListener('keydown', (event) => {
+  bind('forgotPasswordBtn', 'click', openForgotPasswordDialog);
+  bind('registerBtn', 'click', openRegisterDialog);
+  bind('submitForgotPasswordBtn', 'click', submitForgotPassword);
+  bind('submitRegisterBtn', 'click', submitRegister);
+  bind('closeForgotPasswordBtn', 'click', closeForgotPasswordDialog);
+  bind('closeRegisterBtn', 'click', closeRegisterDialog);
+  bind('loginPassword', 'keydown', (event) => {
     if (event.key === 'Enter') {
       login();
     }
   });
-  $('settingsLogoutBtn').addEventListener('click', logout);
+  bind('settingsLogoutBtn', 'click', logout);
 
-  $('modeSwitchBtn').addEventListener('click', openModeSheet);
-  $('closeModeSheetBtn').addEventListener('click', closeModeSheet);
-  $('modeSheet').addEventListener('click', (event) => {
+  bind('modeSwitchBtn', 'click', openModeSheet);
+  bind('closeModeSheetBtn', 'click', closeModeSheet);
+  bind('modeSheet', 'click', (event) => {
     if (event.target === $('modeSheet')) {
       closeModeSheet();
     }
   });
 
-  $('voiceBtn').addEventListener('click', startRecording);
-  $('finishRecordingBtn').addEventListener('click', finishRecording);
-  $('cancelRecordingBtn').addEventListener('click', cancelRecording);
-  $('recordingDialog').addEventListener('click', (event) => {
+  bind('voiceBtn', 'click', startRecording);
+  bind('finishRecordingBtn', 'click', finishRecording);
+  bind('cancelRecordingBtn', 'click', cancelRecording);
+  bind('recordingDialog', 'click', (event) => {
     if (event.target === $('recordingDialog')) {
       cancelRecording();
     }
   });
 
-  $('correctBtn').addEventListener('click', correctText);
-  $('promptBtn').addEventListener('click', generatePrompt);
-  $('inputText').addEventListener('input', () => {
-    if ($('inputText').value.trim() !== state.lastCorrectedText) {
+  bind('correctBtn', 'click', correctText);
+  bind('promptBtn', 'click', generatePrompt);
+  bind('inputText', 'input', () => {
+    const inputText = $('inputText');
+    if (inputText && inputText.value.trim() !== state.lastCorrectedText) {
       clearCorrectionState();
     }
   });
 
-  $('pickImagesBtn').addEventListener('click', () => $('imageInput').click());
-  $('imageInput').addEventListener('change', (event) => {
+  bind('pickImagesBtn', 'click', () => $('imageInput')?.click());
+  bind('imageInput', 'change', (event) => {
     uploadImages(Array.from(event.target.files || []));
     event.target.value = '';
   });
-  $('pickReferenceVideoBtn').addEventListener('click', () => $('referenceVideoInput').click());
-  $('referenceVideoInput').addEventListener('change', (event) => {
+  bind('pickReferenceVideoBtn', 'click', () => $('referenceVideoInput')?.click());
+  bind('referenceVideoInput', 'change', (event) => {
     uploadReferenceVideo(Array.from(event.target.files || [])[0] || null);
     event.target.value = '';
   });
-  $('removeReferenceVideoBtn').addEventListener('click', clearReferenceVideo);
-  $('refreshTemplatesBtn').addEventListener('click', refreshTemplates);
-  $('generateBtn').addEventListener('click', generateVideo);
-  $('playCurrentTaskBtn').addEventListener('click', previewCurrentTask);
-  $('downloadCurrentTaskBtn').addEventListener('click', downloadCurrentTask);
-  $('taskStatusPanel').addEventListener('click', (event) => {
+  bind('removeReferenceVideoBtn', 'click', clearReferenceVideo);
+  bind('refreshTemplatesBtn', 'click', refreshTemplates);
+  bind('generateBtn', 'click', generateVideo);
+  bind('playCurrentTaskBtn', 'click', previewCurrentTask);
+  bind('downloadCurrentTaskBtn', 'click', downloadCurrentTask);
+  bind('taskStatusPanel', 'click', (event) => {
     if (event.target.closest('#playCurrentTaskBtn, #downloadCurrentTaskBtn')) {
       return;
     }
     previewCurrentTask();
   });
-  $('taskStatusPanel').addEventListener('keydown', (event) => {
+  bind('taskStatusPanel', 'keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') {
       return;
     }
@@ -2675,39 +2598,34 @@ function bindEvents() {
     previewCurrentTask();
   });
 
-  $('refreshHistoryBtn').addEventListener('click', () => loadHistory(1));
-  $('clearHistoryBtn').addEventListener('click', clearAllHistory);
+  bind('refreshHistoryBtn', 'click', () => loadHistory(1));
+  document.querySelector('.history-toolbar')?.addEventListener('dblclick', () => loadHistory(1));
+  bind('clearHistoryBtn', 'click', clearAllHistory);
 
-  $('saveProxySettingsBtn').addEventListener('click', saveProxySettings);
-  $('saveAiConfigBtn').addEventListener('click', saveAiConfig);
-  $('refreshAiConfigBtn').addEventListener('click', loadSettingsPage);
-  $('resetAiDefaultsBtn').addEventListener('click', resetAiDefaults);
-  $('editProfileBtn').addEventListener('click', openEditProfileDialog);
-  $('submitProfileBtn').addEventListener('click', submitProfileUpdate);
-  $('closeEditProfileBtn').addEventListener('click', closeEditProfileDialog);
-  $('changePasswordBtn').addEventListener('click', openChangePasswordDialog);
-  $('submitChangePasswordBtn').addEventListener('click', submitChangePassword);
-  $('closeChangePasswordBtn').addEventListener('click', closeChangePasswordDialog);
-  $('refreshProfileBtn').addEventListener('click', async () => {
+  bind('editProfileBtn', 'click', openEditProfileDialog);
+  bind('submitProfileBtn', 'click', submitProfileUpdate);
+  bind('closeEditProfileBtn', 'click', closeEditProfileDialog);
+  bind('changePasswordBtn', 'click', openChangePasswordDialog);
+  bind('submitChangePasswordBtn', 'click', submitChangePassword);
+  bind('closeChangePasswordBtn', 'click', closeChangePasswordDialog);
+  bind('refreshProfileBtn', 'click', async () => {
     try {
       await syncCurrentUserInfo();
       showToast('账号信息已同步。', 'success');
     } catch (_) {
     }
   });
-  $('checkUpdateBtn').addEventListener('click', () => openApkDownload(false));
-
-  $$('[data-settings-section]').forEach((button) => {
-    button.addEventListener('click', () => switchSettingsSection(button.dataset.settingsSection || 'llm'));
-  });
+  bind('checkUpdateBtn', 'click', () => openApkDownload(false));
 
   $$('.tab').forEach((tab) => {
     tab.addEventListener('click', () => switchPage(tab.dataset.page));
   });
 
-  $('closeModalBtn').addEventListener('click', closeModal);
-  $('downloadBtn').addEventListener('click', downloadVideo);
-  $('videoModal').addEventListener('click', (event) => {
+  bind('closeModalBtn', 'click', closeModal);
+  bind('downloadBtn', 'click', downloadVideo);
+  bind('copyWechatGuideBtn', 'click', copyWechatGuideValue);
+  bind('closeWechatGuideBtn', 'click', closeWechatGuide);
+  bind('videoModal', 'click', (event) => {
     if (event.target === $('videoModal')) {
       closeModal();
     }
@@ -2717,6 +2635,7 @@ function bindEvents() {
   bindDialogMaskClose('registerDialog', closeRegisterDialog);
   bindDialogMaskClose('editProfileDialog', closeEditProfileDialog);
   bindDialogMaskClose('changePasswordDialog', closeChangePasswordDialog);
+  bindDialogMaskClose('wechatGuideDialog', closeWechatGuide);
 
   window.addEventListener('beforeunload', () => {
     stopTaskPolling();
@@ -2724,40 +2643,23 @@ function bindEvents() {
   });
 }
 
-function applyRefinedSettingsUx() {
-  const settingsPage = $('page-settings');
-  if (!settingsPage) {
-    return;
-  }
-
-  const heading = settingsPage.querySelector('.page-head h2');
-  const copy = settingsPage.querySelector('.page-head .page-copy');
-  if (heading) {
-    heading.textContent = '应用设置';
-  }
-  if (copy) {
-    copy.textContent = '普通用户仅展示账号与版本信息，服务器地址和 AI 参数由后台统一维护。';
-  }
-
-  const cards = $$('#page-settings > .section-card');
-  const proxyCard = cards.find((card) => card.querySelector('#backendBaseUrl'));
-  const serviceCard = cards.find((card) => card.querySelector('#saveAiConfigBtn'));
-  const accountCard = cards.find((card) => card.querySelector('#settingsLogoutBtn'));
-  if (proxyCard) {
-    proxyCard.remove();
-  }
-  if (serviceCard) {
-    serviceCard.remove();
-  }
-  const accountCopy = accountCard?.querySelector('.section-head p');
-  if (accountCopy) {
-    accountCopy.textContent = '这里仅保留账号相关操作，开发环境配置不对普通用户展示。';
-  }
-}
-
-async function downloadTaskById(taskId, filenamePrefix = '拾光视频') {
+async function downloadTaskById(taskId, filenamePrefix = '拾光视频', fallbackUrl = '') {
   if (!taskId) {
     throw new Error('当前没有可下载的视频。');
+  }
+  if (interceptWeChatDownload({
+    title: '微信内无法直接下载视频',
+    subtitle: '请点击右上角“…”后选择“在浏览器打开”，再继续下载视频。',
+    copyValue: fallbackUrl || window.location.href,
+    copyLabel: fallbackUrl ? '视频地址' : '当前页面地址',
+    copyTip: fallbackUrl
+      ? '复制后可在系统浏览器中直接打开视频地址。'
+      : '复制后请在系统浏览器中打开页面并重新登录后下载。',
+    copySuccessText: fallbackUrl
+      ? '视频地址已复制，请到系统浏览器中打开'
+      : '页面地址已复制，请到系统浏览器中打开',
+  })) {
+    return false;
   }
   const filename = `${filenamePrefix}_${Date.now()}.mp4`;
   const response = await fetch(`/api/history/${encodeURIComponent(taskId)}/download`, {
@@ -2778,7 +2680,7 @@ async function downloadTaskById(taskId, filenamePrefix = '拾光视频') {
     if (response.status === 401) {
       handleUnauthorized();
     }
-    throw new Error(payload.error || payload.message || '下载视频失败。');
+    throw new Error(extractPayloadMessage(payload, '下载视频失败。'));
   }
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
@@ -2787,6 +2689,7 @@ async function downloadTaskById(taskId, filenamePrefix = '拾光视频') {
   link.download = filename;
   link.click();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  return true;
 }
 
 async function retryTask(taskId) {
@@ -2820,19 +2723,19 @@ async function retryCurrentTask() {
     }
     showToast('已重新提交任务。', 'success');
   } catch (error) {
-    showToast(error.message || '重新生成失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '重新生成失败。'), 'error');
   }
 }
 
 async function downloadVideo() {
   try {
     if (state.currentVideoTaskId) {
-      await downloadTaskById(state.currentVideoTaskId, '拾光视频');
+      await downloadTaskById(state.currentVideoTaskId, '拾光视频', state.currentVideoUrl || '');
       return;
     }
     await downloadVideoByProxy(state.currentVideoUrl, '拾光视频');
   } catch (error) {
-    showToast(error.message || '下载视频失败。', 'error');
+    showToast(sanitizeUiMessage(error.message, '下载视频失败。'), 'error');
   }
 }
 
@@ -2877,10 +2780,16 @@ function renderHistory(records, totalPages) {
   $$('[data-download-task]').forEach((node) => {
     node.addEventListener('click', async () => {
       try {
-        await downloadTaskById(node.dataset.downloadTask || '', '历史视频');
-        showToast('视频已开始下载。', 'success');
+        const started = await downloadTaskById(
+          node.dataset.downloadTask || '',
+          '历史视频',
+          node.closest('.history-item')?.querySelector('[data-play-video]')?.dataset.playVideo || '',
+        );
+        if (started) {
+          showToast('视频已开始下载。', 'success');
+        }
       } catch (error) {
-        showToast(error.message || '下载视频失败。', 'error');
+        showToast(sanitizeUiMessage(error.message, '下载视频失败。'), 'error');
       }
     });
   });
@@ -2891,7 +2800,7 @@ function renderHistory(records, totalPages) {
         showToast('已重新提交任务。', 'success');
         await loadHistory(state.historyPage);
       } catch (error) {
-        showToast(error.message || '重新生成失败。', 'error');
+        showToast(sanitizeUiMessage(error.message, '重新生成失败。'), 'error');
       }
     });
   });
@@ -2923,14 +2832,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderHistorySummary();
   renderVersionInfo();
   renderCreatePage();
-  fillAiConfigForm(DEFAULT_AI_CONFIG);
-  switchSettingsSection('llm');
-  applySpeechUxCopy();
-  applyRefinedSettingsUx();
   ensureRecordingDialogExtras();
   updateRecordingDialog();
   showTranscribeState(false);
-  await loadProxySettings();
   const restored = await restoreLogin();
   if (!restored) {
     showLoginShell();

@@ -163,7 +163,8 @@ class _BasicInfoCard extends StatelessWidget {
             Divider(color: Theme.of(context).colorScheme.outlineVariant),
             _InfoRow(
               label: '手机号',
-              value: user?.phone.trim().isNotEmpty == true ? user!.phone : '未设置',
+              value:
+                  user?.phone.trim().isNotEmpty == true ? user!.phone : '未设置',
             ),
             Divider(color: Theme.of(context).colorScheme.outlineVariant),
             _InfoRow(
@@ -172,8 +173,18 @@ class _BasicInfoCard extends StatelessWidget {
               onTap: controller.isCheckingUpdate.value
                   ? null
                   : controller.checkForUpdates,
-              trailing:
-                  controller.isCheckingUpdate.value ? '检查中...' : '检查更新',
+              trailing: controller.isCheckingUpdate.value ? '检查中...' : '检查更新',
+            ),
+            Divider(color: Theme.of(context).colorScheme.outlineVariant),
+            _InfoRow(
+              label: '下载管理',
+              value: controller.downloadManager.downloadingCount > 0
+                  ? '正在下载 ${controller.downloadManager.downloadingCount} 项'
+                  : (controller.downloadManager.completedCount > 0
+                      ? '已完成 ${controller.downloadManager.completedCount} 项'
+                      : '查看本地下载视频'),
+              onTap: controller.openDownloadManager,
+              trailing: '查看',
             ),
             const SizedBox(height: 16),
             PrimaryButton.outline(

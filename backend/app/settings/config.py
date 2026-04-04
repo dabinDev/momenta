@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     )
 
     VERSION: str = "0.1.0"
-    APP_TITLE: str = "Vue FastAPI Admin"
-    PROJECT_NAME: str = "Vue FastAPI Admin"
-    APP_DESCRIPTION: str = "Description"
+    APP_TITLE: str = "拾光视频服务端"
+    PROJECT_NAME: str = "拾光视频"
+    APP_DESCRIPTION: str = "统一为 App、H5 与管理后台提供认证、创作、任务、模型、版本发布与运营能力的后端服务。"
 
     CORS_ORIGINS: typing.List = ["*"]
     CORS_ALLOW_CREDENTIALS: bool = True

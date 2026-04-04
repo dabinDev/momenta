@@ -24,7 +24,7 @@ from app.services.local_media import LocalMediaError
 from app.services.video_gateway import VideoGatewayError
 from app.settings.config import settings
 
-router = APIRouter(tags=["App Tasks"])
+router = APIRouter(tags=["创作任务"])
 
 
 def _resolve_video_url(raw_url: str) -> str:

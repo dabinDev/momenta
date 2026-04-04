@@ -1,5 +1,5 @@
 <script setup>
-import { computed, h, onMounted, ref, resolveDirective, withDirectives } from 'vue'
+import { computed, h, onMounted, ref, resolveDirective, watch, withDirectives } from 'vue'
 import {
   NButton,
   NForm,
@@ -67,7 +67,7 @@ const {
   name: '版本',
   initForm: {
     platform: 'android',
-    channel: 'public',
+    channel: 'lan',
     version_name: '',
     build_number: 1,
     title: '',
@@ -335,11 +335,32 @@ function normalizeModalForm() {
 function openCreateModal() {
   handleAdd()
   modalForm.value.platform = 'android'
-  modalForm.value.channel = 'public'
-  modalForm.value.build_number = 1
+  modalForm.value.channel = 'lan'
+  modalForm.value.build_number = getNextBuildNumber('android', 'lan')
   modalForm.value.force_update = false
   modalForm.value.is_active = true
 }
+
+function getNextBuildNumber(platform = 'android', channel = 'lan') {
+  const builds = tableRows.value
+    .filter(item => item.platform === platform && item.channel === channel)
+    .map(item => Number(item.build_number || 0))
+    .filter(item => Number.isFinite(item) && item > 0)
+  return builds.length ? Math.max(...builds) + 1 : 1
+}
+
+watch(
+  () => [modalAction.value, modalForm.value.platform, modalForm.value.channel],
+  ([action, platform, channel], [prevAction, prevPlatform, prevChannel] = []) => {
+    if (action !== 'add') {
+      return
+    }
+    if (platform === prevPlatform && channel === prevChannel && prevAction === action) {
+      return
+    }
+    modalForm.value.build_number = getNextBuildNumber(platform || 'android', channel || 'lan')
+  }
+)
 
 function openEditModal(row) {
   handleEdit(row)
@@ -363,7 +384,7 @@ function handleModalSave() {
     <template #header>
       <div class="release-page__header">
         <div class="release-page__header-copy">
-          <p class="release-page__eyebrow">APP RELEASES</p>
+          <p class="release-page__eyebrow">版本发布</p>
           <h2>版本发布</h2>
           <p>
             在 Web 管理端统一维护 App 的版本号、下载地址、更新说明和强制更新策略。
@@ -485,7 +506,7 @@ function handleModalSave() {
             />
           </NFormItem>
           <NFormItem label="版本号" path="version_name">
-            <NInput v-model:value="modalForm.version_name" placeholder="例如 1.1.0" />
+            <NInput v-model:value="modalForm.version_name" placeholder="例如 1.2.0" />
           </NFormItem>
           <NFormItem label="构建号" path="build_number">
             <NInputNumber
@@ -497,12 +518,12 @@ function handleModalSave() {
             />
           </NFormItem>
           <NFormItem label="版本标题" path="title">
-            <NInput v-model:value="modalForm.title" placeholder="例如 v1.1 正式版" />
+            <NInput v-model:value="modalForm.title" placeholder="例如 V1.2.0 正式版" />
           </NFormItem>
           <NFormItem label="下载地址" path="download_url">
             <NInput
               v-model:value="modalForm.download_url"
-              placeholder="例如 https://memovideos.cn/file/v1.1.apk"
+              placeholder="例如 https://memovideos.cn/file/V1.2.0.apk"
             />
           </NFormItem>
           <NFormItem label="更新说明" path="release_notes">

@@ -3,52 +3,82 @@ import { basicRoutes, vueModules } from '@/router/routes'
 import Layout from '@/layout/index.vue'
 import api from '@/api'
 
-// * 后端路由相关函数
-// 根据后端传来数据构建出前端路由
+function normalizePath(path = '') {
+  const value = String(path || '').trim()
+  if (!value) {
+    return '/'
+  }
+  return value.startsWith('/') ? value : `/${value}`
+}
+
+function joinRoutePath(basePath = '/', childPath = '') {
+  const base = normalizePath(basePath)
+  const child = String(childPath || '').trim()
+  if (!child) {
+    return base
+  }
+  if (child.startsWith('/')) {
+    return child
+  }
+  return `${base.replace(/\/+$/, '')}/${child.replace(/^\/+/, '')}`
+}
+
+function buildRouteName(fullPath = '/') {
+  const normalized = normalizePath(fullPath)
+  const slug = normalized
+    .replace(/^\/+/, '')
+    .replace(/[^\w]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return `route_${slug || 'root'}`
+}
 
 function buildRoutes(routes = []) {
-  return routes.map((e) => {
+  return routes.map((item) => {
+    const parentPath = normalizePath(item.path)
     const route = {
-      name: e.name,
-      path: e.path,
+      name: buildRouteName(parentPath),
+      path: parentPath,
       component: shallowRef(Layout),
-      isHidden: e.is_hidden,
-      redirect: e.redirect,
+      isHidden: item.is_hidden,
+      redirect: item.redirect || undefined,
       meta: {
-        title: e.name,
-        icon: e.icon,
-        order: e.order,
-        keepAlive: e.keepalive,
+        title: item.name,
+        icon: item.icon,
+        order: item.order,
+        keepAlive: item.keepalive,
       },
       children: [],
     }
 
-    if (e.children && e.children.length > 0) {
-      // 有子菜单
-      route.children = e.children.map((e_child) => ({
-        name: e_child.name,
-        path: e_child.path,
-        component: vueModules[`/src/views${e_child.component}/index.vue`],
-        isHidden: e_child.is_hidden,
-        meta: {
-          title: e_child.name,
-          icon: e_child.icon,
-          order: e_child.order,
-          keepAlive: e_child.keepalive,
-        },
-      }))
+    if (item.children && item.children.length > 0) {
+      route.children = item.children.map((child) => {
+        const fullPath = joinRoutePath(parentPath, child.path)
+        return {
+          name: buildRouteName(fullPath),
+          path: child.path,
+          component: vueModules[`/src/views${child.component}/index.vue`],
+          isHidden: child.is_hidden,
+          meta: {
+            title: child.name,
+            icon: child.icon,
+            order: child.order,
+            keepAlive: child.keepalive,
+            activeMenu: fullPath,
+          },
+        }
+      })
     } else {
-      // 没有子菜单，创建一个默认的子路由
       route.children.push({
-        name: `${e.name}Default`,
+        name: buildRouteName(`${parentPath}/index`),
         path: '',
-        component: vueModules[`/src/views${e.component}/index.vue`],
+        component: vueModules[`/src/views${item.component}/index.vue`],
         isHidden: true,
         meta: {
-          title: e.name,
-          icon: e.icon,
-          order: e.order,
-          keepAlive: e.keepalive,
+          title: item.name,
+          icon: item.icon,
+          order: item.order,
+          keepAlive: item.keepalive,
+          activeMenu: parentPath,
         },
       })
     }
@@ -69,7 +99,7 @@ export const usePermissionStore = defineStore('permission', {
       return basicRoutes.concat(this.accessRoutes)
     },
     menus() {
-      return this.routes.filter((route) => route.name && !route.isHidden)
+      return this.routes.filter((route) => route.path && route.name && !route.isHidden)
     },
     apis() {
       return this.accessApis
@@ -77,8 +107,8 @@ export const usePermissionStore = defineStore('permission', {
   },
   actions: {
     async generateRoutes() {
-      const res = await api.getUserMenu() // 调用接口获取后端传来的菜单路由
-      this.accessRoutes = buildRoutes(res.data) // 处理成前端路由格式
+      const res = await api.getUserMenu()
+      this.accessRoutes = buildRoutes(res.data || [])
       return this.accessRoutes
     },
     async getAccessApis() {

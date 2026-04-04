@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from tortoise import Tortoise
 
 from app.core.exceptions import SettingNotFound
+from app.core.openapi import INFO_DESCRIPTION, INFO_TITLE, apply_custom_openapi
 from app.core.init_app import (
     init_data,
     make_middlewares,
@@ -31,14 +32,22 @@ def create_app() -> FastAPI:
     local_media_service.ensure_root()
     Path(settings.MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
 
+    app_title = settings.APP_TITLE if settings.APP_TITLE and settings.APP_TITLE != "Vue FastAPI Admin" else INFO_TITLE
+    app_description = (
+        settings.APP_DESCRIPTION
+        if settings.APP_DESCRIPTION and settings.APP_DESCRIPTION != "Description"
+        else INFO_DESCRIPTION
+    )
+
     app = FastAPI(
-        title=settings.APP_TITLE,
-        description=settings.APP_DESCRIPTION,
+        title=app_title,
+        description=app_description,
         version=settings.VERSION,
         openapi_url="/openapi.json",
         middleware=make_middlewares(),
         lifespan=lifespan,
     )
+    apply_custom_openapi(app)
     register_exceptions(app)
     register_routers(app, prefix="/api")
     app.mount("/media", StaticFiles(directory=settings.MEDIA_ROOT), name="media")

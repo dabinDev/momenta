@@ -57,10 +57,6 @@ function loadConfig() {
   }
 }
 
-function saveConfig(nextConfig) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(nextConfig, null, 2));
-}
-
 function normalizeBaseUrl(value) {
   return String(value || DEFAULT_CONFIG.backendBaseUrl).trim().replace(/\/+$/, '');
 }
@@ -120,34 +116,77 @@ function unwrapEnvelope(payload) {
   return payload;
 }
 
+function normalizeMessage(message, fallback) {
+  const text = String(message || '').trim();
+  if (!text || text.startsWith('{') || text.startsWith('[') || text === '[object Object]') {
+    return fallback;
+  }
+  return text;
+}
+
+function readSuccessMessage(payload, fallback = '操作成功') {
+  if (payload && typeof payload === 'object') {
+    for (const key of ['msg', 'message']) {
+      if (payload[key]) {
+        return normalizeMessage(payload[key], fallback);
+      }
+    }
+  }
+  return fallback;
+}
+
 function readErrorMessage(payload, fallback) {
   if (payload && typeof payload === 'object') {
     for (const key of ['msg', 'message', 'detail', 'error']) {
       if (payload[key]) {
-        return String(payload[key]);
+        return normalizeMessage(payload[key], fallback);
       }
     }
   }
   const data = unwrapEnvelope(payload);
   if (typeof data === 'string' && data.trim()) {
-    return data.trim();
+    return normalizeMessage(data.trim(), fallback);
   }
   if (data && typeof data === 'object') {
     const error = data.error;
     if (error && typeof error === 'object') {
       for (const key of ['message', 'detail', 'code']) {
         if (error[key]) {
-          return String(error[key]);
+          return normalizeMessage(error[key], fallback);
         }
       }
     }
     for (const key of ['detail', 'msg', 'message', 'error']) {
       if (data[key]) {
-        return String(data[key]);
+        return normalizeMessage(data[key], fallback);
       }
     }
   }
   return fallback;
+}
+
+function sendSuccess(res, data = null, msg = '操作成功', code = 200) {
+  return res.status(code).json({
+    success: true,
+    code,
+    msg: normalizeMessage(msg, '操作成功'),
+    data,
+    error: null,
+  });
+}
+
+function sendFail(res, code = 400, msg = '请求失败', data = null) {
+  const message = normalizeMessage(msg, '请求失败');
+  return res.status(code).json({
+    success: false,
+    code,
+    msg: message,
+    data,
+    error: {
+      code,
+      message,
+    },
+  });
 }
 
 function resolvePublicUrl(rawUrl) {
@@ -236,10 +275,7 @@ function normalizeTask(task) {
 
 function requireToken(req, res, next) {
   if (!readToken(req)) {
-    return res.status(401).json({
-      success: false,
-      error: '请先登录后再继续使用。',
-    });
+    return sendFail(res, 401, '请先登录后再继续使用。');
   }
   return next();
 }
@@ -266,95 +302,30 @@ async function proxyJsonRequest(req, res, options) {
     });
     const result = await readResponsePayload(response);
     if (!result.ok) {
-      return res.status(result.status).json({
-        success: false,
-        error: readErrorMessage(result.payload, fallbackError),
-      });
+      return sendFail(res, result.status, readErrorMessage(result.payload, fallbackError));
     }
 
+    const mappedData = typeof successMapper === 'function'
+      ? successMapper(result.payload)
+      : unwrapEnvelope(result.payload);
+
+    const successMessage = readSuccessMessage(result.payload, '操作成功');
     if (typeof successMapper === 'function') {
-      return res.json(successMapper(result.payload));
+      return sendSuccess(res, mappedData, successMessage);
     }
 
-    return res.json({
-      success: true,
-      data: unwrapEnvelope(result.payload),
-    });
+    return sendSuccess(res, mappedData, successMessage);
   } catch (error) {
-    return res.status(502).json({
-      success: false,
-      error: error.message || fallbackError,
-    });
+    return sendFail(res, 502, error.message || fallbackError);
   }
 }
-
-app.get('/api/proxy-config', (req, res) => {
-  const config = loadConfig();
-  res.json({
-    success: true,
-    backendBaseUrl: normalizeBaseUrl(config.backendBaseUrl),
-  });
-});
-
-app.post('/api/proxy-config', (req, res) => {
-  const nextConfig = {
-    ...DEFAULT_CONFIG,
-    ...loadConfig(),
-  };
-  if (req.body && req.body.backendBaseUrl) {
-    nextConfig.backendBaseUrl = normalizeBaseUrl(req.body.backendBaseUrl);
-  }
-  saveConfig(nextConfig);
-  res.json({
-    success: true,
-    backendBaseUrl: nextConfig.backendBaseUrl,
-  });
-});
-
-app.get('/api/config', requireToken, (req, res) =>
-  proxyJsonRequest(req, res, {
-    targetPath: '/api/config',
-    successMapper: (payload) => ({
-      success: true,
-      ...(unwrapEnvelope(payload) || {}),
-    }),
-    fallbackError: '读取 AI 配置失败',
-  })
-);
-
-app.post('/api/config', requireToken, (req, res) =>
-  proxyJsonRequest(req, res, {
-    method: 'POST',
-    targetPath: '/api/config',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      llmBaseUrl: String(req.body?.llmBaseUrl || '').trim(),
-      llmApiKey: String(req.body?.llmApiKey || '').trim(),
-      llmModel: String(req.body?.llmModel || '').trim(),
-      videoBaseUrl: String(req.body?.videoBaseUrl || '').trim(),
-      videoApiKey: String(req.body?.videoApiKey || '').trim(),
-      videoModel: String(req.body?.videoModel || '').trim(),
-      speechBaseUrl: String(req.body?.speechBaseUrl || '').trim(),
-      speechApiKey: String(req.body?.speechApiKey || '').trim(),
-      speechModel: String(req.body?.speechModel || '').trim(),
-    }),
-    successMapper: (payload) => ({
-      success: true,
-      ...(unwrapEnvelope(payload) || {}),
-    }),
-    fallbackError: '保存 AI 配置失败',
-  })
-);
 
 app.post('/api/auth/login', async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '').trim();
 
   if (!username || !password) {
-    return res.status(400).json({
-      success: false,
-      error: '请输入账号和密码。',
-    });
+    return sendFail(res, 400, '请输入账号和密码。');
   }
 
   try {
@@ -367,19 +338,13 @@ app.post('/api/auth/login', async (req, res) => {
     });
     const loginResult = await readResponsePayload(loginResponse);
     if (!loginResult.ok) {
-      return res.status(loginResult.status).json({
-        success: false,
-        error: readErrorMessage(loginResult.payload, '登录失败'),
-      });
+      return sendFail(res, loginResult.status, readErrorMessage(loginResult.payload, '登录失败'));
     }
 
     const session = unwrapEnvelope(loginResult.payload) || {};
     const accessToken = String(session.access_token || '').trim();
     if (!accessToken) {
-      return res.status(502).json({
-        success: false,
-        error: '登录接口未返回有效 token。',
-      });
+      return sendFail(res, 502, '登录接口未返回有效 token。');
     }
 
     let user = null;
@@ -398,17 +363,13 @@ app.post('/api/auth/login', async (req, res) => {
       user = null;
     }
 
-    return res.json({
-      success: true,
+    return sendSuccess(res, {
       accessToken,
       username: String(session.username || username),
       user,
-    });
+    }, readSuccessMessage(loginResult.payload, '登录成功'));
   } catch (error) {
-    return res.status(502).json({
-      success: false,
-      error: error.message || '登录失败',
-    });
+    return sendFail(res, 502, error.message || '登录失败');
   }
 });
 
@@ -421,10 +382,7 @@ app.post('/api/auth/register', async (req, res) => {
   const phone = String(req.body?.phone || '').trim();
 
   if (!username || !email || !password || !inviteCode) {
-    return res.status(400).json({
-      success: false,
-      error: '请完整填写用户名、邮箱、密码和邀请码。',
-    });
+    return sendFail(res, 400, '请完整填写用户名、邮箱、密码和邀请码。');
   }
 
   return proxyJsonRequest(req, res, {
@@ -440,11 +398,7 @@ app.post('/api/auth/register', async (req, res) => {
       ...(alias ? { alias } : {}),
       ...(phone ? { phone } : {}),
     }),
-    successMapper: (payload) => ({
-      success: true,
-      data: unwrapEnvelope(payload) || {},
-      message: readErrorMessage(payload, '注册成功'),
-    }),
+    successMapper: (payload) => unwrapEnvelope(payload) || {},
     fallbackError: '注册失败',
   });
 });
@@ -453,7 +407,6 @@ app.get('/api/auth/me', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     targetPath: '/api/v1/base/userinfo',
     successMapper: (payload) => ({
-      success: true,
       user: unwrapEnvelope(payload),
     }),
     fallbackError: '获取用户信息失败',
@@ -466,10 +419,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   const newPassword = String(req.body?.newPassword || '').trim();
 
   if (!username || !email || !newPassword) {
-    return res.status(400).json({
-      success: false,
-      error: '请完整填写账号、邮箱和新密码。',
-    });
+    return sendFail(res, 400, '请完整填写账号、邮箱和新密码。');
   }
 
   return proxyJsonRequest(req, res, {
@@ -482,10 +432,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       email,
       new_password: newPassword,
     }),
-    successMapper: (payload) => ({
-      success: true,
-      message: readErrorMessage(payload, '密码已重置'),
-    }),
+    successMapper: () => ({}),
     fallbackError: '重置密码失败',
   });
 });
@@ -495,10 +442,7 @@ app.post('/api/auth/change-password', requireToken, (req, res) => {
   const newPassword = String(req.body?.newPassword || '').trim();
 
   if (!oldPassword || !newPassword) {
-    return res.status(400).json({
-      success: false,
-      error: '请完整填写旧密码和新密码。',
-    });
+    return sendFail(res, 400, '请完整填写旧密码和新密码。');
   }
 
   return proxyJsonRequest(req, res, {
@@ -509,10 +453,7 @@ app.post('/api/auth/change-password', requireToken, (req, res) => {
       old_password: oldPassword,
       new_password: newPassword,
     }),
-    successMapper: (payload) => ({
-      success: true,
-      message: readErrorMessage(payload, '密码修改成功'),
-    }),
+    successMapper: () => ({}),
     fallbackError: '修改密码失败',
   });
 });
@@ -528,7 +469,6 @@ app.post('/api/auth/update-profile', requireToken, (req, res) =>
       phone: String(req.body?.phone || '').trim(),
     }),
     successMapper: (payload) => ({
-      success: true,
       user: unwrapEnvelope(payload),
     }),
     fallbackError: '更新资料失败',
@@ -536,14 +476,13 @@ app.post('/api/auth/update-profile', requireToken, (req, res) =>
 );
 
 app.post('/api/auth/logout', (req, res) => {
-  res.json({ success: true });
+  return sendSuccess(res, {}, '已退出登录');
 });
 
 app.get('/api/create-workbench', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     targetPath: '/api/create-workbench',
     successMapper: (payload) => ({
-      success: true,
       workbench: unwrapEnvelope(payload),
     }),
     fallbackError: '读取创作配置失败',
@@ -554,7 +493,6 @@ app.get('/api/prompt-templates', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     targetPath: '/api/prompt-templates',
     successMapper: (payload) => ({
-      success: true,
       items: unwrapEnvelope(payload)?.items || [],
     }),
     fallbackError: '读取提示词模板失败',
@@ -565,7 +503,6 @@ app.get('/api/video-templates', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     targetPath: '/api/video-templates',
     successMapper: (payload) => ({
-      success: true,
       items: unwrapEnvelope(payload)?.items || [],
     }),
     fallbackError: '读取视频模板失败',
@@ -574,10 +511,7 @@ app.get('/api/video-templates', requireToken, (req, res) =>
 
 app.post('/api/upload-images', requireToken, upload.array('images', 3), async (req, res) => {
   if (!req.files || !req.files.length) {
-    return res.status(400).json({
-      success: false,
-      error: '请先选择图片。',
-    });
+    return sendFail(res, 400, '请先选择图片。');
   }
 
   const form = new FormData();
@@ -594,7 +528,6 @@ app.post('/api/upload-images', requireToken, upload.array('images', 3), async (r
     headers: form.getHeaders(),
     body: form,
     successMapper: (payload) => ({
-      success: true,
       files: normalizeUploadedFiles(payload),
     }),
     fallbackError: '上传图片失败',
@@ -603,10 +536,7 @@ app.post('/api/upload-images', requireToken, upload.array('images', 3), async (r
 
 app.post('/api/upload-reference-video', requireToken, upload.single('video'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      error: '请先选择参考视频。',
-    });
+    return sendFail(res, 400, '请先选择参考视频。');
   }
 
   const form = new FormData();
@@ -623,7 +553,6 @@ app.post('/api/upload-reference-video', requireToken, upload.single('video'), as
     successMapper: (payload) => {
       const data = unwrapEnvelope(payload) || {};
       return {
-        success: true,
         file: {
           url: resolvePublicUrl(data.url || data.path || ''),
           name: String(data.name || 'reference.mp4'),
@@ -643,7 +572,6 @@ app.post('/api/correct-text', requireToken, (req, res) =>
     successMapper: (payload) => {
       const data = unwrapEnvelope(payload) || {};
       return {
-        success: true,
         text: String(data.text || data.result || data.content || '').trim(),
       };
     },
@@ -660,7 +588,6 @@ app.post('/api/_unused/polish-text', requireToken, (req, res) =>
     successMapper: (payload) => {
       const data = unwrapEnvelope(payload) || {};
       return {
-        success: true,
         text: String(data.text || data.result || data.content || '').trim(),
       };
     },
@@ -682,7 +609,6 @@ app.post('/api/generate-prompt', requireToken, (req, res) =>
     successMapper: (payload) => {
       const data = unwrapEnvelope(payload) || {};
       return {
-        success: true,
         prompt: String(data.prompt || data.text || data.result || '').trim(),
       };
     },
@@ -692,10 +618,7 @@ app.post('/api/generate-prompt', requireToken, (req, res) =>
 
 app.post('/api/speech-to-text', requireToken, upload.single('audio'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      error: '请先选择音频文件。',
-    });
+    return sendFail(res, 400, '请先选择音频文件。');
   }
 
   const form = new FormData();
@@ -712,7 +635,6 @@ app.post('/api/speech-to-text', requireToken, upload.single('audio'), async (req
     successMapper: (payload) => {
       const data = unwrapEnvelope(payload) || {};
       return {
-        success: true,
         text: String(data.text || '').trim(),
       };
     },
@@ -781,7 +703,6 @@ app.post('/api/generate-video', requireToken, (req, res) => {
     successMapper: (responsePayload) => {
       const task = unwrapEnvelope(responsePayload) || {};
       return {
-        success: true,
         record: normalizeTask(task),
       };
     },
@@ -795,7 +716,6 @@ app.get('/api/video-status/:id', requireToken, (req, res) =>
     successMapper: (payload) => {
       const task = unwrapEnvelope(payload) || {};
       return {
-        success: true,
         record: normalizeTask(task),
       };
     },
@@ -810,7 +730,6 @@ app.post('/api/history/:id/retry', requireToken, (req, res) =>
     successMapper: (payload) => {
       const task = unwrapEnvelope(payload) || {};
       return {
-        success: true,
         record: normalizeTask(task),
       };
     },
@@ -821,7 +740,7 @@ app.post('/api/history/:id/retry', requireToken, (req, res) =>
 app.get('/api/history/:id/download', requireToken, async (req, res) => {
   const taskId = String(req.params.id || '').trim();
   if (!taskId) {
-    return res.status(400).json({ success: false, error: '缺少任务编号' });
+    return sendFail(res, 400, '缺少任务编号');
   }
 
   const targetUrl = buildBackendUrl(`/api/tasks/${encodeURIComponent(taskId)}/download`);
@@ -831,10 +750,7 @@ app.get('/api/history/:id/download', requireToken, async (req, res) => {
     });
     if (!response.ok) {
       const result = await readResponsePayload(response);
-      return res.status(result.status).json({
-        success: false,
-        error: readErrorMessage(result.payload, '下载视频失败'),
-      });
+      return sendFail(res, result.status, readErrorMessage(result.payload, '下载视频失败'));
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -850,10 +766,7 @@ app.get('/api/history/:id/download', requireToken, async (req, res) => {
     }
     response.body.pipe(res);
   } catch (error) {
-    return res.status(502).json({
-      success: false,
-      error: error.message || '下载视频失败',
-    });
+    return sendFail(res, 502, error.message || '下载视频失败');
   }
 });
 
@@ -876,7 +789,6 @@ app.get('/api/history', requireToken, (req, res) => {
         : [];
       const total = Number(data.total || records.length);
       return {
-        success: true,
         records,
         total,
         page,
@@ -891,7 +803,6 @@ app.get('/api/history-summary', requireToken, (req, res) =>
   proxyJsonRequest(req, res, {
     targetPath: '/api/tasks/summary',
     successMapper: (payload) => ({
-      success: true,
       summary: unwrapEnvelope(payload) || {},
     }),
     fallbackError: '读取历史统计失败',
@@ -903,9 +814,7 @@ app.delete('/api/history', requireToken, (req, res) =>
     method: 'DELETE',
     // The backend only soft-deletes local history rows and does not delete upstream provider tasks.
     targetPath: '/api/tasks',
-    successMapper: () => ({
-      success: true,
-    }),
+    successMapper: () => ({}),
     fallbackError: '清空记录失败',
   })
 );
@@ -915,9 +824,7 @@ app.delete('/api/history/:id', requireToken, (req, res) =>
     method: 'DELETE',
     // The backend only soft-deletes local history rows and does not delete upstream provider tasks.
     targetPath: `/api/tasks/${encodeURIComponent(req.params.id)}`,
-    successMapper: () => ({
-      success: true,
-    }),
+    successMapper: () => ({}),
     fallbackError: '删除记录失败',
   })
 );
@@ -934,7 +841,6 @@ app.get('/api/app-release/latest', (req, res) => {
     targetPath: `/api/app/releases/latest?${query.toString()}`,
     auth: false,
     successMapper: (payload) => ({
-      success: true,
       info: unwrapEnvelope(payload) || {},
     }),
     fallbackError: '检查版本失败',
@@ -945,10 +851,7 @@ app.get('/api/download-video', requireToken, async (req, res) => {
   const rawUrl = String(req.query.url || '').trim();
   const targetUrl = resolvePublicUrl(rawUrl);
   if (!targetUrl) {
-    return res.status(400).json({
-      success: false,
-      error: '缺少可下载的视频地址。',
-    });
+    return sendFail(res, 400, '缺少可下载的视频地址。');
   }
 
   const filename = sanitizeDownloadFilename(
@@ -962,10 +865,7 @@ app.get('/api/download-video', requireToken, async (req, res) => {
     });
     if (!response.ok) {
       const result = await readResponsePayload(response);
-      return res.status(response.status).json({
-        success: false,
-        error: readErrorMessage(result.payload, '下载视频失败'),
-      });
+      return sendFail(res, response.status, readErrorMessage(result.payload, '下载视频失败'));
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -978,10 +878,7 @@ app.get('/api/download-video', requireToken, async (req, res) => {
     response.body.pipe(res);
     return undefined;
   } catch (error) {
-    return res.status(502).json({
-      success: false,
-      error: error.message || '下载视频失败',
-    });
+    return sendFail(res, 502, error.message || '下载视频失败');
   }
 });
 

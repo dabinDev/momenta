@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../app/routes.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/utils/snackbar_helper.dart';
+import 'invite_code_scanner_page.dart';
 import 'auth_controller.dart';
 
 class RegisterController extends GetxController {
@@ -13,8 +14,6 @@ class RegisterController extends GetxController {
 
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
-  final TextEditingController aliasController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
   final TextEditingController inviteCodeController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
@@ -22,11 +21,22 @@ class RegisterController extends GetxController {
   final RxBool isSubmitting = false.obs;
 
   @override
+  void onInit() {
+    super.onInit();
+    final Map<String, dynamic>? arguments = Get.arguments is Map<String, dynamic>
+        ? Get.arguments as Map<String, dynamic>
+        : null;
+    final String inviteCode =
+        (arguments?['inviteCode'] as String?)?.trim() ?? '';
+    if (inviteCode.isNotEmpty) {
+      inviteCodeController.text = inviteCode;
+    }
+  }
+
+  @override
   void onClose() {
     usernameController.dispose();
     emailController.dispose();
-    aliasController.dispose();
-    phoneController.dispose();
     inviteCodeController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
@@ -36,8 +46,6 @@ class RegisterController extends GetxController {
   Future<void> submit() async {
     final String username = usernameController.text.trim();
     final String email = emailController.text.trim();
-    final String alias = aliasController.text.trim();
-    final String phone = phoneController.text.trim();
     final String inviteCode = inviteCodeController.text.trim();
     final String password = passwordController.text.trim();
     final String confirmPassword = confirmPasswordController.text.trim();
@@ -62,8 +70,6 @@ class RegisterController extends GetxController {
         email: email,
         password: password,
         inviteCode: inviteCode,
-        alias: alias.isEmpty ? null : alias,
-        phone: phone.isEmpty ? null : phone,
       );
       SnackbarHelper.success('注册成功，请使用新账号登录');
       Get.offNamed(
@@ -74,6 +80,14 @@ class RegisterController extends GetxController {
       SnackbarHelper.error(_readError(error, fallback: '注册失败'));
     } finally {
       isSubmitting.value = false;
+    }
+  }
+
+  Future<void> openInviteScanner() async {
+    final String? scannedCode = await Get.to<String>(() => const InviteCodeScannerPage());
+    if (scannedCode != null && scannedCode.trim().isNotEmpty) {
+      inviteCodeController.text = scannedCode.trim();
+      SnackbarHelper.success('邀请码已自动填入');
     }
   }
 

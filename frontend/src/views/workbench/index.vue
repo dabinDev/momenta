@@ -134,25 +134,25 @@ const roleNames = computed(() => (userStore.role || []).map(item => item.name).f
 
 const quickActions = [
   {
-    to: '/system/user',
+    to: '/access/user',
     label: '用户管理',
     desc: '账号、停用与密码重置',
     icon: 'material-symbols:group-outline-rounded',
   },
   {
-    to: '/system/task',
+    to: '/operation/task',
     label: '视频任务',
     desc: '查看任务状态与失败原因',
     icon: 'material-symbols:movie-outline-rounded',
   },
   {
-    to: '/system/voice-log',
+    to: '/operation/voice-log',
     label: '语音日志',
     desc: '识别结果与异常记录',
     icon: 'material-symbols:graphic-eq-rounded',
   },
   {
-    to: '/system/app-release',
+    to: '/operation/app-release',
     label: '版本发布',
     desc: '统一管理版本与下载地址',
     icon: 'material-symbols:system-update-alt-rounded',

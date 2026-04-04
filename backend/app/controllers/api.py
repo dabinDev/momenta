@@ -1,6 +1,7 @@
 from fastapi.routing import APIRoute
 
 from app.core.crud import CRUDBase
+from app.core.openapi import normalize_route_summary, normalize_route_tag
 from app.log import logger
 from app.models.admin import Api
 from app.schemas.apis import ApiCreate, ApiUpdate
@@ -32,8 +33,8 @@ class ApiController(CRUDBase[Api, ApiCreate, ApiUpdate]):
             if isinstance(route, APIRoute) and len(route.dependencies) > 0:
                 method = list(route.methods)[0]
                 path = route.path_format
-                summary = route.summary
-                tags = list(route.tags)[0]
+                summary = normalize_route_summary(path, method, route.summary)
+                tags = normalize_route_tag(list(route.tags)[0] if route.tags else "")
                 api_obj = await Api.filter(method=method, path=path).first()
                 if api_obj:
                     await api_obj.update_from_dict(dict(method=method, path=path, summary=summary, tags=tags)).save()

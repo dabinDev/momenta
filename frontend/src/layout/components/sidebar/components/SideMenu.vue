@@ -8,11 +8,16 @@
     :collapsed-width="76"
     :options="menuOptions"
     :value="activeKey"
+    :expanded-keys="expandedKeys"
+    :render-label="renderMenuLabel"
     @update:value="handleMenuSelect"
+    @update:expanded-keys="handleExpandedKeysUpdate"
   />
 </template>
 
 <script setup>
+import { h } from 'vue'
+
 import { usePermissionStore, useAppStore } from '@/store'
 import { renderCustomIcon, renderIcon, isExternal } from '@/utils'
 
@@ -21,17 +26,24 @@ const curRoute = useRoute()
 const permissionStore = usePermissionStore()
 const appStore = useAppStore()
 
-const activeKey = computed(() => curRoute.meta?.activeMenu || curRoute.name)
+const activeKey = computed(() => curRoute.meta?.activeMenu || curRoute.path)
 
 const menuOptions = computed(() => {
   return permissionStore.menus.map(item => getMenuItem(item)).sort((a, b) => a.order - b.order)
 })
 
+const expandedKeys = ref([])
 const menu = ref(null)
-watch(curRoute, async () => {
-  await nextTick()
-  menu.value?.showOption()
-})
+
+watch(
+  () => [curRoute.path, menuOptions.value],
+  async () => {
+    expandedKeys.value = findExpandedKeys(menuOptions.value, activeKey.value)
+    await nextTick()
+    menu.value?.showOption()
+  },
+  { deep: true, immediate: true },
+)
 
 function resolvePath(basePath, path) {
   if (isExternal(path)) return path
@@ -45,43 +57,25 @@ function resolvePath(basePath, path) {
 }
 
 function getMenuItem(route, basePath = '') {
-  let menuItem = {
+  const currentPath = resolvePath(basePath, route.path)
+  const menuItem = {
     label: (route.meta && route.meta.title) || route.name,
-    key: route.name,
-    path: resolvePath(basePath, route.path),
+    key: currentPath,
+    path: currentPath,
     icon: getIcon(route.meta),
     order: route.meta?.order || 0,
   }
 
   const visibleChildren = route.children ? route.children.filter(item => item.name && !item.isHidden) : []
-
-  if (!visibleChildren.length) return menuItem
-
-  if (visibleChildren.length === 1) {
-    const singleRoute = visibleChildren[0]
-    menuItem = {
-      ...menuItem,
-      label: singleRoute.meta?.title || singleRoute.name,
-      key: singleRoute.name,
-      path: resolvePath(menuItem.path, singleRoute.path),
-      icon: getIcon(singleRoute.meta),
-    }
-    const visibleItems = singleRoute.children
-      ? singleRoute.children.filter(item => item.name && !item.isHidden)
-      : []
-
-    if (visibleItems.length === 1) {
-      menuItem = getMenuItem(visibleItems[0], menuItem.path)
-    } else if (visibleItems.length > 1) {
-      menuItem.children = visibleItems
-        .map(item => getMenuItem(item, menuItem.path))
-        .sort((a, b) => a.order - b.order)
-    }
-  } else {
-    menuItem.children = visibleChildren
-      .map(item => getMenuItem(item, menuItem.path))
-      .sort((a, b) => a.order - b.order)
+  if (!visibleChildren.length) {
+    return menuItem
   }
+
+  menuItem.children = visibleChildren
+    .map(item => getMenuItem(item, currentPath))
+    .sort((a, b) => a.order - b.order)
+  menuItem.path = route.redirect || menuItem.children[0]?.path || currentPath
+
   return menuItem
 }
 
@@ -91,14 +85,58 @@ function getIcon(meta) {
   return null
 }
 
-function handleMenuSelect(key, item) {
-  if (isExternal(item.path)) {
-    window.open(item.path)
-  } else if (item.path === curRoute.path) {
-    appStore.reloadPage()
-  } else {
-    router.push(item.path)
+function findExpandedKeys(options, targetPath, parents = []) {
+  for (const option of options) {
+    const nextParents = option.children?.length ? [...parents, option.key] : parents
+    if (option.key === targetPath) {
+      return parents
+    }
+    if (option.children?.length) {
+      const matched = findExpandedKeys(option.children, targetPath, nextParents)
+      if (matched.length) {
+        return matched
+      }
+    }
   }
+  return []
+}
+
+function navigateTo(path) {
+  if (!path) {
+    return
+  }
+  if (isExternal(path)) {
+    window.open(path)
+    return
+  }
+  if (path === curRoute.path) {
+    appStore.reloadPage()
+    return
+  }
+  router.push(path)
+}
+
+function renderMenuLabel(option) {
+  if (!option?.children?.length || !option.path || isExternal(option.path)) {
+    return option.label
+  }
+
+  return h(
+    'span',
+    {
+      class: 'side-menu__label',
+      onClick: () => navigateTo(option.path),
+    },
+    option.label,
+  )
+}
+
+function handleMenuSelect(_, item) {
+  navigateTo(item.path)
+}
+
+function handleExpandedKeysUpdate(keys) {
+  expandedKeys.value = keys
 }
 </script>
 
@@ -134,10 +172,17 @@ function handleMenuSelect(key, item) {
     box-shadow: inset 2px 0 0 var(--brand-primary);
   }
 
-  .n-menu-item-content-header {
+  .n-menu-item-content-header,
+  .side-menu__label {
     font-size: 14px;
     font-weight: 700;
     color: var(--app-text);
+  }
+
+  .side-menu__label {
+    display: inline-flex;
+    width: 100%;
+    cursor: pointer;
   }
 
   .n-menu-item-content__icon,
@@ -148,6 +193,7 @@ function handleMenuSelect(key, item) {
   .n-menu-item-content--selected,
   .n-menu-item-content--child-active {
     .n-menu-item-content-header,
+    .side-menu__label,
     .n-menu-item-content__icon {
       color: var(--brand-primary);
     }

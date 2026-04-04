@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&display=swap');
-
 :root {
   --primary: #f06e42;
   --primary-deep: #d95c35;
@@ -142,7 +140,6 @@ button {
 .brand-lockup,
 .button-row,
 .history-toolbar,
-.service-chip-row,
 .duration-row,
 .task-status__head,
 .section-inline-head {
@@ -161,18 +158,25 @@ button {
   height: 42px;
   place-items: center;
   border-radius: 16px;
-  color: #fff;
-  font-size: 20px;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--primary), var(--amber) 55%, var(--sky));
-  box-shadow: 0 12px 24px rgba(240, 110, 66, 0.2);
+  padding: 6px;
+  background: linear-gradient(135deg, rgba(255, 253, 250, 0.96), rgba(255, 242, 232, 0.94), rgba(241, 246, 255, 0.92));
+  box-shadow:
+    0 12px 24px rgba(240, 110, 66, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.88);
 }
 
 .brand-mark--large {
   width: 78px;
   height: 78px;
   border-radius: 24px;
-  font-size: 34px;
+  padding: 10px;
+}
+
+.brand-mark__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .topbar-brand strong {
@@ -380,7 +384,6 @@ button {
 }
 
 .field-stack,
-.settings-section,
 .action-stack,
 .sheet-list,
 .template-grid,
@@ -501,6 +504,27 @@ button {
   padding: 12px 14px;
   border-radius: 18px;
   background: var(--surface-warm);
+}
+
+.note-panel--guide {
+  display: grid;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(93, 141, 247, 0.1), rgba(255, 252, 250, 0.96));
+}
+
+.note-panel--guide strong {
+  font-size: 15px;
+}
+
+.guide-list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.guide-list li + li {
+  margin-top: 4px;
 }
 
 .summary-pill:nth-child(2) {
@@ -704,11 +728,6 @@ button {
   justify-content: space-between;
 }
 
-.service-chip-row {
-  margin-bottom: 18px;
-}
-
-.service-chip,
 .duration-chip {
   min-height: 46px;
   padding: 11px 14px;
@@ -721,7 +740,6 @@ button {
   border: 1px solid rgba(226, 213, 201, 0.65);
 }
 
-.service-chip.active,
 .duration-chip.active {
   color: var(--primary-dark);
   background: linear-gradient(135deg, rgba(240, 110, 66, 0.2), rgba(255, 244, 233, 0.98), rgba(93, 141, 247, 0.16));
@@ -1021,80 +1039,6 @@ button {
   border-radius: 18px;
 }
 
-.settings-disclosure {
-  display: grid;
-  gap: 0;
-}
-
-.settings-disclosure__summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.settings-disclosure__summary::-webkit-details-marker {
-  display: none;
-}
-
-.settings-disclosure__copy {
-  display: grid;
-  gap: 4px;
-}
-
-.settings-disclosure__copy strong {
-  display: block;
-  font-size: 18px;
-}
-
-.settings-disclosure__copy span {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.settings-disclosure__chevron {
-  flex: 0 0 auto;
-  color: var(--primary-deep);
-  font-size: 24px;
-  line-height: 1;
-  transition: transform 0.2s ease;
-}
-
-.settings-disclosure[open] .settings-disclosure__chevron {
-  transform: rotate(180deg);
-}
-
-.settings-disclosure__body {
-  display: grid;
-  gap: 16px;
-  padding-top: 18px;
-}
-
-.settings-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.settings-advanced-grid {
-  display: grid;
-  gap: 14px;
-}
-
-.settings-advanced-grid > .section-card {
-  margin-bottom: 0;
-}
-
-.settings-advanced-block {
-  padding: 16px;
-  border-radius: 22px;
-  background: linear-gradient(135deg, rgba(255, 247, 240, 0.88), rgba(246, 248, 255, 0.9));
-}
-
 .pagination {
   display: flex;
   justify-content: center;
@@ -1144,6 +1088,11 @@ button {
 .auth-shell {
   z-index: 50;
   gap: 24px;
+}
+
+.dialog,
+.modal {
+  z-index: 60;
 }
 
 .auth-card {
@@ -1272,6 +1221,87 @@ button {
   gap: 18px;
 }
 
+.dialog-card--register {
+  width: min(680px, 100%);
+  max-height: min(88vh, 760px);
+  padding: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 24%),
+    linear-gradient(135deg, rgba(255, 252, 250, 0.96), rgba(246, 248, 255, 0.92), rgba(243, 250, 246, 0.88));
+}
+
+.register-dialog__hero {
+  display: grid;
+  gap: 14px;
+  padding: 22px 22px 18px;
+  background:
+    radial-gradient(circle at top right, rgba(93, 141, 247, 0.14), transparent 34%),
+    radial-gradient(circle at left top, rgba(240, 110, 66, 0.16), transparent 28%);
+  border-bottom: 1px solid rgba(226, 213, 201, 0.58);
+}
+
+.register-dialog__brand,
+.register-dialog__invite-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.register-dialog__brand {
+  justify-content: flex-start;
+}
+
+.register-dialog__copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.register-dialog__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.register-dialog__grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.register-dialog__invite {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(93, 141, 247, 0.14);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(244, 248, 255, 0.96), rgba(255, 252, 250, 0.92));
+}
+
+.register-dialog__invite strong {
+  font-size: 16px;
+}
+
+.register-dialog__invite span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.register-dialog__actions {
+  padding: 0 22px 22px;
+}
+
+.dialog-card--register .field-stack--compact {
+  padding: 0 22px 4px;
+}
+
+.dialog-card--register {
+  overflow-y: auto;
+}
+
 .dialog-head {
   display: flex;
   align-items: center;
@@ -1392,10 +1422,6 @@ button {
     justify-content: flex-start;
   }
 
-  .settings-disclosure__summary {
-    align-items: flex-start;
-  }
-
   .history-toolbar {
     flex-direction: column;
   }
@@ -1424,6 +1450,10 @@ button {
 
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .register-dialog__grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1475,14 +1505,6 @@ button {
     padding-inline: 16px;
   }
 
-  .settings-toolbar {
-    justify-content: stretch;
-  }
-
-  .settings-toolbar .btn {
-    width: 100%;
-  }
-
   .btn--small {
     min-height: 38px;
     padding: 8px 12px;
@@ -1506,7 +1528,6 @@ button {
   }
 
   .button-row,
-  .service-chip-row,
   .template-actions {
     flex-wrap: wrap;
   }
@@ -1515,5 +1536,15 @@ button {
     left: 12px;
     right: 12px;
     max-width: none;
+  }
+
+  .dialog-card--register {
+    padding: 0;
+  }
+
+  .register-dialog__hero,
+  .dialog-card--register .field-stack--compact,
+  .register-dialog__actions {
+    padding-inline: 18px;
   }
 }

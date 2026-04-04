@@ -10,6 +10,7 @@ export default {
   updateCurrentProfile: (data = {}) => request.post('/base/update_profile', data),
   // users
   getUserList: (params = {}) => request.get('/user/list', { params }),
+  getUserMetrics: (params = {}) => request.get('/user/metrics', { params }),
   getUserById: (params = {}) => request.get('/user/get', { params }),
   createUser: (data = {}) => request.post('/user/create', data),
   updateUser: (data = {}) => request.post('/user/update', data),
@@ -52,10 +53,18 @@ export default {
   retryTask: (params = {}) => request.post('/task/retry', null, { params }),
   getVoiceLogList: (params = {}) => request.get('/voice_log/list', { params }),
   // user app config
+  getGlobalAppConfig: () => request.get('/app_config/global'),
+  updateGlobalAppConfig: (data = {}) => request.post('/app_config/global', data),
+  resetGlobalAppConfig: () => request.post('/app_config/global/reset'),
+  getEffectiveAppConfig: (params = {}) => request.get('/app_config/effective', { params }),
   getUserAppConfigList: (params = {}) => request.get('/app_config/list', { params }),
   getUserAppConfigDetail: (params = {}) => request.get('/app_config/get', { params }),
   updateUserAppConfig: (data = {}) => request.post('/app_config/update', data),
   resetUserAppConfig: (data = {}) => request.post('/app_config/reset', data),
+  getModelCatalogList: (params = {}) => request.get('/model_catalog/list', { params }),
+  syncModelCatalog: (data = {}) => request.post('/model_catalog/sync', data),
+  recommendModelCatalog: (data = {}) => request.post('/model_catalog/recommend', data),
+  applyModelCatalog: (data = {}) => request.post('/model_catalog/apply', data),
   // ai debug
   debugUploadImages: (data) =>
     request.post('/ai_debug/upload_images', data, {

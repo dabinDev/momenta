@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import '../../app/constants.dart';
 import '../../core/errors/app_exception.dart';
 import '../../core/services/secure_storage_service.dart';
-import '../models/app_config_model.dart';
 import '../models/app_update_info_model.dart';
 import '../models/ai_template_model.dart';
 import '../models/create_workbench_model.dart';
@@ -24,23 +23,6 @@ class ApiService {
   final Dio _authDio;
 
   Dio get _dio => _apiClient.dio;
-
-  Future<Map<String, dynamic>> getConfig() async {
-    final Response<dynamic> response = await _authDio.get(
-      '/api/config',
-      options: await _authOptions(),
-    );
-    return _readEnvelopeMap(response.data);
-  }
-
-  Future<Map<String, dynamic>> saveConfig(AppConfigModel config) async {
-    final Response<dynamic> response = await _authDio.post(
-      '/api/config',
-      data: config.toJson(includeKeys: true),
-      options: await _authOptions(),
-    );
-    return _readEnvelopeMap(response.data);
-  }
 
   Future<List<UploadedFileModel>> uploadImages(List<File> files) async {
     final Options authOptions = await _authOptions();
@@ -319,7 +301,8 @@ class ApiService {
       '/api/tasks/$taskId/download',
       savePath,
       onReceiveProgress: onReceiveProgress,
-      options: (await _authOptions()).copyWith(responseType: ResponseType.bytes),
+      options:
+          (await _authOptions()).copyWith(responseType: ResponseType.bytes),
     );
     return File(savePath);
   }

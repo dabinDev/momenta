@@ -11,10 +11,10 @@ import '../presentation/auth/register_binding.dart';
 import '../presentation/auth/register_page.dart';
 import '../presentation/create/create_binding.dart';
 import '../presentation/create/create_page.dart';
+import '../presentation/downloads/download_manager_binding.dart';
+import '../presentation/downloads/download_manager_page.dart';
 import '../presentation/history/history_binding.dart';
 import '../presentation/history/history_page.dart';
-import '../presentation/settings/app_settings_binding.dart';
-import '../presentation/settings/app_settings_page.dart';
 import '../presentation/settings/edit_profile_binding.dart';
 import '../presentation/settings/edit_profile_page.dart';
 import '../presentation/settings/profile_detail_page.dart';
@@ -38,8 +38,8 @@ class AppRoutes {
   static const String history = '/history';
   static const String settings = '/settings';
   static const String profileDetail = '/profile-detail';
-  static const String appSettings = '/app-settings';
   static const String editProfile = '/edit-profile';
+  static const String downloadManager = '/download-manager';
   static const String videoPlayer = '/video-player';
 }
 
@@ -97,14 +97,14 @@ class AppPages {
       binding: SettingsBinding(),
     ),
     GetPage<dynamic>(
-      name: AppRoutes.appSettings,
-      page: AppSettingsPage.new,
-      binding: AppSettingsBinding(),
-    ),
-    GetPage<dynamic>(
       name: AppRoutes.editProfile,
       page: EditProfilePage.new,
       binding: EditProfileBinding(),
+    ),
+    GetPage<dynamic>(
+      name: AppRoutes.downloadManager,
+      page: DownloadManagerPage.new,
+      binding: DownloadManagerBinding(),
     ),
     GetPage<dynamic>(
       name: AppRoutes.videoPlayer,

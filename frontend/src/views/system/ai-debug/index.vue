@@ -130,7 +130,7 @@ async function loadUsers() {
 async function loadTargetConfig(userId) {
   loadingTargetConfig.value = true
   try {
-    const res = await api.getUserAppConfigDetail({ user_id: userId })
+    const res = await api.getEffectiveAppConfig({ user_id: userId })
     targetConfig.value = res.data
   } finally {
     loadingTargetConfig.value = false
@@ -308,11 +308,24 @@ function readTextPayload(payload, keys = ['text']) {
 
 function readImageUrls(payload) {
   if (!payload) return []
-  if (Array.isArray(payload)) return payload
-  if (Array.isArray(payload.images)) return payload.images
-  if (Array.isArray(payload.data?.images)) return payload.data.images
-  if (Array.isArray(payload.result?.images)) return payload.result.images
-  return []
+  const images = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.images)
+      ? payload.images
+      : Array.isArray(payload.data?.images)
+        ? payload.data.images
+        : Array.isArray(payload.result?.images)
+          ? payload.result.images
+          : []
+  return images
+    .map((item) => {
+      if (typeof item === 'string') return item.trim()
+      if (item && typeof item === 'object') {
+        return String(item.url || item.path || '').trim()
+      }
+      return ''
+    })
+    .filter(Boolean)
 }
 
 function shortHost(url = '') {

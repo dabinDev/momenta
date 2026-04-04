@@ -367,7 +367,7 @@ function countByBoolean(nodes = [], key) {
     <template #header>
       <div class="menu-page__header">
         <div class="menu-page__header-copy">
-          <p class="menu-page__eyebrow">NAVIGATION STRUCTURE</p>
+          <p class="menu-page__eyebrow">导航结构</p>
           <h2>菜单管理</h2>
           <p>把目录、页面、缓存和隐藏状态集中在同一张树表里，方便快速整理后台导航。</p>
         </div>

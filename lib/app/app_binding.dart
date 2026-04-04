@@ -2,15 +2,14 @@ import 'package:get/get.dart';
 
 import '../core/services/local_storage_service.dart';
 import '../core/services/secure_storage_service.dart';
+import '../core/services/download_manager_service.dart';
 import '../data/api/api_client.dart';
 import '../data/api/api_service.dart';
 import '../data/repositories/auth_repository_impl.dart';
-import '../data/repositories/config_repository_impl.dart';
 import '../data/repositories/history_repository_impl.dart';
 import '../data/repositories/media_repository_impl.dart';
 import '../data/repositories/video_repository_impl.dart';
 import '../domain/repositories/auth_repository.dart';
-import '../domain/repositories/config_repository.dart';
 import '../domain/repositories/history_repository.dart';
 import '../domain/repositories/media_repository.dart';
 import '../domain/repositories/video_repository.dart';
@@ -24,6 +23,13 @@ class AppBinding extends Bindings {
     Get.put(ApiClient(), permanent: true);
     Get.put(ApiService(Get.find<ApiClient>(), Get.find<SecureStorageService>()),
         permanent: true);
+    Get.put(
+      DownloadManagerService(
+        localStorageService: Get.find<LocalStorageService>(),
+        apiService: Get.find<ApiService>(),
+      ),
+      permanent: true,
+    );
 
     Get.put<AuthRepository>(
       AuthRepositoryImpl(
@@ -36,14 +42,6 @@ class AppBinding extends Bindings {
     Get.put(AuthController(repository: Get.find<AuthRepository>()),
         permanent: true);
 
-    Get.put<ConfigRepository>(
-      ConfigRepositoryImpl(
-        apiService: Get.find<ApiService>(),
-        localStorageService: Get.find<LocalStorageService>(),
-        secureStorageService: Get.find<SecureStorageService>(),
-      ),
-      permanent: true,
-    );
     Get.put<HistoryRepository>(
       HistoryRepositoryImpl(
         localStorageService: Get.find<LocalStorageService>(),

@@ -12,7 +12,7 @@
           <div class="login-poster__content">
             <div class="login-poster__brand">
               <div class="login-poster__logo">
-                <icon-custom-logo text-42 color-white />
+                <img :src="brandLogo" alt="拾光视频" class="login-poster__logo-image" />
               </div>
               <div>
                 <p class="login-poster__eyebrow">拾光视频后台</p>
@@ -104,6 +104,7 @@ import { useI18n } from 'vue-i18n'
 const router = useRouter()
 const { query } = useRoute()
 const { t } = useI18n({ useScope: 'global' })
+const brandLogo = `${import.meta.env.BASE_URL}shiguang-icon.png`
 
 const loginInfo = ref({
   username: '',
@@ -144,7 +145,6 @@ async function handleLogin() {
       router.push('/')
     }
   } catch (e) {
-    console.error('login error', e)
   } finally {
     loading.value = false
   }
@@ -257,6 +257,13 @@ async function handleLogin() {
   background: rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(14px);
+}
+
+.login-poster__logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .login-poster__eyebrow,

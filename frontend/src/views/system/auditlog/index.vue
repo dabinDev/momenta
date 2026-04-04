@@ -217,7 +217,7 @@ function getEndOfDayTimestamp() {
     <template #header>
       <div class="audit-page__header">
         <div class="audit-page__header-copy">
-          <p class="audit-page__eyebrow">AUDIT LOGS</p>
+          <p class="audit-page__eyebrow">审计日志</p>
           <h2>审计日志</h2>
           <p>按用户、模块、接口和状态快速筛选，帮助你更快定位请求与响应记录。</p>
         </div>

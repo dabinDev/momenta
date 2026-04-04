@@ -63,6 +63,11 @@ class HistoryPage extends GetView<HistoryController> {
                                     )
                                 : null,
                             onDownload: controller.items[index].isCompleted
+                                ? () => controller.downloadItem(
+                                      controller.items[index],
+                                    )
+                                : null,
+                            onSaveAlbum: controller.items[index].isCompleted
                                 ? () => controller.saveItem(
                                       controller.items[index],
                                     )
@@ -186,6 +191,7 @@ class _HistoryListItem extends StatelessWidget {
     required this.item,
     required this.onPlay,
     required this.onDownload,
+    required this.onSaveAlbum,
     required this.onRetry,
     required this.onDelete,
   });
@@ -193,6 +199,7 @@ class _HistoryListItem extends StatelessWidget {
   final HistoryItemModel item;
   final VoidCallback? onPlay;
   final VoidCallback? onDownload;
+  final VoidCallback? onSaveAlbum;
   final VoidCallback? onRetry;
   final VoidCallback onDelete;
 
@@ -269,8 +276,14 @@ class _HistoryListItem extends StatelessWidget {
               if (item.isCompleted)
                 _ActionChipButton(
                   icon: Icons.download_outlined,
-                  label: '保存到相册',
+                  label: '下载到本地',
                   onTap: onDownload,
+                ),
+              if (item.isCompleted)
+                _ActionChipButton(
+                  icon: Icons.photo_library_outlined,
+                  label: '保存到相册',
+                  onTap: onSaveAlbum,
                 ),
               if (item.isFailed)
                 _ActionChipButton(

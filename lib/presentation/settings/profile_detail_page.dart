@@ -16,7 +16,7 @@ class ProfileDetailPage extends GetView<SettingsController> {
   Widget build(BuildContext context) {
     return AppPageScaffold(
       title: '个人信息',
-      subtitle: '管理资料、密码、版本和应用设置',
+      subtitle: '管理资料、密码和版本信息',
       accentColor: AppTheme.primary,
       child: ListView(
         physics: const BouncingScrollPhysics(),
@@ -24,7 +24,7 @@ class ProfileDetailPage extends GetView<SettingsController> {
         children: <Widget>[
           SectionCard(
             title: '账号管理',
-            subtitle: '常用设置集中在这里',
+            subtitle: '常用资料与安全设置集中在这里',
             icon: Icons.manage_accounts_outlined,
             accentColor: AppTheme.sky,
             child: Column(
@@ -39,15 +39,8 @@ class ProfileDetailPage extends GetView<SettingsController> {
                 _EntryTile(
                   icon: Icons.key_outlined,
                   title: '修改密码',
-                  subtitle: '更新当前账号密码',
+                  subtitle: '更新当前账号登录密码',
                   onTap: controller.openChangePassword,
-                ),
-                Divider(color: Theme.of(context).colorScheme.outlineVariant),
-                _EntryTile(
-                  icon: Icons.tune_rounded,
-                  title: '应用设置',
-                  subtitle: '管理文案与视频服务配置',
-                  onTap: controller.openAppSettings,
                 ),
               ],
             ),
@@ -57,10 +50,9 @@ class ProfileDetailPage extends GetView<SettingsController> {
             final AppUpdateInfoModel? updateInfo =
                 controller.latestUpdateInfo.value;
             final AppReleaseModel? latest = updateInfo?.latest;
-            final String latestVersion =
-                latest?.versionLabel.isNotEmpty == true
-                    ? latest!.versionLabel
-                    : '暂无新版本';
+            final String latestVersion = latest?.versionLabel.isNotEmpty == true
+                ? latest!.versionLabel
+                : '暂无新版本';
             final String statusText = updateInfo == null
                 ? '尚未检查更新'
                 : updateInfo.hasUpdate

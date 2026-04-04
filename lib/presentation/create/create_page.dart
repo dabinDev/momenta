@@ -250,6 +250,7 @@ class _ModeWorkspace extends StatelessWidget {
         return '生成模板视频';
     }
   }
+
   static bool _supportsReferenceVideo(
     CreateController controller,
     CreateWorkbenchMode mode,
@@ -768,13 +769,15 @@ class _ReferenceVideoPanel extends StatelessWidget {
                     PrimaryButton.outline(
                       label: file == null ? '选择短视频' : '重新选择',
                       icon: Icons.video_library_outlined,
-                      onPressed: isUploading ? null : controller.pickReferenceVideo,
+                      onPressed:
+                          isUploading ? null : controller.pickReferenceVideo,
                     ),
                     PrimaryButton.outline(
                       label: '移除短视频',
                       icon: Icons.delete_outline,
-                      onPressed:
-                          file == null || isUploading ? null : controller.removeReferenceVideo,
+                      onPressed: file == null || isUploading
+                          ? null
+                          : controller.removeReferenceVideo,
                     ),
                   ],
                 ),
@@ -837,54 +840,77 @@ class _TaskStatusPanel extends StatelessWidget {
       return GestureDetector(
         onTap: canPreview ? controller.openCurrentVideo : null,
         child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            if (showProgress) ...<Widget>[
-              LinearProgressIndicator(
-                minHeight: 8,
-                value: controller.generationProgress.value == 0
-                    ? null
-                    : controller.generationProgress.value,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '正在跟进任务进度 '
-                '${controller.pollingCount.value}/${AppConstants.maxPollingTimes}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-            if (task != null) ...<Widget>[
-              if (showProgress) const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[
-                  StatusChip(status: task.status),
-                  Text(
-                    task.errorMessage?.trim().isNotEmpty == true
-                        ? task.errorMessage!
-                        : '任务编号：${task.id}',
-                  ),
-                ],
-              ),
-              if (task.isCompleted &&
-                  (task.videoUrl?.isNotEmpty ?? false)) ...<Widget>[
-                const SizedBox(height: 14),
-                PrimaryButton.outline(
-                  label: '播放结果',
-                  icon: Icons.play_circle_outline,
-                  onPressed: controller.openCurrentVideo,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              if (showProgress) ...<Widget>[
+                LinearProgressIndicator(
+                  minHeight: 8,
+                  value: controller.generationProgress.value == 0
+                      ? null
+                      : controller.generationProgress.value,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '正在跟进任务进度 '
+                  '${controller.pollingCount.value}/${AppConstants.maxPollingTimes}',
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
+              if (task != null) ...<Widget>[
+                if (showProgress) const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    StatusChip(status: task.status),
+                    Text(
+                      task.errorMessage?.trim().isNotEmpty == true
+                          ? task.errorMessage!
+                          : '任务编号：${task.id}',
+                    ),
+                  ],
+                ),
+                if (task.isCompleted &&
+                    (task.videoUrl?.isNotEmpty ?? false)) ...<Widget>[
+                  const SizedBox(height: 14),
+                  PrimaryButton.outline(
+                    label: '播放结果',
+                    icon: Icons.play_circle_outline,
+                    onPressed: controller.openCurrentVideo,
+                  ),
+                  const SizedBox(height: 10),
+                  _AdaptiveButtonRow(
+                    children: <Widget>[
+                      PrimaryButton.outline(
+                        label: controller.isQueuingCurrentDownload.value
+                            ? '加入中...'
+                            : '下载到本地',
+                        icon: Icons.download_rounded,
+                        onPressed: controller.isQueuingCurrentDownload.value
+                            ? null
+                            : controller.downloadCurrentVideo,
+                      ),
+                      PrimaryButton.outline(
+                        label: controller.isSavingCurrentVideo.value
+                            ? '保存中...'
+                            : '保存到相册',
+                        icon: Icons.photo_library_outlined,
+                        onPressed: controller.isSavingCurrentVideo.value
+                            ? null
+                            : controller.saveCurrentVideo,
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ],
-          ],
-        ),
+          ),
         ),
       );
     });
@@ -955,6 +981,15 @@ class _CurrentTaskStatusPanel extends StatelessWidget {
                         label: '播放结果',
                         icon: Icons.play_circle_outline,
                         onPressed: controller.openCurrentVideo,
+                      ),
+                      PrimaryButton.outline(
+                        label: controller.isQueuingCurrentDownload.value
+                            ? '加入中...'
+                            : '下载到本地',
+                        icon: Icons.download_rounded,
+                        onPressed: controller.isQueuingCurrentDownload.value
+                            ? null
+                            : controller.downloadCurrentVideo,
                       ),
                       PrimaryButton.outline(
                         label: controller.isSavingCurrentVideo.value

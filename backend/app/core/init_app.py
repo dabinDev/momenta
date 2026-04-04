@@ -62,8 +62,8 @@ def register_routers(app: FastAPI, prefix: str = "/api"):
 
 
 async def init_superuser():
-    user = await user_controller.model.exists()
-    if not user:
+    user_exists = await user_controller.model.exists()
+    if not user_exists:
         await user_controller.create_user(
             UserCreate(
                 username="admin",
@@ -76,140 +76,110 @@ async def init_superuser():
 
 
 async def init_menus():
-    parent_menu = await Menu.filter(path="/system", parent_id=0).first()
-    if not parent_menu:
-        parent_menu = await Menu.create(
-            menu_type=MenuType.CATALOG,
-            name="系统管理",
-            path="/system",
-            order=1,
-            parent_id=0,
-            icon="carbon:gui-management",
-            is_hidden=False,
-            component="Layout",
-            keepalive=False,
-            redirect="/system/user",
-        )
-    else:
-        parent_menu.name = "系统管理"
-        parent_menu.order = 1
-        parent_menu.icon = "carbon:gui-management"
-        parent_menu.is_hidden = False
-        parent_menu.component = "Layout"
-        parent_menu.keepalive = False
-        parent_menu.redirect = "/system/user"
-        await parent_menu.save()
+    legacy_parent = await Menu.filter(path="/system", parent_id=0).first()
+    if legacy_parent:
+        legacy_parent.name = "系统入口"
+        legacy_parent.order = 99
+        legacy_parent.icon = "carbon:gui-management"
+        legacy_parent.is_hidden = True
+        legacy_parent.component = "Layout"
+        legacy_parent.keepalive = False
+        legacy_parent.redirect = ""
+        await legacy_parent.save()
 
-    desired_children = [
+    groups = [
         {
-            "name": "用户管理",
-            "path": "user",
+            "path": "/access",
+            "name": "用户与权限",
             "order": 1,
-            "icon": "material-symbols:person-outline-rounded",
-            "component": "/system/user",
+            "icon": "material-symbols:admin-panel-settings-outline-rounded",
+            "redirect": "/access/user",
+            "children": [
+                {"path": "user", "name": "用户管理", "order": 1, "icon": "material-symbols:person-outline-rounded", "component": "/system/user"},
+                {"path": "invite-code", "name": "邀请码管理", "order": 2, "icon": "material-symbols:key-outline-rounded", "component": "/system/invite-code"},
+                {"path": "role", "name": "角色管理", "order": 3, "icon": "carbon:user-role", "component": "/system/role"},
+                {"path": "dept", "name": "部门管理", "order": 4, "icon": "mingcute:department-line", "component": "/system/dept"},
+            ],
         },
         {
-            "name": "邀请码管理",
-            "path": "invite-code",
+            "path": "/operation",
+            "name": "运营与任务",
             "order": 2,
-            "icon": "material-symbols:key-outline-rounded",
-            "component": "/system/invite-code",
+            "icon": "material-symbols:movie-info-outline-rounded",
+            "redirect": "/operation/task",
+            "children": [
+                {"path": "task", "name": "视频任务", "order": 1, "icon": "material-symbols:movie-outline-rounded", "component": "/system/task"},
+                {"path": "voice-log", "name": "语音日志", "order": 2, "icon": "material-symbols:graphic-eq-rounded", "component": "/system/voice-log"},
+                {"path": "app-release", "name": "版本发布", "order": 3, "icon": "material-symbols:system-update-alt-rounded", "component": "/system/app-release"},
+            ],
         },
         {
-            "name": "角色管理",
-            "path": "role",
+            "path": "/config",
+            "name": "配置与审计",
             "order": 3,
-            "icon": "carbon:user-role",
-            "component": "/system/role",
-        },
-        {
-            "name": "菜单管理",
-            "path": "menu",
-            "order": 4,
-            "icon": "material-symbols:list-alt-outline",
-            "component": "/system/menu",
-        },
-        {
-            "name": "接口管理",
-            "path": "api",
-            "order": 5,
-            "icon": "ant-design:api-outlined",
-            "component": "/system/api",
-        },
-        {
-            "name": "部门管理",
-            "path": "dept",
-            "order": 6,
-            "icon": "mingcute:department-line",
-            "component": "/system/dept",
-        },
-        {
-            "name": "审计日志",
-            "path": "auditlog",
-            "order": 7,
-            "icon": "ph:clipboard-text-bold",
-            "component": "/system/auditlog",
-        },
-        {
-            "name": "视频任务",
-            "path": "task",
-            "order": 8,
-            "icon": "material-symbols:movie-outline-rounded",
-            "component": "/system/task",
-        },
-        {
-            "name": "语音日志",
-            "path": "voice-log",
-            "order": 9,
-            "icon": "material-symbols:graphic-eq-rounded",
-            "component": "/system/voice-log",
-        },
-        {
-            "name": "版本发布",
-            "path": "app-release",
-            "order": 10,
-            "icon": "material-symbols:system-update-alt-rounded",
-            "component": "/system/app-release",
-        },
-        {
-            "name": "应用配置",
-            "path": "app-config",
-            "order": 11,
             "icon": "material-symbols:tune-rounded",
-            "component": "/system/app-config",
-        },
-        {
-            "name": "AI调试",
-            "path": "ai-debug",
-            "order": 12,
-            "icon": "material-symbols:experiment-outline-rounded",
-            "component": "/system/ai-debug",
+            "redirect": "/config/app-config",
+            "children": [
+                {"path": "app-config", "name": "平台配置", "order": 1, "icon": "material-symbols:hub-rounded", "component": "/system/app-config"},
+                {"path": "model-center", "name": "模型管理", "order": 2, "icon": "material-symbols:view-in-ar-outline-rounded", "component": "/system/model-center"},
+                {"path": "menu", "name": "菜单管理", "order": 3, "icon": "material-symbols:list-alt-outline", "component": "/system/menu"},
+                {"path": "api", "name": "接口管理", "order": 4, "icon": "ant-design:api-outlined", "component": "/system/api"},
+                {"path": "auditlog", "name": "审计日志", "order": 5, "icon": "ph:clipboard-text-bold", "component": "/system/auditlog"},
+                {"path": "ai-debug", "name": "AI调试台", "order": 6, "icon": "material-symbols:experiment-outline-rounded", "component": "/system/ai-debug"},
+            ],
         },
     ]
 
-    for item in desired_children:
-        menu = await Menu.filter(parent_id=parent_menu.id, path=item["path"]).first()
-        if not menu:
-            await Menu.create(
-                menu_type=MenuType.MENU,
-                name=item["name"],
-                path=item["path"],
-                order=item["order"],
-                parent_id=parent_menu.id,
-                icon=item["icon"],
+    for group in groups:
+        parent = await Menu.filter(path=group["path"], parent_id=0).first()
+        if not parent:
+            parent = await Menu.create(
+                menu_type=MenuType.CATALOG,
+                name=group["name"],
+                path=group["path"],
+                order=group["order"],
+                parent_id=0,
+                icon=group["icon"],
                 is_hidden=False,
-                component=item["component"],
+                component="Layout",
                 keepalive=False,
+                redirect=group["redirect"],
             )
-            continue
+        else:
+            parent.name = group["name"]
+            parent.order = group["order"]
+            parent.icon = group["icon"]
+            parent.is_hidden = False
+            parent.component = "Layout"
+            parent.keepalive = False
+            parent.redirect = group["redirect"]
+            await parent.save()
 
-        menu.name = item["name"]
-        menu.order = item["order"]
-        menu.icon = item["icon"]
-        menu.component = item["component"]
-        menu.is_hidden = False
-        menu.keepalive = False
-        await menu.save()
+        for item in group["children"]:
+            menu = await Menu.filter(component=item["component"]).first()
+            if not menu:
+                await Menu.create(
+                    menu_type=MenuType.MENU,
+                    name=item["name"],
+                    path=item["path"],
+                    order=item["order"],
+                    parent_id=parent.id,
+                    icon=item["icon"],
+                    is_hidden=False,
+                    component=item["component"],
+                    keepalive=False,
+                )
+                continue
+
+            menu.name = item["name"]
+            menu.path = item["path"]
+            menu.order = item["order"]
+            menu.parent_id = parent.id
+            menu.icon = item["icon"]
+            menu.component = item["component"]
+            menu.is_hidden = False
+            menu.keepalive = False
+            await menu.save()
 
     top_menu = await Menu.filter(path="/top-menu", parent_id=0).first()
     if not top_menu:
@@ -217,7 +187,7 @@ async def init_menus():
             menu_type=MenuType.MENU,
             name="顶部菜单",
             path="/top-menu",
-            order=2,
+            order=10,
             parent_id=0,
             icon="material-symbols:featured-play-list-outline",
             is_hidden=False,
@@ -227,7 +197,7 @@ async def init_menus():
         )
     else:
         top_menu.name = "顶部菜单"
-        top_menu.order = 2
+        top_menu.order = 10
         top_menu.icon = "material-symbols:featured-play-list-outline"
         top_menu.is_hidden = False
         top_menu.component = "/top-menu"
@@ -265,9 +235,15 @@ async def _ensure_sqlite_schema(connection):
     app_config_columns = await connection.execute_query_dict("PRAGMA table_info('user_app_config')")
     existing_app_config_columns = {str(item.get("name") or "").strip() for item in app_config_columns}
     app_config_missing_columns = {
-        "speech_base_url": "VARCHAR(255) NOT NULL DEFAULT 'https://api.99hub.top'",
+        "override_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "provider_base_url": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "provider_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "speech_base_url": "VARCHAR(255) NOT NULL DEFAULT ''",
         "speech_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
-        "speech_model": "VARCHAR(100) NOT NULL DEFAULT 'gpt-4o-mini-audio-preview'",
+        "speech_model": "VARCHAR(120) NOT NULL DEFAULT ''",
+        "image_base_url": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "image_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "image_model": "VARCHAR(120) NOT NULL DEFAULT ''",
     }
     statements.extend(
         f'ALTER TABLE "user_app_config" ADD COLUMN "{column}" {definition};'
@@ -280,6 +256,7 @@ async def _ensure_sqlite_schema(connection):
     user_missing_columns = {
         "registration_source": "VARCHAR(20) NOT NULL DEFAULT 'admin'",
         "invite_code_id": "BIGINT NULL",
+        "allow_private_ai_override": "INTEGER NOT NULL DEFAULT 0",
     }
     statements.extend(
         f'ALTER TABLE "user" ADD COLUMN "{column}" {definition};'
@@ -326,15 +303,19 @@ async def _ensure_mysql_schema(connection):
     )
     existing_app_config_columns = {str(item.get("name") or "").strip() for item in app_config_columns}
     app_config_missing_columns = {
-        "speech_base_url": "VARCHAR(255) NOT NULL DEFAULT 'https://api.99hub.top'",
+        "override_enabled": "TINYINT(1) NOT NULL DEFAULT 0",
+        "provider_base_url": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "provider_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "speech_base_url": "VARCHAR(255) NOT NULL DEFAULT ''",
         "speech_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
-        "speech_model": "VARCHAR(100) NOT NULL DEFAULT 'gpt-4o-mini-audio-preview'",
+        "speech_model": "VARCHAR(120) NOT NULL DEFAULT ''",
+        "image_base_url": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "image_api_key": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "image_model": "VARCHAR(120) NOT NULL DEFAULT ''",
     }
     for column, definition in app_config_missing_columns.items():
         if column not in existing_app_config_columns:
-            await connection.execute_script(
-                f"ALTER TABLE `user_app_config` ADD COLUMN `{column}` {definition};"
-            )
+            await connection.execute_script(f"ALTER TABLE `user_app_config` ADD COLUMN `{column}` {definition};")
 
     user_columns = await connection.execute_query_dict(
         f"""
@@ -347,6 +328,7 @@ async def _ensure_mysql_schema(connection):
     user_missing_columns = {
         "registration_source": "VARCHAR(20) NOT NULL DEFAULT 'admin'",
         "invite_code_id": "BIGINT NULL",
+        "allow_private_ai_override": "TINYINT(1) NOT NULL DEFAULT 0",
     }
     for column, definition in user_missing_columns.items():
         if column not in existing_user_columns:

@@ -1,7 +1,7 @@
 <template>
   <router-link class="side-logo" to="/">
     <div class="side-logo__mark">
-      <icon-custom-logo text-30 color-primary />
+      <img :src="brandLogo" alt="拾光视频" class="side-logo__mark-image" />
     </div>
     <div v-show="!appStore.collapsed" class="side-logo__copy">
       <p class="side-logo__eyebrow">拾光视频</p>
@@ -16,6 +16,7 @@ import { useAppStore } from '@/store'
 
 const title = import.meta.env.VITE_TITLE
 const appStore = useAppStore()
+const brandLogo = `${import.meta.env.BASE_URL}shiguang-icon.png`
 </script>
 
 <style scoped>
@@ -40,6 +41,13 @@ const appStore = useAppStore()
   border-radius: 14px;
   background: var(--sidebar-mark-bg);
   box-shadow: inset 0 0 0 1px var(--sidebar-mark-ring);
+}
+
+.side-logo__mark-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .side-logo__copy {

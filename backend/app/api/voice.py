@@ -15,10 +15,10 @@ from app.services.speech import (
 _SERVICE_NOT_READY = "语音识别服务暂时不可用，请稍后重试"
 _SERVICE_NOT_CONFIGURED = "语音识别服务尚未配置，请联系管理员"
 
-router = APIRouter(prefix="/voice", tags=["Speech"])
+router = APIRouter(prefix="/voice", tags=["语音识别"])
 
 
-@router.post("/transcribe", summary="Transcribe a voice message within 60 seconds", dependencies=[DependAuth])
+@router.post("/transcribe", summary="语音转文字", dependencies=[DependAuth])
 async def transcribe_voice(audio: UploadFile = File(...), task_id: int | None = Form(default=None)):
     user_id = CTX_USER_ID.get()
     filename = audio.filename or "voice.pcm"

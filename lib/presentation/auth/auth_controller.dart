@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 import '../../app/routes.dart';
+import '../../core/services/download_manager_service.dart';
 import '../../data/models/user_profile_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 
@@ -20,6 +21,9 @@ class AuthController extends GetxController {
       return;
     }
     currentUser.value = await _repository.restoreLocalUser();
+    if (Get.isRegistered<DownloadManagerService>()) {
+      Get.find<DownloadManagerService>().reload();
+    }
     _bootstrapped = true;
   }
 
@@ -31,6 +35,9 @@ class AuthController extends GetxController {
       username: username,
       password: password,
     );
+    if (Get.isRegistered<DownloadManagerService>()) {
+      Get.find<DownloadManagerService>().reload();
+    }
   }
 
   Future<void> register({
@@ -100,6 +107,9 @@ class AuthController extends GetxController {
   Future<void> logout() async {
     await _repository.logout();
     currentUser.value = null;
+    if (Get.isRegistered<DownloadManagerService>()) {
+      Get.find<DownloadManagerService>().reload();
+    }
     Get.offAllNamed(AppRoutes.login);
   }
 }

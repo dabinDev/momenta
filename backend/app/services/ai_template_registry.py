@@ -449,24 +449,10 @@ class AITemplateRegistryService:
         prompt_template = self.find_prompt_template(prompt_template_key)
         video_template = self.get_video_template(video_template_key)
 
-        segments = [
-            f"Core request: {prompt.strip()}",
-            (
-                "Follow the user's requested subject and story first, and do not force any unrelated preset template, "
-                "fixed copy, or stock narrative."
-            ),
-            (
-                "Keep the result suitable for elderly viewers: warm and natural visuals, natural expressions, "
-                "stable framing, clean composition, and easy-to-follow pacing."
-            ),
-            (
-                "If subtitles or any on-screen text are used, they must be in Simplified Chinese with large, "
-                "clear, high-contrast typography."
-            ),
-            "Generate a vertical short video and avoid distracting flashy effects.",
-        ]
-        if prompt_template is not None:
-            segments.append(f"Prompt direction: {prompt_template.render_instruction}")
+        requested_prompt = prompt.strip()
+        lowered_prompt = requested_prompt.lower()
+        segments = [requested_prompt]
+
         if creation_mode == "custom":
             segments.extend(
                 [
@@ -475,25 +461,11 @@ class AITemplateRegistryService:
                     f"Subtitle guidance: {video_template.subtitle_hint}",
                 ]
             )
-        else:
-            segments.extend(
-                [
-                    (
-                        "Visual style: realistic daily-life scenes, natural lighting, and a friendly vertical-video look "
-                        "that stays grounded in the user's request."
-                    ),
-                    (
-                        "Camera rhythm: gentle movement, stable medium and close framing, and smooth transitions that support "
-                        "the story without becoming flashy."
-                    ),
-                ]
-            )
+        elif prompt_template is not None:
+            segments.append(f"Prompt direction: {prompt_template.render_instruction}")
+
         if has_images:
-            segments.append(
-                "Use the uploaded images as references for subject identity, clothing details, and scene elements."
-            )
-        else:
-            segments.append("You may build a realistic home-life scene that matches the request.")
+            segments.append("Use the uploaded images as the identity and appearance reference for the main subject.")
 
         if creation_mode == "starter":
             segments.append(
@@ -513,6 +485,10 @@ class AITemplateRegistryService:
             segments.append(
                 "An extra reference video is uploaded. Mirror its shot pacing and narrative structure when appropriate."
             )
+        if "vertical" not in lowered_prompt and "9:16" not in lowered_prompt:
+            segments.append("Output a vertical 9:16 short video.")
+        if "subtitle" not in lowered_prompt and "subtitles" not in lowered_prompt and "on-screen text" not in lowered_prompt:
+            segments.append("If subtitles are needed, use large readable Simplified Chinese text.")
 
         provider_prompt = "; ".join(
             segment.strip().rstrip(";.")
@@ -521,7 +497,7 @@ class AITemplateRegistryService:
         )
 
         return {
-            "requested_prompt": prompt.strip(),
+            "requested_prompt": requested_prompt,
             "provider_prompt": provider_prompt,
             "duration": duration if duration > 0 else video_template.default_duration,
             "size": video_template.size,

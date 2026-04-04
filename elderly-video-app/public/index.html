@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>拾光视频 Web 演示</title>
+  <link rel="icon" type="image/png" href="/shiguang-icon.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -16,9 +17,11 @@
   <div class="auth-shell" id="authShell">
     <div class="auth-card auth-card--hero">
       <div class="brand-lockup">
-        <div class="brand-mark brand-mark--large">拾</div>
+        <div class="brand-mark brand-mark--large">
+          <img class="brand-mark__image" src="/shiguang-icon.png" alt="拾光视频">
+        </div>
         <div>
-          <p class="eyebrow">SHIGUANG VIDEO</p>
+          <p class="eyebrow">拾光视频</p>
           <h1>拾光视频</h1>
         </div>
       </div>
@@ -31,7 +34,7 @@
     </div>
 
     <div class="auth-card auth-card--form">
-      <p class="eyebrow">ACCOUNT</p>
+      <p class="eyebrow">账号登录</p>
       <h2>账号登录</h2>
       <p class="muted-copy">请输入与 App 相同的用户名和密码。</p>
       <div class="auth-error" id="authError"></div>
@@ -57,10 +60,12 @@
   <div class="app-shell" id="appShell">
     <header class="topbar">
       <div class="topbar-brand">
-        <div class="brand-mark">拾</div>
+        <div class="brand-mark">
+          <img class="brand-mark__image" src="/shiguang-icon.png" alt="拾光视频">
+        </div>
         <div>
           <strong>拾光视频</strong>
-          <span>Web Workbench</span>
+          <span>网页创作台</span>
         </div>
       </div>
       <nav class="topbar-tabs" aria-label="主导航">
@@ -74,7 +79,7 @@
       <section class="page active" id="page-create">
         <div class="page-head">
           <div>
-            <p class="eyebrow" id="createEyebrow">AI CREATE</p>
+            <p class="eyebrow" id="createEyebrow">AI创作</p>
             <h2>AI创作</h2>
             <p class="page-copy" id="createSubtitle">输入内容后，完成语音转文字、AI校验、英文提示词生成和视频生成。</p>
           </div>
@@ -216,7 +221,7 @@
       <section class="page" id="page-history">
         <div class="page-head">
           <div>
-            <p class="eyebrow">HISTORY</p>
+            <p class="eyebrow">任务记录</p>
             <h2>任务记录</h2>
             <p class="page-copy">历史任务、状态与视频地址均与 App 共用同一后端数据源。</p>
           </div>
@@ -238,101 +243,11 @@
       <section class="page" id="page-settings">
         <div class="page-head">
           <div>
-            <p class="eyebrow">SETTINGS</p>
+            <p class="eyebrow">应用设置</p>
             <h2>应用设置</h2>
-            <p class="page-copy">管理文案、视频和语音服务配置，并维护当前 H5 的代理环境。</p>
+            <p class="page-copy">H5 端只保留账号与版本相关设置，服务器地址和 AI 模型能力统一由后端维护。</p>
           </div>
         </div>
-
-        <section class="section-card">
-          <div class="section-head">
-            <div class="section-icon">服</div>
-            <div>
-              <h3>后端服务地址</h3>
-              <p>仅用于当前 H5 演示环境的代理转发地址，切换环境后建议重新登录。</p>
-            </div>
-          </div>
-          <div class="field-stack">
-            <label class="field">
-              <span class="field-label">服务地址</span>
-              <input class="input" id="backendBaseUrl" type="text" placeholder="http://127.0.0.1:10099">
-            </label>
-            <div class="button-row">
-              <button class="btn btn--primary" id="saveProxySettingsBtn" type="button">保存代理地址</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="section-card">
-          <div class="section-head">
-            <div class="section-icon section-icon--coral">配</div>
-            <div>
-              <h3>服务配置</h3>
-              <p>分别维护提示词、视频生成和语音识别接口，字段与 App 设置页保持一致。</p>
-            </div>
-          </div>
-
-          <div class="service-chip-row">
-            <button class="service-chip active" data-settings-section="llm" type="button">文案服务</button>
-            <button class="service-chip" data-settings-section="video" type="button">视频服务</button>
-            <button class="service-chip" data-settings-section="speech" type="button">语音服务</button>
-          </div>
-
-          <div class="settings-section-group">
-            <div class="settings-section active" id="settingsSection-llm">
-              <label class="field">
-                <span class="field-label">服务地址</span>
-                <input class="input" id="llmBaseUrl" type="text" placeholder="https://api.99hub.top">
-              </label>
-              <label class="field">
-                <span class="field-label">模型名称</span>
-                <input class="input" id="llmModel" type="text" placeholder="gpt-5.4-mini">
-              </label>
-              <label class="field">
-                <span class="field-label">API Key</span>
-                <input class="input" id="llmApiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx">
-              </label>
-            </div>
-
-            <div class="settings-section hidden" id="settingsSection-video">
-              <label class="field">
-                <span class="field-label">服务地址</span>
-                <input class="input" id="videoBaseUrl" type="text" placeholder="https://api.99hub.top">
-              </label>
-              <label class="field">
-                <span class="field-label">模型名称</span>
-                <input class="input" id="videoModel" type="text" placeholder="veo_3_1-fast-components-4K">
-              </label>
-              <label class="field">
-                <span class="field-label">API Key</span>
-                <input class="input" id="videoApiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx">
-              </label>
-            </div>
-
-            <div class="settings-section hidden" id="settingsSection-speech">
-              <label class="field">
-                <span class="field-label">服务地址</span>
-                <input class="input" id="speechBaseUrl" type="text" placeholder="https://api.99hub.top">
-              </label>
-              <label class="field">
-                <span class="field-label">模型名称</span>
-                <input class="input" id="speechModel" type="text" placeholder="gpt-4o-mini-audio-preview">
-              </label>
-              <label class="field">
-                <span class="field-label">API Key</span>
-                <input class="input" id="speechApiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx">
-              </label>
-            </div>
-          </div>
-
-          <div class="action-stack">
-            <button class="btn btn--primary" id="saveAiConfigBtn" type="button">保存设置</button>
-            <div class="button-row">
-              <button class="btn btn--ghost" id="refreshAiConfigBtn" type="button">同步配置</button>
-              <button class="btn btn--ghost" id="resetAiDefaultsBtn" type="button">恢复默认</button>
-            </div>
-          </div>
-        </section>
 
         <section class="section-card">
           <div class="section-head">
@@ -522,6 +437,35 @@
       <div class="button-row">
         <button class="btn btn--primary" id="submitChangePasswordBtn" type="button">确认修改</button>
         <button class="btn btn--ghost" id="closeChangePasswordBtn" type="button">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog hidden" id="wechatGuideDialog">
+    <div class="dialog-card dialog-card--form">
+      <div class="dialog-head">
+        <div class="dialog-icon">微</div>
+        <div>
+          <h3 id="wechatGuideTitle">微信内暂不支持直接下载</h3>
+          <p id="wechatGuideSubtitle">请点击右上角“…”后选择“在浏览器打开”，再继续下载。</p>
+        </div>
+      </div>
+      <div class="note-panel note-panel--guide">
+        <strong>推荐操作</strong>
+        <ol class="guide-list">
+          <li>点击微信右上角“…”菜单。</li>
+          <li>选择“在浏览器打开”或“用默认浏览器打开”。</li>
+          <li>如果没有该入口，可先复制下方地址，到系统浏览器粘贴打开。</li>
+        </ol>
+      </div>
+      <label class="field">
+        <span class="field-label" id="wechatGuideFieldLabel">可复制地址</span>
+        <input class="input" id="wechatGuideCopyValue" type="text" readonly>
+        <span class="field-tip" id="wechatGuideCopyTip">复制后请到系统浏览器中打开。</span>
+      </label>
+      <div class="button-row">
+        <button class="btn btn--primary" id="copyWechatGuideBtn" type="button">复制地址</button>
+        <button class="btn btn--ghost" id="closeWechatGuideBtn" type="button">我知道了</button>
       </div>
     </div>
   </div>

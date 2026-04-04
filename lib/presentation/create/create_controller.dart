@@ -12,6 +12,7 @@ import '../../app/constants.dart';
 import '../../app/routes.dart';
 import '../../app/theme.dart';
 import '../../core/errors/app_exception.dart';
+import '../../core/services/download_manager_service.dart';
 import '../../core/utils/file_utils.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../core/utils/video_save_helper.dart';
@@ -128,12 +129,14 @@ class CreateController extends GetxController {
       : _mediaRepository = Get.find<MediaRepository>(),
         _videoRepository = Get.find<VideoRepository>(),
         _historyRepository = Get.find<HistoryRepository>(),
-        _apiService = Get.find<ApiService>();
+        _apiService = Get.find<ApiService>(),
+        _downloadManager = Get.find<DownloadManagerService>();
 
   final MediaRepository _mediaRepository;
   final VideoRepository _videoRepository;
   final HistoryRepository _historyRepository;
   final ApiService _apiService;
+  final DownloadManagerService _downloadManager;
   final ImagePicker _imagePicker = ImagePicker();
   final SpeechToText _speechToText = SpeechToText();
 
@@ -163,6 +166,7 @@ class CreateController extends GetxController {
   final RxBool isSubmitting = false.obs;
   final RxBool isUploadingReferenceVideo = false.obs;
   final RxBool isSavingCurrentVideo = false.obs;
+  final RxBool isQueuingCurrentDownload = false.obs;
   final RxInt recordingSeconds = 0.obs;
   final RxInt pollingCount = 0.obs;
   final RxDouble generationProgress = 0.0.obs;
@@ -412,7 +416,8 @@ class CreateController extends GetxController {
 
       transcribedText.value = recognizedText;
       _appendRecognizedText(recognizedText);
-      SnackbarHelper.success('\u8bed\u97f3\u5df2\u8f6c\u6362\u6210\u6587\u5b57');
+      SnackbarHelper.success(
+          '\u8bed\u97f3\u5df2\u8f6c\u6362\u6210\u6587\u5b57');
     } catch (error) {
       SnackbarHelper.error(
         _readError(error, fallback: '\u8bed\u97f3\u8bc6\u522b\u5931\u8d25'),
@@ -434,7 +439,8 @@ class CreateController extends GetxController {
     if (completer != null && !completer.isCompleted) {
       completer.complete(false);
     }
-    if (_speechResultCompleter != null && !_speechResultCompleter!.isCompleted) {
+    if (_speechResultCompleter != null &&
+        !_speechResultCompleter!.isCompleted) {
       _speechResultCompleter!.complete(null);
     }
     _closeSpeechDialog();
@@ -503,12 +509,14 @@ class CreateController extends GetxController {
     }
     final String prompt = promptController.text.trim();
     if (prompt.isEmpty) {
-      SnackbarHelper.error('\u8bf7\u5148\u751f\u6210\u6216\u8f93\u5165\u89c6\u9891\u63d0\u793a\u8bcd');
+      SnackbarHelper.error(
+          '\u8bf7\u5148\u751f\u6210\u6216\u8f93\u5165\u89c6\u9891\u63d0\u793a\u8bcd');
       return;
     }
 
     if (selectedImages.isEmpty) {
-      SnackbarHelper.error('\u8bf7\u81f3\u5c11\u4e0a\u4f20 1 \u5f20\u56fe\u7247');
+      SnackbarHelper.error(
+          '\u8bf7\u81f3\u5c11\u4e0a\u4f20 1 \u5f20\u56fe\u7247');
       return;
     }
 
@@ -578,7 +586,8 @@ class CreateController extends GetxController {
       prompt: _normalizeNullableText(prompt),
       inputText: _normalizeNullableText(note),
       polishedText: null,
-      promptTemplateKey: _activePromptTemplateKeyFor(CreateWorkbenchMode.custom),
+      promptTemplateKey:
+          _activePromptTemplateKeyFor(CreateWorkbenchMode.custom),
       videoTemplateKey: template.key,
       referenceLink: _normalizeNullableText(link),
       includeReferenceVideo: true,
@@ -599,7 +608,8 @@ class CreateController extends GetxController {
     if (isSubmitting.value) {
       return;
     }
-    final bool keepCurrentTaskVisible = currentTask.value?.isProcessing ?? false;
+    final bool keepCurrentTaskVisible =
+        currentTask.value?.isProcessing ?? false;
     isSubmitting.value = true;
     generationProgress.value = 0;
     pollingCount.value = 0;
@@ -782,9 +792,43 @@ class CreateController extends GetxController {
       AppRoutes.videoPlayer,
       arguments: <String, dynamic>{
         'url': videoUrl,
+        'taskId': currentTask.value?.id ?? '',
         'title': '生成结果预览',
       },
     );
+  }
+
+  Future<void> downloadCurrentVideo() async {
+    final VideoTaskModel? task = currentTask.value;
+    final String taskId = task?.id ?? '';
+    if (taskId.isEmpty || task?.isCompleted != true) {
+      SnackbarHelper.error('当前没有可下载的视频');
+      return;
+    }
+    if (isQueuingCurrentDownload.value) {
+      return;
+    }
+    if (_downloadManager.latestForTask(taskId)?.isDownloading == true) {
+      SnackbarHelper.info('当前视频已在下载中，可在下载管理查看进度');
+      return;
+    }
+
+    isQueuingCurrentDownload.value = true;
+    try {
+      await _downloadManager.startTaskDownload(
+        taskId: taskId,
+        title: task?.displayText?.trim().isNotEmpty == true
+            ? task!.displayText!.trim()
+            : (task?.prompt?.trim().isNotEmpty == true
+                ? task!.prompt!.trim()
+                : '拾光视频'),
+      );
+      SnackbarHelper.info('已加入下载队列，可在下载管理查看进度');
+    } catch (error) {
+      SnackbarHelper.error(_readError(error, fallback: '加入下载队列失败'));
+    } finally {
+      isQueuingCurrentDownload.value = false;
+    }
   }
 
   Future<void> saveCurrentVideo() async {
@@ -972,7 +1016,8 @@ class CreateController extends GetxController {
         _speechDecisionCompleter!.complete(true);
         _closeSpeechDialog();
       }
-      if (_speechResultCompleter != null && !_speechResultCompleter!.isCompleted) {
+      if (_speechResultCompleter != null &&
+          !_speechResultCompleter!.isCompleted) {
         _speechResultCompleter!.complete(_speechDraftText.trim());
       }
     }
@@ -980,11 +1025,13 @@ class CreateController extends GetxController {
 
   void _handleSpeechError(SpeechRecognitionError error) {
     _speechErrorMessage = _friendlySpeechError(error.errorMsg);
-    if (_speechDecisionCompleter != null && !_speechDecisionCompleter!.isCompleted) {
+    if (_speechDecisionCompleter != null &&
+        !_speechDecisionCompleter!.isCompleted) {
       _speechDecisionCompleter!.complete(true);
       _closeSpeechDialog();
     }
-    if (_speechResultCompleter != null && !_speechResultCompleter!.isCompleted) {
+    if (_speechResultCompleter != null &&
+        !_speechResultCompleter!.isCompleted) {
       _speechResultCompleter!.complete(_speechDraftText.trim());
     }
   }
@@ -994,7 +1041,8 @@ class CreateController extends GetxController {
     if (normalized.contains('permission')) {
       return '\u8bf7\u5148\u5141\u8bb8\u9ea6\u514b\u98ce\u548c\u8bed\u97f3\u8bc6\u522b\u6743\u9650';
     }
-    if (normalized.contains('no match') || normalized.contains('error_no_match')) {
+    if (normalized.contains('no match') ||
+        normalized.contains('error_no_match')) {
       return '\u6ca1\u6709\u8bc6\u522b\u5230\u6e05\u6670\u8bed\u97f3\uff0c\u8bf7\u91cd\u8bd5';
     }
     if (normalized.contains('network')) {
@@ -1118,10 +1166,9 @@ class CreateController extends GetxController {
           selectedPromptTemplateKey.value != modePromptTemplateKey) {
         selectedPromptTemplateKey.value = modePromptTemplateKey;
       } else {
-        selectedPromptTemplateKey.value ??=
-            modePromptTemplateKey ??
-                _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom) ??
-                _defaultTemplateKey(promptTemplates);
+        selectedPromptTemplateKey.value ??= modePromptTemplateKey ??
+            _modeDefaultPromptTemplateKey(CreateWorkbenchMode.custom) ??
+            _defaultTemplateKey(promptTemplates);
       }
     } else {
       selectedPromptTemplateKey.value ??=
@@ -1369,7 +1416,8 @@ class _SpeechRecordingDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(18),

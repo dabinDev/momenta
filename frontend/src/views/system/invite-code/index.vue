@@ -1,6 +1,17 @@
 <script setup>
 import { computed, h, onMounted, ref, resolveDirective, withDirectives } from 'vue'
-import { NButton, NDatePicker, NForm, NFormItem, NInput, NInputNumber, NPopconfirm, NSwitch, NTag } from 'naive-ui'
+import {
+  NButton,
+  NDatePicker,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NModal,
+  NPopconfirm,
+  NSwitch,
+  NTag,
+} from 'naive-ui'
 
 import CommonPage from '@/components/page/CommonPage.vue'
 import QueryBarItem from '@/components/query-bar/QueryBarItem.vue'
@@ -19,7 +30,8 @@ const queryItems = ref({
   code: null,
 })
 const tableRows = ref([])
-
+const qrVisible = ref(false)
+const activeInvite = ref(null)
 const vPermission = resolveDirective('permission')
 
 const {
@@ -47,32 +59,41 @@ const {
   refresh: () => $table.value?.handleSearch(),
 })
 
-onMounted(() => {
-  $table.value?.handleSearch()
+const h5RegisterBaseUrl = computed(() => 'https://memovideos.cn/?inviteCode=')
+const appSchemeBaseUrl = computed(() => 'momenta://register?inviteCode=')
+
+const qrImageUrl = computed(() => {
+  const code = activeInvite.value?.code
+  if (!code) return ''
+  const url = `${h5RegisterBaseUrl.value}${encodeURIComponent(code)}`
+  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encodeURIComponent(url)}`
 })
 
-const overviewStats = computed(() => [
-  {
-    label: '当前页邀请码',
-    value: tableRows.value.length,
-    hint: '已加载记录',
-  },
-  {
-    label: '可用邀请码',
-    value: tableRows.value.filter(item => item.is_active).length,
-    hint: '仍可用于注册',
-  },
-  {
-    label: '已用尽',
-    value: tableRows.value.filter(item => Number(item.used_count || 0) >= Number(item.max_uses || 0)).length,
-    hint: '达到使用上限',
-  },
-  {
-    label: '即将过期',
-    value: tableRows.value.filter(item => item.expires_at).length,
-    hint: '已设置过期时间',
-  },
-])
+const overviewStats = computed(() => {
+  const now = Date.now()
+  return [
+    {
+      label: '当前页邀请码',
+      value: tableRows.value.length,
+      hint: '本次查询已加载记录数',
+    },
+    {
+      label: '可用邀请码',
+      value: tableRows.value.filter((item) => item.is_active).length,
+      hint: '可继续发给用户注册',
+    },
+    {
+      label: '已达上限',
+      value: tableRows.value.filter((item) => Number(item.used_count || 0) >= Number(item.max_uses || 0)).length,
+      hint: '已用完，不再允许注册',
+    },
+    {
+      label: '即将过期',
+      value: tableRows.value.filter((item) => item.expires_at && new Date(item.expires_at).getTime() > now).length,
+      hint: '已设置失效时间',
+    },
+  ]
+})
 
 const rules = {
   max_uses: [
@@ -89,11 +110,28 @@ const columns = [
   {
     title: '邀请码',
     key: 'code',
-    width: 180,
+    width: 320,
     render(row) {
+      const registerUrl = `${h5RegisterBaseUrl.value}${row.code || ''}`
       return h('div', { class: 'invite-code-cell' }, [
-        h('strong', { class: 'invite-code-cell__title' }, row.code || '--'),
+        h('div', { class: 'invite-code-cell__row' }, [
+          h('strong', { class: 'invite-code-cell__title' }, row.code || '--'),
+          h(
+            NButton,
+            {
+              size: 'tiny',
+              quaternary: true,
+              type: 'primary',
+              onClick: async () => {
+                await navigator.clipboard.writeText(row.code || '')
+                $message.success('邀请码已复制')
+              },
+            },
+            { default: () => '复制' }
+          ),
+        ]),
         h('span', { class: 'invite-code-cell__meta' }, row.remark || '未填写备注'),
+        h('span', { class: 'invite-code-cell__link' }, registerUrl),
       ])
     },
   },
@@ -146,6 +184,22 @@ const columns = [
     fixed: 'right',
     render(row) {
       return h('div', { class: 'invite-action-list' }, [
+        withDirectives(
+          h(
+            NButton,
+            {
+              size: 'small',
+              quaternary: true,
+              type: 'info',
+              onClick: () => openQrPreview(row),
+            },
+            {
+              default: () => '二维码',
+              icon: renderIcon('material-symbols:qr-code-2-rounded', { size: 16 }),
+            }
+          ),
+          [[vPermission, 'post/api/v1/invite_code/update']]
+        ),
         withDirectives(
           h(
             NButton,
@@ -207,13 +261,17 @@ const columns = [
                 ),
                 [[vPermission, 'delete/api/v1/invite_code/delete']]
               ),
-            default: () => h('div', {}, '确定删除该邀请码吗？'),
+            default: () => h('div', {}, '确定删除这个邀请码吗？'),
           }
         ),
       ])
     },
   },
 ]
+
+onMounted(() => {
+  $table.value?.handleSearch()
+})
 
 function handleTableDataChange(data = []) {
   tableRows.value = data
@@ -230,6 +288,26 @@ function normalizeForm() {
     modalForm.value.expires_at = null
   }
 }
+
+function openQrPreview(row) {
+  activeInvite.value = row
+  qrVisible.value = true
+}
+
+async function copyInviteLink() {
+  const code = activeInvite.value?.code
+  if (!code) return
+  const targetUrl = `${h5RegisterBaseUrl.value}${encodeURIComponent(code)}`
+  await navigator.clipboard.writeText(targetUrl)
+  $message.success('注册链接已复制')
+}
+
+async function copyInviteCode() {
+  const code = activeInvite.value?.code
+  if (!code) return
+  await navigator.clipboard.writeText(code)
+  $message.success('邀请码已复制')
+}
 </script>
 
 <template>
@@ -237,9 +315,12 @@ function normalizeForm() {
     <template #header>
       <div class="invite-page__header">
         <div class="invite-page__header-copy">
-          <p class="invite-page__eyebrow">INVITE ACCESS</p>
+          <p class="invite-page__eyebrow">邀请注册</p>
           <h2>邀请码管理</h2>
-          <p>只有后台生成的邀请码才能注册。邀请码可控制次数、失效时间和启停状态，保证受邀注册闭环。</p>
+          <p>
+            邀请码只保留真正必要的运营字段，生成后可直接复制链接或二维码给用户。H5 打开会自动带入邀请码，App
+            也可复用同一份邀请信息。
+          </p>
         </div>
         <NButton v-permission="'post/api/v1/invite_code/create'" type="primary" @click="openCreateInviteCode">
           <TheIcon icon="material-symbols:add" :size="18" class="mr-5" />
@@ -263,7 +344,7 @@ function normalizeForm() {
           v-model:query-items="queryItems"
           :columns="columns"
           :get-data="api.getInviteCodeList"
-          :scroll-x="1000"
+          :scroll-x="1080"
           @on-data-change="handleTableDataChange"
         >
           <template #queryBar>
@@ -314,6 +395,27 @@ function normalizeForm() {
           </NFormItem>
         </NForm>
       </CrudModal>
+
+      <NModal v-model:show="qrVisible" preset="card" style="width: 480px" title="邀请码二维码" :bordered="false">
+        <div class="invite-qr">
+          <div class="invite-qr__code">{{ activeInvite?.code || '--' }}</div>
+          <p class="invite-qr__copy">
+            二维码默认指向 H5 注册链接，用户扫码后会自动带入邀请码。也可以单独复制邀请码给 App 注册页使用。
+          </p>
+          <div class="invite-qr__image-wrap">
+            <img v-if="qrImageUrl" :src="qrImageUrl" alt="邀请码二维码" class="invite-qr__image" />
+          </div>
+          <div class="invite-qr__link-group">
+            <div class="invite-qr__link">{{ h5RegisterBaseUrl }}{{ activeInvite?.code || '' }}</div>
+            <div class="invite-qr__link invite-qr__link--muted">{{ appSchemeBaseUrl }}{{ activeInvite?.code || '' }}</div>
+          </div>
+          <div class="invite-qr__actions">
+            <NButton type="primary" @click="copyInviteLink">复制注册链接</NButton>
+            <NButton quaternary type="primary" @click="copyInviteCode">复制邀请码</NButton>
+            <NButton quaternary @click="qrVisible = false">关闭</NButton>
+          </div>
+        </div>
+      </NModal>
     </div>
   </CommonPage>
 </template>
@@ -333,7 +435,7 @@ function normalizeForm() {
 }
 
 .invite-page__header-copy {
-  max-width: 720px;
+  max-width: 760px;
 }
 
 .invite-page__eyebrow {
@@ -399,6 +501,12 @@ function normalizeForm() {
   gap: 4px;
 }
 
+.invite-code-cell__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .invite-code-cell__title {
   color: var(--app-text);
   font-size: 14px;
@@ -409,11 +517,72 @@ function normalizeForm() {
   color: var(--app-muted);
 }
 
+.invite-code-cell__link {
+  font-size: 12px;
+  color: var(--brand-primary);
+  word-break: break-all;
+}
+
 .invite-action-list {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.invite-qr {
+  display: grid;
+  gap: 14px;
+}
+
+.invite-qr__code {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--app-text);
+}
+
+.invite-qr__copy {
+  margin: 0;
+  color: var(--app-muted);
+  line-height: 1.6;
+}
+
+.invite-qr__image-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(255, 251, 248, 0.86);
+  border: 1px solid var(--shell-border);
+}
+
+.invite-qr__image {
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
+}
+
+.invite-qr__link-group {
+  display: grid;
+  gap: 8px;
+}
+
+.invite-qr__link {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 251, 248, 0.86);
+  color: var(--brand-primary);
+  word-break: break-all;
+}
+
+.invite-qr__link--muted {
+  color: var(--app-muted);
+}
+
+.invite-qr__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 @media (max-width: 900px) {
@@ -434,6 +603,11 @@ function normalizeForm() {
 
   .invite-page__header-copy h2 {
     font-size: 26px;
+  }
+
+  .invite-qr__actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 </style>

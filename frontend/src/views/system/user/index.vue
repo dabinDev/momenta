@@ -1,6 +1,18 @@
 <script setup>
 import { computed, h, onMounted, ref, resolveDirective, watch, withDirectives } from 'vue'
-import { NButton, NCheckbox, NCheckboxGroup, NEmpty, NForm, NFormItem, NInput, NPopconfirm, NTag, NTree, NTreeSelect } from 'naive-ui'
+import {
+  NButton,
+  NCheckbox,
+  NCheckboxGroup,
+  NEmpty,
+  NForm,
+  NFormItem,
+  NInput,
+  NPopconfirm,
+  NTag,
+  NTree,
+  NTreeSelect,
+} from 'naive-ui'
 
 import CommonPage from '@/components/page/CommonPage.vue'
 import QueryBarItem from '@/components/query-bar/QueryBarItem.vue'
@@ -26,6 +38,18 @@ const roleOption = ref([])
 const deptOption = ref([])
 const deptKeyword = ref('')
 const selectedDeptId = ref(null)
+const metricsLoading = ref(false)
+const userMetrics = ref({
+  summary: {
+    users: 0,
+    video_count: 0,
+    completed_count: 0,
+    failed_count: 0,
+    voice_count: 0,
+    total_duration: 0,
+  },
+  ranking: [],
+})
 
 const vPermission = resolveDirective('permission')
 const userStore = useUserStore()
@@ -33,7 +57,6 @@ const userStore = useUserStore()
 const {
   modalVisible,
   modalTitle,
-  modalAction,
   modalLoading,
   handleSave,
   modalForm,
@@ -41,6 +64,7 @@ const {
   handleEdit,
   handleDelete,
   handleAdd,
+  modalAction,
 } = useCRUD({
   name: '用户',
   initForm: {
@@ -59,19 +83,13 @@ const {
   refresh: () => $table.value?.handleSearch(),
 })
 
-onMounted(async () => {
-  $table.value?.handleSearch()
-  const [roleRes, deptRes] = await Promise.all([api.getRoleList({ page: 1, page_size: 9999 }), api.getDepts()])
-  roleOption.value = roleRes.data ?? []
-  deptOption.value = deptRes.data ?? []
-})
-
-watch(
-  () => queryItems.value.dept_id,
-  (value) => {
-    selectedDeptId.value = value || null
+const metricsByUserId = computed(() => {
+  const map = new Map()
+  for (const item of userMetrics.value.ranking || []) {
+    map.set(item.user_id, item)
   }
-)
+  return map
+})
 
 const deptTreeData = computed(() => filterDeptTree(deptOption.value, deptKeyword.value))
 const visibleDeptCount = computed(() => countDeptNodes(deptTreeData.value))
@@ -79,7 +97,7 @@ const selectedDeptName = computed(() => findDeptNameById(deptOption.value, selec
 const activeFilters = computed(() => {
   const filters = []
   if (selectedDeptId.value) filters.push({ type: 'primary', label: `部门：${selectedDeptName.value}` })
-  if (queryItems.value.username) filters.push({ type: 'success', label: `用户名：${queryItems.value.username}` })
+  if (queryItems.value.username) filters.push({ type: 'success', label: `用户：${queryItems.value.username}` })
   if (queryItems.value.email) filters.push({ type: 'warning', label: `邮箱：${queryItems.value.email}` })
   return filters
 })
@@ -88,35 +106,94 @@ const overviewStats = computed(() => [
   {
     label: '当前页用户',
     value: tableRows.value.length,
-    hint: '已加载记录',
+    hint: '本次查询已加载账号',
   },
   {
     label: '启用账号',
-    value: tableRows.value.filter(item => item.is_active).length,
-    hint: '可正常登录',
+    value: tableRows.value.filter((item) => item.is_active).length,
+    hint: '允许登录和调用服务',
   },
   {
     label: '已封禁账号',
-    value: tableRows.value.filter(item => !item.is_active).length,
-    hint: '已不可登录',
+    value: tableRows.value.filter((item) => !item.is_active).length,
+    hint: '不可继续登录',
   },
   {
-    label: '邀请码注册',
-    value: tableRows.value.filter(item => item.registration_source === 'invite').length,
-    hint: '受邀注册用户',
+    label: '受邀注册',
+    value: tableRows.value.filter((item) => item.registration_source === 'invite').length,
+    hint: '邀请码注册用户',
   },
 ])
+
+const userMetricCards = computed(() => [
+  {
+    label: '用户总数',
+    value: userMetrics.value.summary.users || 0,
+    hint: '当前筛选范围参与统计的用户',
+  },
+  {
+    label: '视频生成',
+    value: userMetrics.value.summary.video_count || 0,
+    hint: '累计生成任务数',
+  },
+  {
+    label: '成功完成',
+    value: userMetrics.value.summary.completed_count || 0,
+    hint: '状态为 completed 的任务',
+  },
+  {
+    label: '语音调用',
+    value: userMetrics.value.summary.voice_count || 0,
+    hint: '语音识别调用次数',
+  },
+])
+
+const metricRanking = computed(() => {
+  const rows = userMetrics.value.ranking || []
+  const maxVideoCount = Math.max(...rows.map((item) => Number(item.video_count || 0)), 1)
+  return rows.slice(0, 8).map((item) => ({
+    ...item,
+    videoPercent: Math.max(10, Math.round((Number(item.video_count || 0) / maxVideoCount) * 100)),
+  }))
+})
+
+function isSuspiciousAlias(alias) {
+  const value = String(alias || '').trim()
+  if (!value) return true
+  if (/u[0-9A-Fa-f]{4}/.test(value)) return true
+  if (/\?{2,}/.test(value)) return true
+  if (/^(App|H5|Web)?\?+$/i.test(value)) return true
+  return false
+}
+
+function readDisplayName(row) {
+  const alias = String(row?.alias || '').trim()
+  if (isSuspiciousAlias(alias)) {
+    return String(row?.username || '--')
+  }
+  return alias
+}
+
+function readSecondaryName(row) {
+  const username = String(row?.username || '').trim()
+  const alias = String(row?.alias || '').trim()
+  if (!username) return '登录账号'
+  if (isSuspiciousAlias(alias) || alias === username) {
+    return '登录账号'
+  }
+  return `@${username}`
+}
 
 const columns = [
   {
     title: '用户',
     key: 'username',
-    width: 170,
+    width: 180,
     ellipsis: { tooltip: true },
     render(row) {
       return h('div', { class: 'user-name-cell' }, [
-        h('strong', { class: 'user-name-cell__title' }, row.alias || row.username || '--'),
-        h('span', { class: 'user-name-cell__meta' }, row.alias ? row.username : '登录账号'),
+        h('strong', { class: 'user-name-cell__title' }, readDisplayName(row)),
+        h('span', { class: 'user-name-cell__meta' }, readSecondaryName(row)),
       ])
     },
   },
@@ -161,22 +238,13 @@ const columns = [
       return h(
         'div',
         { class: 'user-role-tags' },
-        roles.map(role => h(NTag, { size: 'small', type: 'info', round: true }, { default: () => role.name }))
+        roles.map((role) => h(NTag, { size: 'small', type: 'info', round: true }, { default: () => role.name }))
       )
     },
   },
   {
-    title: '部门',
-    key: 'dept.name',
-    width: 140,
-    ellipsis: { tooltip: true },
-    render(row) {
-      return row.dept?.name || '--'
-    },
-  },
-  {
-    title: '类型',
-    key: 'is_superuser',
+    title: '权限',
+    key: 'permission_scope',
     width: 120,
     render(row) {
       return h(
@@ -186,8 +254,33 @@ const columns = [
           round: true,
           type: row.is_superuser ? 'warning' : 'default',
         },
-        { default: () => (row.is_superuser ? '管理员' : '普通用户') }
+        { default: () => (row.is_superuser ? '超级管理' : '角色权限') }
       )
+    },
+  },
+  {
+    title: '数据用量',
+    key: 'metric_usage',
+    width: 220,
+    render(row) {
+      const metric = metricsByUserId.value.get(row.id)
+      if (!metric) {
+        return h('span', { class: 'user-usage-empty' }, '暂无数据')
+      }
+      return h('div', { class: 'user-usage-cell' }, [
+        h('strong', null, `视频 ${metric.video_count || 0}`),
+        h('span', null, `成功 ${metric.completed_count || 0} / 失败 ${metric.failed_count || 0}`),
+        h('span', null, `语音 ${metric.voice_count || 0}`),
+      ])
+    },
+  },
+  {
+    title: '部门',
+    key: 'dept.name',
+    width: 140,
+    ellipsis: { tooltip: true },
+    render(row) {
+      return row.dept?.name || '--'
     },
   },
   {
@@ -247,6 +340,22 @@ const columns = [
             {
               size: 'small',
               quaternary: true,
+              type: 'info',
+              onClick: () => openRoleModal(row),
+            },
+            {
+              default: () => '角色权限',
+              icon: renderIcon('material-symbols:shield-person-outline', { size: 16 }),
+            }
+          ),
+          [[vPermission, 'post/api/v1/user/update']]
+        ),
+        withDirectives(
+          h(
+            NButton,
+            {
+              size: 'small',
+              quaternary: true,
               type: 'primary',
               onClick: () => openEditModal(row),
             },
@@ -279,7 +388,7 @@ const columns = [
                 ),
                 [[vPermission, 'delete/api/v1/user/delete']]
               ),
-            default: () => h('div', {}, '确定删除该用户吗？'),
+            default: () => h('div', {}, '确定删除这个用户吗？'),
           }
         ),
         !row.is_superuser &&
@@ -292,7 +401,7 @@ const columns = [
                   $message.success('密码已重置为 123456')
                   await $table.value?.handleSearch()
                 } catch (error) {
-                  $message.error(`重置密码失败：${error.message}`)
+                  $message.error(error?.message || '重置密码失败')
                 }
               },
             },
@@ -354,8 +463,24 @@ const validateAddUser = {
   role_ids: [{ type: 'array', required: true, message: '请至少选择一个角色', trigger: ['blur', 'change'] }],
 }
 
+onMounted(async () => {
+  $table.value?.handleSearch()
+  const [roleRes, deptRes] = await Promise.all([api.getRoleList({ page: 1, page_size: 9999 }), api.getDepts()])
+  roleOption.value = roleRes.data ?? []
+  deptOption.value = deptRes.data ?? []
+  await loadUserMetrics()
+})
+
+watch(
+  () => queryItems.value.dept_id,
+  (value) => {
+    selectedDeptId.value = value || null
+  }
+)
+
 function handleTableDataChange(data = []) {
   tableRows.value = data
+  loadUserMetrics()
 }
 
 function openCreateUser() {
@@ -369,11 +494,15 @@ function openCreateUser() {
 function openEditModal(row) {
   handleEdit(row)
   modalForm.value.dept_id = row.dept?.id ?? row.dept_id ?? null
-  modalForm.value.role_ids = (row.roles ?? []).map(item => item.id)
+  modalForm.value.role_ids = (row.roles ?? []).map((item) => item.id)
   modalForm.value.is_active = row.is_active ?? true
   modalForm.value.is_superuser = row.is_superuser ?? false
   delete modalForm.value.dept
   delete modalForm.value.invite_code
+}
+
+function openRoleModal(row) {
+  openEditModal(row)
 }
 
 async function handleToggleStatus(row, value) {
@@ -386,7 +515,7 @@ async function handleToggleStatus(row, value) {
   const payload = {
     ...row,
     is_active: value,
-    role_ids: (row.roles ?? []).map(item => item.id),
+    role_ids: (row.roles ?? []).map((item) => item.id),
     dept_id: row.dept?.id ?? row.dept_id ?? null,
   }
   delete payload.roles
@@ -400,7 +529,7 @@ async function handleToggleStatus(row, value) {
     $message.success(value ? '用户已启用' : '用户已封禁')
     $table.value?.handleSearch()
   } catch (error) {
-    $message.error(error.message || '更新用户状态失败')
+    $message.error(error?.message || '更新用户状态失败')
   } finally {
     row.publishing = false
   }
@@ -413,6 +542,19 @@ function clearDeptFilter() {
     dept_id: null,
   }
   $table.value?.handleSearch()
+}
+
+async function loadUserMetrics() {
+  metricsLoading.value = true
+  try {
+    const res = await api.getUserMetrics({
+      username: queryItems.value.username || undefined,
+      dept_id: queryItems.value.dept_id || undefined,
+    })
+    userMetrics.value = res.data || userMetrics.value
+  } finally {
+    metricsLoading.value = false
+  }
 }
 
 function handleDeptNodeClick(option) {
@@ -471,7 +613,7 @@ function findDeptNameById(nodes = [], targetId) {
         <div class="user-page__header-copy">
           <p class="user-page__eyebrow">SYSTEM USERS</p>
           <h2>用户管理</h2>
-          <p>统一管理后台创建用户、邀请码注册用户，以及启用、封禁、重置密码等操作。</p>
+          <p>统一管理受邀注册与后台创建用户，支持启用、封禁、角色权限调整、密码重置和使用数据查看。</p>
         </div>
         <div class="user-page__header-actions">
           <div class="user-page__scope">
@@ -492,7 +634,7 @@ function findDeptNameById(nodes = [], targetId) {
           <div>
             <p class="user-overview__label">工作区概览</p>
             <h3>当前视图以 {{ selectedDeptName }} 为主</h3>
-            <p>支持查看注册来源、邀请码、启用状态和封禁状态，便于运营与风控统一管理。</p>
+            <p>支持按部门、用户名和邮箱筛选，便于运营查看账号状态、来源和服务调用情况。</p>
           </div>
           <div class="user-overview__filters">
             <NTag v-for="item in activeFilters" :key="item.label" round :type="item.type">
@@ -508,6 +650,48 @@ function findDeptNameById(nodes = [], targetId) {
             <strong>{{ item.value }}</strong>
             <small>{{ item.hint }}</small>
           </div>
+        </div>
+      </section>
+
+      <section class="user-insight">
+        <div class="user-insight__header">
+          <div>
+            <p class="user-overview__label">用户洞察</p>
+            <h3>按当前筛选范围查看调用与产出</h3>
+            <p>聚合用户的视频生成、成功/失败任务和语音调用，方便快速判断活跃度与资源消耗。</p>
+          </div>
+          <NButton quaternary type="primary" :loading="metricsLoading" @click="loadUserMetrics">刷新数据</NButton>
+        </div>
+
+        <div class="user-insight__stats">
+          <div v-for="item in userMetricCards" :key="item.label" class="user-stat user-stat--metric">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.hint }}</small>
+          </div>
+        </div>
+
+        <div class="user-insight__chart">
+          <div class="user-insight__chart-head">
+            <strong>用户视频生成排行</strong>
+            <span>前 8 位用户按视频生成量排序</span>
+          </div>
+          <div v-if="metricRanking.length" class="user-metric-list">
+            <article v-for="item in metricRanking" :key="item.user_id" class="user-metric-row">
+              <div class="user-metric-row__copy">
+                <strong>{{ item.display_name }}</strong>
+                <span>@{{ item.username }}</span>
+              </div>
+              <div class="user-metric-row__bar">
+                <div class="user-metric-row__fill" :style="{ width: `${item.videoPercent}%` }" />
+              </div>
+              <div class="user-metric-row__meta">
+                <span>{{ item.video_count }} 条视频</span>
+                <small>成功 {{ item.completed_count }} / 失败 {{ item.failed_count }} / 语音 {{ item.voice_count }}</small>
+              </div>
+            </article>
+          </div>
+          <NEmpty v-else description="当前筛选范围暂无统计数据" size="small" />
         </div>
       </section>
 
@@ -548,8 +732,8 @@ function findDeptNameById(nodes = [], targetId) {
           <div class="user-table-panel__header">
             <div>
               <p class="user-table-panel__eyebrow">用户列表</p>
-              <h3>账号状态与邀请来源</h3>
-              <p>启用、封禁、编辑、删除和密码重置都保持在同一张表中，减少跳转成本。</p>
+              <h3>账号状态、角色权限与调用概况</h3>
+              <p>将封禁、启用、角色编辑、删除和密码重置保持在同一张表内，减少跳转成本。</p>
             </div>
           </div>
 
@@ -558,7 +742,7 @@ function findDeptNameById(nodes = [], targetId) {
             v-model:query-items="queryItems"
             :columns="columns"
             :get-data="api.getUserList"
-            :scroll-x="1560"
+            :scroll-x="1960"
             @on-data-change="handleTableDataChange"
           >
             <template #queryBar>
@@ -663,7 +847,7 @@ function findDeptNameById(nodes = [], targetId) {
 }
 
 .user-page__header-copy {
-  max-width: 620px;
+  max-width: 660px;
 }
 
 .user-page__eyebrow,
@@ -732,7 +916,10 @@ function findDeptNameById(nodes = [], targetId) {
   color: var(--app-text);
 }
 
-.user-overview {
+.user-overview,
+.user-insight,
+.dept-panel,
+.user-table-panel {
   padding: 20px 22px;
   border: 1px solid var(--shell-border);
   border-radius: 18px;
@@ -741,7 +928,15 @@ function findDeptNameById(nodes = [], targetId) {
   backdrop-filter: blur(20px);
 }
 
-.user-overview__intro {
+.user-overview,
+.user-insight {
+  display: grid;
+  gap: 18px;
+}
+
+.user-overview__intro,
+.user-insight__header,
+.dept-panel__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -753,24 +948,23 @@ function findDeptNameById(nodes = [], targetId) {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  min-width: 220px;
+  gap: 8px;
 }
 
-.user-overview__stats {
+.user-overview__stats,
+.user-insight__stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin-top: 18px;
 }
 
 .user-stat {
   display: grid;
   gap: 6px;
-  padding: 14px 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.56);
   border: 1px solid rgba(255, 105, 0, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.46);
 }
 
 .user-stat strong {
@@ -779,168 +973,177 @@ function findDeptNameById(nodes = [], targetId) {
   color: var(--app-text);
 }
 
-.user-stat small,
-.dept-panel__summary small {
+.user-stat small {
   color: var(--app-muted);
-  line-height: 1.4;
+}
+
+.user-insight__chart {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid rgba(255, 105, 0, 0.08);
+}
+
+.user-insight__chart-head {
+  display: grid;
+  gap: 4px;
+}
+
+.user-insight__chart-head strong {
+  color: var(--app-text);
+}
+
+.user-insight__chart-head span {
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.user-metric-list {
+  display: grid;
+  gap: 12px;
+}
+
+.user-metric-row {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 220px;
+  align-items: center;
+  gap: 14px;
+}
+
+.user-metric-row__copy,
+.user-metric-row__meta,
+.user-name-cell,
+.user-usage-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.user-metric-row__copy strong,
+.user-name-cell__title,
+.user-usage-cell strong {
+  color: var(--app-text);
+}
+
+.user-metric-row__copy span,
+.user-metric-row__meta small,
+.user-name-cell__meta,
+.user-role-empty,
+.user-usage-cell span,
+.user-usage-empty {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.user-metric-row__bar {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(93, 141, 247, 0.08);
+  overflow: hidden;
+}
+
+.user-metric-row__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-primary), #ffb36a 60%, #72a5ff);
+}
+
+.user-metric-row__meta {
+  justify-items: end;
+}
+
+.user-metric-row__meta span {
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .user-workspace {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 22px;
-}
-
-.dept-panel,
-.user-table-panel {
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid var(--shell-border);
-  border-radius: 18px;
-  background: rgba(255, 251, 248, 0.7);
-  box-shadow: var(--soft-shadow);
-  backdrop-filter: blur(18px);
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
 }
 
 .dept-panel {
   display: grid;
-  align-content: start;
   gap: 16px;
-  background: rgba(255, 248, 244, 0.62);
-}
-
-.dept-panel__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  align-content: start;
 }
 
 .dept-panel__summary {
   display: grid;
   gap: 4px;
-  padding: 14px 16px;
+  padding: 14px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 105, 0, 0.08);
 }
 
 .dept-panel__tree {
-  min-height: 320px;
+  min-height: 280px;
 }
 
 .user-table-panel {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
-.user-table-panel__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.user-name-cell {
-  display: grid;
-  gap: 4px;
-}
-
-.user-name-cell__title {
-  color: var(--app-text);
-  font-size: 14px;
-}
-
-.user-name-cell__meta,
-.user-role-empty {
-  font-size: 12px;
-  color: var(--app-muted);
-}
-
-.user-role-tags {
+.user-action-list,
+.user-role-tags,
+.modal-role-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.user-action-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
-}
-
 .modal-role-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 12px;
   width: 100%;
 }
 
-:deep(.n-tree-node-content) {
-  min-height: 34px;
-  border-radius: 10px;
-}
-
-:deep(.n-tree-node--selected > .n-tree-node-content) {
-  background: rgba(255, 105, 0, 0.12);
-}
-
-:deep(.n-data-table-th) {
-  background: #fff5ee;
-}
-
-:deep(.n-data-table-td) {
-  vertical-align: middle;
-}
-
-@media (max-width: 1100px) {
+@media (max-width: 1200px) {
   .user-workspace {
     grid-template-columns: 1fr;
   }
-
-  .dept-panel__tree {
-    min-height: auto;
-  }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .user-page__header,
-  .user-overview__intro {
+  .user-overview__intro,
+  .user-insight__header,
+  .dept-panel__header {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .user-page__header-actions,
   .user-overview__filters {
-    width: 100%;
     justify-content: flex-start;
   }
 
-  .user-overview__stats {
+  .user-overview__stats,
+  .user-insight__stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .user-metric-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .user-metric-row__meta {
+    justify-items: start;
   }
 }
 
 @media (max-width: 640px) {
-  .user-overview,
-  .dept-panel,
-  .user-table-panel {
-    padding: 18px;
-    border-radius: 20px;
+  .user-overview__stats,
+  .user-insight__stats {
+    grid-template-columns: 1fr;
   }
 
   .user-page__header-copy h2 {
     font-size: 26px;
-  }
-
-  .user-overview__stats,
-  .modal-role-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .user-page__header-actions {
-    flex-direction: column;
-    align-items: stretch;
   }
 }
 </style>

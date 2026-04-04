@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.controllers.user import user_controller
 from app.core.ctx import CTX_USER_ID
 from app.core.dependency import DependAuth
+from app.log import logger
 from app.models.admin import Api, Dept, Menu, Role, User
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema, JWTPayload, JWTOut
@@ -13,6 +14,7 @@ from app.settings import settings
 from app.utils.jwt_utils import create_access_token
 
 router = APIRouter()
+_MENU_PATH_BLACKLIST = {"/system", "/top-menu"}
 
 
 async def _serialize_current_user(user_obj: User) -> dict:
@@ -28,7 +30,10 @@ async def _serialize_current_user(user_obj: User) -> dict:
 @router.post("/access_token", summary="Get access token")
 async def login_access_token(credentials: CredentialsSchema):
     user: User = await user_controller.authenticate(credentials)
-    await user_controller.update_last_login(user.id)
+    try:
+        await user_controller.update_last_login(user.id)
+    except Exception as exc:
+        logger.warning(f"skip last_login update for user_id={user.id}: {exc}")
     access_token_expires = timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     expire = datetime.now(timezone.utc) + access_token_expires
 
@@ -59,12 +64,13 @@ async def get_user_menu():
     user_obj = await User.filter(id=user_id).first()
     menus: list[Menu] = []
     if user_obj.is_superuser:
-        menus = await Menu.all()
+        menus = await Menu.filter(is_hidden=False).all()
     else:
         role_objs: list[Role] = await user_obj.roles
         for role_obj in role_objs:
             menus.extend(await role_obj.menus)
-        menus = list(set(menus))
+        menus = [menu for menu in list(set(menus)) if not menu.is_hidden]
+    menus = [menu for menu in menus if menu.path not in _MENU_PATH_BLACKLIST]
 
     parent_menus: list[Menu] = []
     for menu in menus:
