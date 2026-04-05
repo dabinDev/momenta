@@ -400,10 +400,6 @@ def normalize_global_feature_settings(values: dict[str, Any]) -> dict[str, bool 
         default=int(defaults["video_generation_cost"]),
     )
 
-    if wechat_pay_enabled or alipay_pay_enabled:
-        points_enabled = True
-        recharge_enabled = True
-
     if not points_enabled:
         recharge_enabled = False
         wechat_pay_enabled = False
@@ -411,6 +407,9 @@ def normalize_global_feature_settings(values: dict[str, Any]) -> dict[str, bool 
     elif not recharge_enabled:
         wechat_pay_enabled = False
         alipay_pay_enabled = False
+    elif wechat_pay_enabled or alipay_pay_enabled:
+        points_enabled = True
+        recharge_enabled = True
 
     return {
         "points_enabled": points_enabled,

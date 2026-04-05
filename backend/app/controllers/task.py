@@ -4,13 +4,17 @@ import ast
 import asyncio
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from app.core.exceptions import normalize_error_message as normalize_api_error_message
 from app.controllers.points import points_controller
 from app.models.admin import User
 from app.models.video_task import VideoTask, VideoTaskAsset, VoiceTranscriptionLog
 from app.services.business_gateway import business_gateway_service
+from app.services.object_storage import ObjectStorageError, object_storage_service
+from app.settings import settings
 
 
 class VideoGenerationRateLimitError(Exception):
@@ -491,11 +495,14 @@ class TaskController:
         )
 
     async def serialize_task(self, task: VideoTask, *, include_assets: bool = True, include_user: bool = False) -> dict[str, Any]:
+        public_video_url = await self._ensure_task_public_video_url(task)
         data = await task.to_dict()
         data["id"] = str(task.id)
         data["prompt"] = task.prompt or ""
         data["display_text"] = self._display_text(task)
-        data["video_url"] = task.video_url or ""
+        data["video_url"] = public_video_url
+        if isinstance(data.get("provider_payload"), dict) and public_video_url:
+            data["provider_payload"] = self._write_video_url(data["provider_payload"], public_video_url)
         data["error_message"] = self._normalize_error_message(task.error_message) or ""
         data["provider_task_id"] = task.provider_task_id or ""
         data["progress"] = float(task.progress or 0)
@@ -521,6 +528,99 @@ class TaskController:
                 "email": user.email,
             } if user else None
         return data
+
+    async def _ensure_task_public_video_url(self, task: VideoTask) -> str:
+        current_url = str(task.video_url or "").strip()
+        if not current_url or not object_storage_service.generated_video_storage_enabled():
+            return current_url
+
+        local_file = self._resolve_local_generated_video_file(current_url)
+        if local_file is None:
+            return current_url
+
+        expected_public_url = object_storage_service.generated_video_public_url(
+            task_id=task.id,
+            file_name=local_file.name,
+        )
+        if await object_storage_service.generated_video_exists(
+            task_id=task.id,
+            file_name=local_file.name,
+        ):
+            if current_url != expected_public_url:
+                task.video_url = expected_public_url
+                payload = task.provider_payload
+                if isinstance(payload, dict):
+                    task.provider_payload = self._write_video_url(payload, expected_public_url)
+                try:
+                    await task.save()
+                except Exception:
+                    pass
+            return expected_public_url
+
+        try:
+            public_url = await object_storage_service.upload_generated_video(
+                task_id=task.id,
+                file_name=local_file.name,
+                content=local_file.read_bytes(),
+            )
+        except ObjectStorageError:
+            return current_url
+
+        if not public_url or public_url == current_url:
+            return current_url
+
+        task.video_url = public_url
+        payload = task.provider_payload
+        if isinstance(payload, dict):
+            task.provider_payload = self._write_video_url(payload, public_url)
+        try:
+            await task.save()
+        except Exception:
+            pass
+        return public_url
+
+    def _resolve_local_generated_video_file(self, raw_url: str) -> Path | None:
+        normalized = str(raw_url or "").strip()
+        if not normalized:
+            return None
+
+        parsed_public_base = urlparse((settings.PUBLIC_BASE_URL or "").strip())
+        parsed_url = urlparse(normalized)
+
+        if parsed_url.scheme and parsed_url.netloc:
+            if parsed_public_base.netloc and parsed_url.netloc != parsed_public_base.netloc:
+                return None
+            media_path = parsed_url.path
+        else:
+            media_path = normalized
+
+        if not media_path.startswith("/"):
+            media_path = f"/{media_path}"
+        if not media_path.startswith("/media/generated_videos/"):
+            return None
+
+        file_name = Path(media_path).name
+        if not file_name:
+            return None
+
+        local_file = Path(settings.MEDIA_ROOT) / "generated_videos" / file_name
+        if not local_file.exists() or not local_file.is_file():
+            return None
+        return local_file
+
+    def _write_video_url(self, payload: dict[str, Any], video_url: str) -> dict[str, Any]:
+        next_payload = dict(payload)
+        next_payload["video_url"] = video_url
+        if "videoUrl" in next_payload:
+            next_payload.pop("videoUrl", None)
+
+        data = next_payload.get("data")
+        if isinstance(data, dict):
+            next_data = dict(data)
+            next_data["video_url"] = video_url
+            next_data.pop("videoUrl", None)
+            next_payload["data"] = next_data
+        return next_payload
 
     async def serialize_voice_log(self, voice_log: VoiceTranscriptionLog) -> dict[str, Any]:
         data = await voice_log.to_dict()

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import tempfile
 from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import quote
@@ -14,6 +16,10 @@ class ObjectStorageError(Exception):
 
 
 class ObjectStorageService:
+    _multipart_threshold_bytes = 8 * 1024 * 1024
+    _multipart_part_size_mb = 5
+    _multipart_max_thread = 3
+
     def __init__(self) -> None:
         self._cos_client: Any | None = None
         self._cos_client_signature: tuple[str, ...] | None = None
@@ -43,6 +49,26 @@ class ObjectStorageService:
             content=content,
             content_type=content_type,
         )
+        return self._build_public_url(key)
+
+    async def generated_video_exists(
+        self,
+        *,
+        task_id: int,
+        file_name: str,
+    ) -> bool:
+        if not self.generated_video_storage_enabled():
+            return False
+        key = self._build_generated_video_key(task_id=task_id, file_name=file_name)
+        return await asyncio.to_thread(self._object_exists, object_key=key)
+
+    def generated_video_public_url(
+        self,
+        *,
+        task_id: int,
+        file_name: str,
+    ) -> str:
+        key = self._build_generated_video_key(task_id=task_id, file_name=file_name)
         return self._build_public_url(key)
 
     async def upload_release_package(
@@ -137,9 +163,52 @@ class ObjectStorageService:
                 put_kwargs["ACL"] = object_acl
             if content_disposition:
                 put_kwargs["ContentDisposition"] = content_disposition
-            client.put_object(**put_kwargs)
+            if len(content) >= self._multipart_threshold_bytes:
+                self._multipart_upload_to_cos(client=client, put_kwargs=put_kwargs, content=content)
+            else:
+                client.put_object(**put_kwargs)
         except Exception as exc:  # pragma: no cover
             raise ObjectStorageError(f"Failed to upload generated video to Tencent COS: {exc}") from exc
+
+    def _object_exists(self, *, object_key: str) -> bool:
+        client = self._get_cos_client()
+        try:
+            client.head_object(
+                Bucket=(settings.COS_BUCKET or "").strip(),
+                Key=object_key,
+            )
+            return True
+        except Exception:
+            return False
+
+    def _multipart_upload_to_cos(
+        self,
+        *,
+        client,
+        put_kwargs: dict[str, Any],
+        content: bytes,
+    ) -> None:
+        fd, tmp_path = tempfile.mkstemp(prefix="momenta-cos-", suffix=".bin")
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(content)
+            upload_kwargs = {
+                key: value
+                for key, value in put_kwargs.items()
+                if key not in {"Body", "EnableMD5"}
+            }
+            client.upload_file(
+                LocalFilePath=tmp_path,
+                PartSize=self._multipart_part_size_mb,
+                MAXThread=self._multipart_max_thread,
+                EnableMD5=False,
+                **upload_kwargs,
+            )
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
     def _get_cos_client(self):
         signature = (
@@ -171,6 +240,7 @@ class ObjectStorageService:
             "SecretKey": (settings.COS_SECRET_KEY or "").strip(),
             "Token": token,
             "Scheme": scheme,
+            "Timeout": 600,
         }
         if endpoint:
             config_kwargs["Endpoint"] = endpoint

@@ -283,11 +283,6 @@ function normalizeGlobalForm(target = globalForm.value) {
     ? Math.max(Math.floor(normalizedCost), 0)
     : 10
 
-  if (form.wechat_pay_enabled || form.alipay_pay_enabled) {
-    form.points_enabled = true
-    form.recharge_enabled = true
-  }
-
   if (!form.points_enabled) {
     form.recharge_enabled = false
     form.wechat_pay_enabled = false
@@ -295,6 +290,9 @@ function normalizeGlobalForm(target = globalForm.value) {
   } else if (!form.recharge_enabled) {
     form.wechat_pay_enabled = false
     form.alipay_pay_enabled = false
+  } else if (form.wechat_pay_enabled || form.alipay_pay_enabled) {
+    form.points_enabled = true
+    form.recharge_enabled = true
   }
 
   return form
@@ -302,21 +300,40 @@ function normalizeGlobalForm(target = globalForm.value) {
 
 function handlePointsToggle(value) {
   globalForm.value.points_enabled = value
+  if (!value) {
+    globalForm.value.recharge_enabled = false
+    globalForm.value.wechat_pay_enabled = false
+    globalForm.value.alipay_pay_enabled = false
+  }
   normalizeGlobalForm()
 }
 
 function handleRechargeToggle(value) {
   globalForm.value.recharge_enabled = value
+  if (value) {
+    globalForm.value.points_enabled = true
+  } else {
+    globalForm.value.wechat_pay_enabled = false
+    globalForm.value.alipay_pay_enabled = false
+  }
   normalizeGlobalForm()
 }
 
 function handleWechatToggle(value) {
   globalForm.value.wechat_pay_enabled = value
+  if (value) {
+    globalForm.value.points_enabled = true
+    globalForm.value.recharge_enabled = true
+  }
   normalizeGlobalForm()
 }
 
 function handleAlipayToggle(value) {
   globalForm.value.alipay_pay_enabled = value
+  if (value) {
+    globalForm.value.points_enabled = true
+    globalForm.value.recharge_enabled = true
+  }
   normalizeGlobalForm()
 }
 </script>
