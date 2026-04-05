@@ -96,7 +96,7 @@ async def retry_task(task_id: int = Query(..., description="Task ID")):
 @router.get("/download", summary="Download task video")
 async def download_task_video(task_id: int = Query(..., description="Task ID")):
     task = await task_controller.get_task(task_id=task_id)
-    target_url = _resolve_video_url(task.video_url or "")
+    target_url = _resolve_video_url(await task_controller.resolve_public_video_url(task))
     if not target_url:
         raise HTTPException(status_code=404, detail="Task video is not ready")
 

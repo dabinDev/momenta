@@ -465,7 +465,7 @@ async def retry_task(task_id: int):
 async def download_task_video(task_id: int):
     user_id = CTX_USER_ID.get()
     task = await task_controller.get_user_task(task_id=task_id, user_id=user_id)
-    target_url = _resolve_video_url(task.video_url or "")
+    target_url = _resolve_video_url(await task_controller.resolve_public_video_url(task))
     if not target_url:
         raise HTTPException(status_code=404, detail="当前任务视频尚未生成完成")
 

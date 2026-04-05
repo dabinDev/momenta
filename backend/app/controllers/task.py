@@ -529,6 +529,9 @@ class TaskController:
             } if user else None
         return data
 
+    async def resolve_public_video_url(self, task: VideoTask) -> str:
+        return await self._ensure_task_public_video_url(task)
+
     async def _ensure_task_public_video_url(self, task: VideoTask) -> str:
         current_url = str(task.video_url or "").strip()
         if not current_url or not object_storage_service.generated_video_storage_enabled():
