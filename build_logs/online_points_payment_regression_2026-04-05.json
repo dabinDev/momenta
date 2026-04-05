@@ -1,0 +1,53 @@
+﻿{
+  "date": "2026-04-05",
+  "environment": "production",
+  "published": true,
+  "urls": {
+    "h5": "https://memovideos.cn",
+    "admin": "https://memovideos.cn/admin/",
+    "api_docs": "https://api.memovideos.cn/docs"
+  },
+  "http_status": {
+    "h5": 200,
+    "admin": 200,
+    "api_docs": 200
+  },
+  "services": {
+    "momenta-backend": "active",
+    "momenta-h5": "active",
+    "nginx": "active"
+  },
+  "global_flags_after_restore": {
+    "points_enabled": true,
+    "recharge_enabled": true,
+    "video_generation_cost": 10,
+    "wechat_pay_enabled": true,
+    "alipay_pay_enabled": false,
+    "payment_methods": ["wechat"]
+  },
+  "admin_state_after_restore": {
+    "points_balance": 0,
+    "total_points_recharged": 0,
+    "completed_recharge_count": 0,
+    "invite_code": "HUCEK8E4",
+    "invite_used_count": 0,
+    "invite_user_count": 0
+  },
+  "cleanup": {
+    "temp_user_count": 0,
+    "temp_user_prefix": "it_"
+  },
+  "verified_flows": [
+    "admin_login",
+    "h5_login",
+    "invite_register_with_points_on",
+    "gift_points",
+    "recharge_create",
+    "recharge_mark_paid",
+    "recharge_switch_off_blocks_order",
+    "points_switch_off_updates_h5_userinfo",
+    "invite_register_with_points_off",
+    "restore_original_config",
+    "cleanup_test_data"
+  ]
+}

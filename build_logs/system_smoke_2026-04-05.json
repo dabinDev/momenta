@@ -1,0 +1,371 @@
+{
+  "date": "2026-04-05",
+  "environment": {
+    "backend": "http://127.0.0.1:10099",
+    "h5": "http://127.0.0.1:3000",
+    "admin_web": "http://127.0.0.1:3100"
+  },
+  "checks": [
+    {
+      "name": "backend.admin_login",
+      "ok": true,
+      "detail": {
+        "username": "admin"
+      }
+    },
+    {
+      "name": "backend.app_login",
+      "ok": true,
+      "detail": {
+        "username": "appuser"
+      }
+    },
+    {
+      "name": "backend.global_config",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.global_config.flags_present",
+      "ok": true,
+      "detail": {
+        "points_enabled": true,
+        "recharge_enabled": true
+      }
+    },
+    {
+      "name": "backend.userinfo",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.userinfo.feature_flags",
+      "ok": true,
+      "detail": {
+        "feature_flags": {
+          "points_enabled": true,
+          "recharge_enabled": true
+        }
+      }
+    },
+    {
+      "name": "backend.create_workbench",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.create_workbench.modes",
+      "ok": true,
+      "detail": {
+        "mode_count": 3
+      }
+    },
+    {
+      "name": "backend.prompt_templates",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.prompt_templates.items",
+      "ok": true,
+      "detail": {
+        "count": 3
+      }
+    },
+    {
+      "name": "backend.video_templates",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.video_templates.items",
+      "ok": true,
+      "detail": {
+        "count": 3
+      }
+    },
+    {
+      "name": "backend.points_summary",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.points_summary.fields",
+      "ok": true,
+      "detail": {
+        "points_balance": 0,
+        "total_points_spent": 0,
+        "total_points_recharged": 0,
+        "completed_recharge_count": 0,
+        "points_enabled": true,
+        "recharge_enabled": true,
+        "video_generation_cost": 10,
+        "new_user_recharge_available": true
+      }
+    },
+    {
+      "name": "backend.recharge_products",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.recharge_products.items",
+      "ok": true,
+      "detail": {
+        "count": 3
+      }
+    },
+    {
+      "name": "backend.tasks",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.tasks.items",
+      "ok": true,
+      "detail": {
+        "count": 1
+      }
+    },
+    {
+      "name": "backend.tasks_summary",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.task_download",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.task_download.bytes",
+      "ok": true,
+      "detail": {
+        "task_id": "50",
+        "bytes": 64
+      }
+    },
+    {
+      "name": "backend.admin_user_list",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.admin_user_metrics",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.admin_point_ledger",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.admin_recharge_order",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.admin_model_catalog",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.root",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.root.content",
+      "ok": true,
+      "detail": {
+        "length": 19032
+      }
+    },
+    {
+      "name": "h5.login",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.login.token",
+      "ok": true,
+      "detail": {
+        "username": "appuser"
+      }
+    },
+    {
+      "name": "h5.auth_me",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.create_workbench",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.history_summary",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.history",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.history_download.bytes",
+      "ok": true,
+      "detail": {
+        "skipped": "no completed task"
+      }
+    },
+    {
+      "name": "backend.invite_code_create",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.register",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.register.success",
+      "ok": true,
+      "detail": {
+        "username": "smoke_7050a762"
+      }
+    },
+    {
+      "name": "h5.temp_login",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.temp_auth_me",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "h5.registered_user.exists",
+      "ok": true,
+      "detail": {
+        "user_id": 13,
+        "username": "smoke_7050a762"
+      }
+    },
+    {
+      "name": "backend.cleanup_temp_user",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "backend.cleanup_invite_code",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "admin_web.root",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "admin_web.root.content",
+      "ok": true,
+      "detail": {
+        "length": 1507
+      }
+    },
+    {
+      "name": "admin_web.proxy_login",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "admin_web.proxy_userinfo",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "admin_web.proxy_usermenu",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "admin_web.proxy_user_list",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    }
+  ],
+  "summary": {
+    "total_checks": 49,
+    "passed": 49,
+    "failed": 0
+  }
+}
