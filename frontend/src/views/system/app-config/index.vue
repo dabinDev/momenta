@@ -9,6 +9,7 @@ import {
   NForm,
   NFormItem,
   NInput,
+  NInputNumber,
   NPagination,
   NSwitch,
   NTag,
@@ -17,7 +18,7 @@ import {
 import CommonPage from '@/components/page/CommonPage.vue'
 import api from '@/api'
 
-defineOptions({ name: '平台配置' })
+defineOptions({ name: '平台与计费' })
 
 const router = useRouter()
 
@@ -45,28 +46,28 @@ const summaryCards = computed(() => [
     key: 'text',
     label: '文字解析',
     model: globalForm.value.llm_model || '未配置',
-    hint: globalForm.value.llm_configured ? '已接入全局通道' : '等待配置平台密钥',
+    hint: globalForm.value.llm_configured ? '已接入统一文本模型' : '等待配置平台密钥',
     type: globalForm.value.llm_configured ? 'success' : 'default',
   },
   {
     key: 'video',
     label: '视频生成',
     model: globalForm.value.video_model || '未配置',
-    hint: globalForm.value.video_configured ? '全站统一使用该模型' : '等待配置平台密钥',
+    hint: globalForm.value.video_configured ? '已接入统一视频模型' : '等待配置平台密钥',
     type: globalForm.value.video_configured ? 'warning' : 'default',
   },
   {
     key: 'speech',
     label: '音频解析',
     model: globalForm.value.speech_model || '未配置',
-    hint: globalForm.value.speech_configured ? '语音识别统一走该模型' : '等待配置平台密钥',
+    hint: globalForm.value.speech_configured ? '已接入统一语音模型' : '等待配置平台密钥',
     type: globalForm.value.speech_configured ? 'info' : 'default',
   },
   {
     key: 'image',
     label: '图片生成',
-    model: globalForm.value.image_model || '未应用',
-    hint: globalForm.value.image_configured ? '能力已打通，暂未公开使用' : '先去模型管理页选择模型',
+    model: globalForm.value.image_model || '未启用',
+    hint: globalForm.value.image_configured ? '能力已打通，可随时启用' : '可在模型管理页继续配置',
     type: globalForm.value.image_configured ? 'primary' : 'default',
   },
 ])
@@ -98,6 +99,7 @@ async function loadGlobalConfig() {
 }
 
 async function handleSaveGlobal() {
+  normalizeGlobalForm()
   saveLoading.value = true
   try {
     const res = await api.updateGlobalAppConfig(globalForm.value)
@@ -205,6 +207,11 @@ async function handlePrivatePageChange(page) {
 
 function createGlobalForm() {
   return {
+    points_enabled: true,
+    recharge_enabled: true,
+    video_generation_cost: 10,
+    wechat_pay_enabled: true,
+    alipay_pay_enabled: false,
     provider_base_url: 'https://api.99hub.top',
     provider_api_key: '',
     llm_base_url: '',
@@ -227,10 +234,11 @@ function createGlobalForm() {
 }
 
 function toGlobalForm(item = {}) {
-  return {
+  const next = {
     ...createGlobalForm(),
     ...item,
   }
+  return normalizeGlobalForm(next)
 }
 
 function createPrivateForm() {
@@ -263,6 +271,54 @@ function toPrivateForm(item = {}) {
     ...item,
   }
 }
+
+function normalizeGlobalForm(target = globalForm.value) {
+  const form = target
+  if (!form) {
+    return createGlobalForm()
+  }
+
+  const normalizedCost = Number(form.video_generation_cost ?? 10)
+  form.video_generation_cost = Number.isFinite(normalizedCost)
+    ? Math.max(Math.floor(normalizedCost), 0)
+    : 10
+
+  if (form.wechat_pay_enabled || form.alipay_pay_enabled) {
+    form.points_enabled = true
+    form.recharge_enabled = true
+  }
+
+  if (!form.points_enabled) {
+    form.recharge_enabled = false
+    form.wechat_pay_enabled = false
+    form.alipay_pay_enabled = false
+  } else if (!form.recharge_enabled) {
+    form.wechat_pay_enabled = false
+    form.alipay_pay_enabled = false
+  }
+
+  return form
+}
+
+function handlePointsToggle(value) {
+  globalForm.value.points_enabled = value
+  normalizeGlobalForm()
+}
+
+function handleRechargeToggle(value) {
+  globalForm.value.recharge_enabled = value
+  normalizeGlobalForm()
+}
+
+function handleWechatToggle(value) {
+  globalForm.value.wechat_pay_enabled = value
+  normalizeGlobalForm()
+}
+
+function handleAlipayToggle(value) {
+  globalForm.value.alipay_pay_enabled = value
+  normalizeGlobalForm()
+}
 </script>
 
 <template>
@@ -270,9 +326,9 @@ function toPrivateForm(item = {}) {
     <template #header>
       <div class="platform-header">
         <div class="platform-header__copy">
-          <p class="platform-header__eyebrow">平台配置</p>
-          <h2>统一维护全局模型与平台密钥</h2>
-          <p>默认所有用户、App、H5、后台调试台都共用这一套平台能力。模型切换放在模型管理页，当前页只负责全局接入和隐藏的专属通道。</p>
+          <p class="platform-header__eyebrow">平台与计费</p>
+          <h2>统一维护平台接入、积分与支付开关</h2>
+          <p>默认所有用户、App、H5 和后台调试台都共用这一套平台能力。这里同时维护积分系统、充值入口、支付方式和全局接入配置。</p>
         </div>
         <div class="platform-header__actions">
           <NButton quaternary @click="loadGlobalConfig">刷新配置</NButton>
@@ -295,9 +351,9 @@ function toPrivateForm(item = {}) {
         <section class="platform-panel">
           <div class="platform-panel__head">
             <div>
-              <p class="platform-panel__eyebrow">全局接入</p>
+              <p class="platform-panel__eyebrow">平台接入与计费</p>
               <h3>统一平台地址与全局 SK</h3>
-              <p>平台提供的是统一 base URL 与统一 SK，管理员只需要维护这一份，全站即可同步生效。</p>
+              <p>平台提供统一 Base URL 和统一 SK。管理员只需要维护这一份，积分、充值和模型调用都会同步生效。</p>
             </div>
           </div>
 
@@ -308,6 +364,50 @@ function toPrivateForm(item = {}) {
             <NFormItem label="全局平台 SK">
               <NInput v-model:value="globalForm.provider_api_key" type="password" show-password-on="mousedown" placeholder="输入全局共享 SK" />
             </NFormItem>
+
+            <div class="platform-feature-switches">
+              <div class="platform-feature-switch">
+                <div class="platform-feature-switch__copy">
+                  <strong>积分系统</strong>
+                  <small>关闭后 App 和 H5 生成视频不再扣积分，邀请注册也不会再发放积分。</small>
+                </div>
+                <NSwitch :value="globalForm.points_enabled" @update:value="handlePointsToggle" />
+              </div>
+              <div class="platform-feature-switch">
+                <div class="platform-feature-switch__copy">
+                  <strong>充值系统</strong>
+                  <small>控制 App 侧是否允许发起积分充值；积分系统关闭时，充值会自动关闭。</small>
+                </div>
+                <NSwitch :value="globalForm.recharge_enabled" @update:value="handleRechargeToggle" />
+              </div>
+              <div class="platform-feature-switch">
+                <div class="platform-feature-switch__copy">
+                  <strong>单次视频扣积分</strong>
+                  <small>积分系统开启后生效，默认每次生成视频扣 10 积分；关闭积分时前端会自动按 0 展示。</small>
+                </div>
+                <NInputNumber
+                  v-model:value="globalForm.video_generation_cost"
+                  :min="0"
+                  :precision="0"
+                  :disabled="!globalForm.points_enabled"
+                  placeholder="请输入每次生成视频消耗积分"
+                />
+              </div>
+              <div class="platform-feature-switch">
+                <div class="platform-feature-switch__copy">
+                  <strong>微信支付</strong>
+                  <small>开启后会自动联动打开积分与充值；关闭充值系统时此开关也会自动关闭。</small>
+                </div>
+                <NSwitch :value="globalForm.wechat_pay_enabled" @update:value="handleWechatToggle" />
+              </div>
+              <div class="platform-feature-switch">
+                <div class="platform-feature-switch__copy">
+                  <strong>支付宝支付</strong>
+                  <small>支持单独控制支付方式可用性；只要任一支付方式开启，就不能关闭积分系统。</small>
+                </div>
+                <NSwitch :value="globalForm.alipay_pay_enabled" @update:value="handleAlipayToggle" />
+              </div>
+            </div>
 
             <div class="platform-form__models">
               <div class="platform-model-chip">
@@ -324,7 +424,7 @@ function toPrivateForm(item = {}) {
               </div>
               <div class="platform-model-chip">
                 <span>图片生成</span>
-                <strong>{{ globalForm.image_model || '未应用' }}</strong>
+                <strong>{{ globalForm.image_model || '未启用' }}</strong>
               </div>
             </div>
           </NForm>
@@ -340,7 +440,7 @@ function toPrivateForm(item = {}) {
             <div>
               <p class="platform-panel__eyebrow">能力说明</p>
               <h3>模型应用规则</h3>
-              <p>管理端手动应用某个能力的模型后，后续所有普通用户都会直接走新的全局模型。少量付费用户如果开通专属通道，才会覆盖全局配置。</p>
+              <p>管理员手动应用某一项能力的模型后，后续所有普通用户都会直接走新的全局模型。少量付费用户如果开通专属通道，才会覆盖全局配置。</p>
             </div>
           </div>
 
@@ -355,7 +455,7 @@ function toPrivateForm(item = {}) {
             </article>
             <article class="platform-rule">
               <strong>隐藏付费能力</strong>
-              <p>专属 SK 与私有模型覆盖不出现在公开菜单中，只能通过当前页右上角的隐藏入口进入。</p>
+              <p>专属 SK 与私有模型覆盖不会出现在公开菜单里，只能通过当前页面右上角的隐藏入口进入。</p>
             </article>
           </div>
 
@@ -432,7 +532,7 @@ function toPrivateForm(item = {}) {
 
             <NForm label-placement="top" :model="privateForm" class="private-form">
               <NFormItem label="专属 Base URL">
-                <NInput v-model:value="privateForm.provider_base_url" placeholder="留空则跟随平台全局地址" />
+                <NInput v-model:value="privateForm.provider_base_url" placeholder="留空则继续跟随平台全局地址" />
               </NFormItem>
               <NFormItem label="专属 SK">
                 <NInput v-model:value="privateForm.provider_api_key" type="password" show-password-on="mousedown" placeholder="留空则继续使用平台全局 SK" />
@@ -605,6 +705,39 @@ function toPrivateForm(item = {}) {
   gap: 12px;
 }
 
+.platform-feature-switches {
+  display: grid;
+  gap: 12px;
+}
+
+.platform-feature-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.platform-feature-switch__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.platform-feature-switch__copy strong {
+  color: var(--app-text);
+}
+
+.platform-feature-switch__copy small {
+  color: var(--app-muted);
+  line-height: 1.6;
+}
+
+.platform-feature-switch :deep(.n-input-number) {
+  width: 168px;
+}
+
 .platform-form__models,
 .private-form__models {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -703,6 +836,11 @@ function toPrivateForm(item = {}) {
   .platform-form__models,
   .private-form__models {
     grid-template-columns: 1fr;
+  }
+
+  .platform-feature-switch {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .platform-panel__footer,

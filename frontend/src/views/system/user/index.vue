@@ -4,11 +4,15 @@ import {
   NButton,
   NCheckbox,
   NCheckboxGroup,
+  NDataTable,
+  NDrawer,
+  NDrawerContent,
   NEmpty,
   NForm,
   NFormItem,
   NInput,
-  NPopconfirm,
+  NInputNumber,
+  NPagination,
   NTag,
   NTree,
   NTreeSelect,
@@ -39,6 +43,25 @@ const deptOption = ref([])
 const deptKeyword = ref('')
 const selectedDeptId = ref(null)
 const metricsLoading = ref(false)
+const giftModalVisible = ref(false)
+const giftModalLoading = ref(false)
+const giftFormRef = ref(null)
+const giftTargetUser = ref(null)
+const detailVisible = ref(false)
+const detailLoading = ref(false)
+const detailUser = ref(null)
+const detailLedgerLoading = ref(false)
+const detailLedgerRows = ref([])
+const detailLedgerPagination = ref({
+  page: 1,
+  pageSize: 8,
+  itemCount: 0,
+})
+const giftForm = ref({
+  user_id: null,
+  points: 30,
+  remark: '',
+})
 const userMetrics = ref({
   summary: {
     users: 0,
@@ -89,6 +112,11 @@ const metricsByUserId = computed(() => {
     map.set(item.user_id, item)
   }
   return map
+})
+const detailMetric = computed(() => {
+  const userId = detailUser.value?.id
+  if (!userId) return null
+  return metricsByUserId.value.get(userId) || null
 })
 
 const deptTreeData = computed(() => filterDeptTree(deptOption.value, deptKeyword.value))
@@ -184,6 +212,108 @@ function readSecondaryName(row) {
   return `@${username}`
 }
 
+function readPointsSummary(row) {
+  return {
+    balance: Number(row?.points_balance || 0),
+    recharged: Number(row?.total_points_recharged || 0),
+    spent: Number(row?.total_points_spent || 0),
+  }
+}
+
+function readInviteSourceLabel(row) {
+  return row?.registration_source === 'invite' ? '邀请码注册' : '后台创建'
+}
+
+function readTransactionTitle(row) {
+  const value = String(row?.transaction_type || '').trim()
+  const map = {
+    invite_signup: '邀请注册奖励',
+    invite_reward: '邀请好友奖励',
+    admin_gift: '管理员赠送',
+    video_consume: '视频生成扣费',
+    video_refund: '失败退回积分',
+    recharge: '充值到账',
+  }
+  return row?.title || map[value] || value || '--'
+}
+
+function readTransactionType(row) {
+  const value = String(row?.transaction_type || '').trim()
+  if (['invite_signup', 'invite_reward', 'admin_gift', 'recharge', 'video_refund'].includes(value)) {
+    return 'success'
+  }
+  if (value === 'video_consume') {
+    return 'warning'
+  }
+  return 'default'
+}
+
+function readLedgerAmount(row) {
+  const value = Number(row?.change_amount || 0)
+  return value > 0 ? `+${value}` : `${value}`
+}
+
+function readLedgerRelatedTarget(row) {
+  if (row?.task_id) return `任务 #${row.task_id}`
+  if (row?.recharge_order_id) return `充值单 #${row.recharge_order_id}`
+  if (row?.invite_code_id) return `邀请码 #${row.invite_code_id}`
+  if (row?.related_user?.username) return `关联用户 @${row.related_user.username}`
+  return '--'
+}
+
+const detailLedgerColumns = [
+  {
+    title: '类型',
+    key: 'transaction_type',
+    width: 150,
+    render(row) {
+      return h(
+        NTag,
+        { size: 'small', round: true, type: readTransactionType(row) },
+        { default: () => readTransactionTitle(row) },
+      )
+    },
+  },
+  {
+    title: '积分变动',
+    key: 'change_amount',
+    width: 110,
+    render(row) {
+      return readLedgerAmount(row)
+    },
+  },
+  {
+    title: '变更后余额',
+    key: 'balance_after',
+    width: 120,
+  },
+  {
+    title: '关联对象',
+    key: 'related_target',
+    width: 180,
+    render(row) {
+      return readLedgerRelatedTarget(row)
+    },
+  },
+  {
+    title: '备注',
+    key: 'remark',
+    minWidth: 220,
+    ellipsis: { tooltip: true },
+    render(row) {
+      return row.remark || '--'
+    },
+  },
+  {
+    title: '时间',
+    key: 'created_at',
+    width: 180,
+    render(row) {
+      return row.created_at ? formatDate(row.created_at) : '--'
+    },
+  },
+]
+
 const columns = [
   {
     title: '用户',
@@ -196,12 +326,6 @@ const columns = [
         h('span', { class: 'user-name-cell__meta' }, readSecondaryName(row)),
       ])
     },
-  },
-  {
-    title: '邮箱',
-    key: 'email',
-    width: 220,
-    ellipsis: { tooltip: true },
   },
   {
     title: '来源',
@@ -221,41 +345,16 @@ const columns = [
     },
   },
   {
-    title: '邀请码',
-    key: 'invite_code',
-    width: 140,
+    title: '积分',
+    key: 'points_balance',
+    width: 180,
     render(row) {
-      return row.invite_code?.code || '--'
-    },
-  },
-  {
-    title: '角色',
-    key: 'role',
-    width: 220,
-    render(row) {
-      const roles = row.roles ?? []
-      if (!roles.length) return h('span', { class: 'user-role-empty' }, '未分配')
-      return h(
-        'div',
-        { class: 'user-role-tags' },
-        roles.map((role) => h(NTag, { size: 'small', type: 'info', round: true }, { default: () => role.name }))
-      )
-    },
-  },
-  {
-    title: '权限',
-    key: 'permission_scope',
-    width: 120,
-    render(row) {
-      return h(
-        NTag,
-        {
-          size: 'small',
-          round: true,
-          type: row.is_superuser ? 'warning' : 'default',
-        },
-        { default: () => (row.is_superuser ? '超级管理' : '角色权限') }
-      )
+      const summary = readPointsSummary(row)
+      return h('div', { class: 'user-usage-cell' }, [
+        h('strong', null, `余额 ${summary.balance}`),
+        h('span', null, `充值 ${summary.recharged}`),
+        h('span', null, `消耗 ${summary.spent}`),
+      ])
     },
   },
   {
@@ -272,15 +371,6 @@ const columns = [
         h('span', null, `成功 ${metric.completed_count || 0} / 失败 ${metric.failed_count || 0}`),
         h('span', null, `语音 ${metric.voice_count || 0}`),
       ])
-    },
-  },
-  {
-    title: '部门',
-    key: 'dept.name',
-    width: 140,
-    ellipsis: { tooltip: true },
-    render(row) {
-      return row.dept?.name || '--'
     },
   },
   {
@@ -310,122 +400,24 @@ const columns = [
   {
     title: '操作',
     key: 'actions',
-    width: 360,
+    width: 96,
     fixed: 'right',
     render(row) {
-      return h('div', { class: 'user-action-list' }, [
-        withDirectives(
-          h(
-            NButton,
-            {
-              size: 'small',
-              quaternary: true,
-              type: row.is_active ? 'warning' : 'success',
-              loading: !!row.publishing,
-              onClick: () => handleToggleStatus(row, !row.is_active),
-            },
-            {
-              default: () => (row.is_active ? '封禁' : '启用'),
-              icon: renderIcon(
-                row.is_active ? 'material-symbols:block' : 'material-symbols:check-circle-outline',
-                { size: 16 }
-              ),
-            }
-          ),
-          [[vPermission, 'post/api/v1/user/update']]
-        ),
-        withDirectives(
-          h(
-            NButton,
-            {
-              size: 'small',
-              quaternary: true,
-              type: 'info',
-              onClick: () => openRoleModal(row),
-            },
-            {
-              default: () => '角色权限',
-              icon: renderIcon('material-symbols:shield-person-outline', { size: 16 }),
-            }
-          ),
-          [[vPermission, 'post/api/v1/user/update']]
-        ),
-        withDirectives(
-          h(
-            NButton,
-            {
-              size: 'small',
-              quaternary: true,
-              type: 'primary',
-              onClick: () => openEditModal(row),
-            },
-            {
-              default: () => '编辑',
-              icon: renderIcon('material-symbols:edit-outline', { size: 16 }),
-            }
-          ),
-          [[vPermission, 'post/api/v1/user/update']]
-        ),
+      return withDirectives(
         h(
-          NPopconfirm,
+          NButton,
           {
-            onPositiveClick: () => handleDelete({ user_id: row.id }, false),
+            size: 'small',
+            quaternary: true,
+            onClick: () => openDetailDrawer(row),
           },
           {
-            trigger: () =>
-              withDirectives(
-                h(
-                  NButton,
-                  {
-                    size: 'small',
-                    quaternary: true,
-                    type: 'error',
-                  },
-                  {
-                    default: () => '删除',
-                    icon: renderIcon('material-symbols:delete-outline', { size: 16 }),
-                  }
-                ),
-                [[vPermission, 'delete/api/v1/user/delete']]
-              ),
-            default: () => h('div', {}, '确定删除这个用户吗？'),
+            default: () => '详情',
+            icon: renderIcon('material-symbols:visibility-outline-rounded', { size: 16 }),
           }
         ),
-        !row.is_superuser &&
-          h(
-            NPopconfirm,
-            {
-              onPositiveClick: async () => {
-                try {
-                  await api.resetPassword({ user_id: row.id })
-                  $message.success('密码已重置为 123456')
-                  await $table.value?.handleSearch()
-                } catch (error) {
-                  $message.error(error?.message || '重置密码失败')
-                }
-              },
-            },
-            {
-              trigger: () =>
-                withDirectives(
-                  h(
-                    NButton,
-                    {
-                      size: 'small',
-                      quaternary: true,
-                      type: 'warning',
-                    },
-                    {
-                      default: () => '重置密码',
-                      icon: renderIcon('material-symbols:lock-reset', { size: 16 }),
-                    }
-                  ),
-                  [[vPermission, 'post/api/v1/user/reset_password']]
-                ),
-              default: () => h('div', {}, '确定将该用户密码重置为 123456 吗？'),
-            }
-          ),
-      ].filter(Boolean))
+        [[vPermission, 'get/api/v1/user/get']]
+      )
     },
   },
 ]
@@ -463,6 +455,17 @@ const validateAddUser = {
   role_ids: [{ type: 'array', required: true, message: '请至少选择一个角色', trigger: ['blur', 'change'] }],
 }
 
+const giftRules = {
+  points: [
+    {
+      required: true,
+      type: 'number',
+      message: '请输入要赠送的积分',
+      trigger: ['blur', 'change'],
+    },
+  ],
+}
+
 onMounted(async () => {
   $table.value?.handleSearch()
   const [roleRes, deptRes] = await Promise.all([api.getRoleList({ page: 1, page_size: 9999 }), api.getDepts()])
@@ -480,6 +483,7 @@ watch(
 
 function handleTableDataChange(data = []) {
   tableRows.value = data
+  syncDetailUserFromTable(data)
   loadUserMetrics()
 }
 
@@ -503,6 +507,217 @@ function openEditModal(row) {
 
 function openRoleModal(row) {
   openEditModal(row)
+}
+
+function openGiftModal(row) {
+  giftTargetUser.value = row
+  giftForm.value = {
+    user_id: row.id,
+    points: 30,
+    remark: '',
+  }
+  giftModalVisible.value = true
+}
+
+function confirmDetailAction({
+  title,
+  content,
+  type = 'warning',
+  positiveText = '确认',
+  onConfirm,
+}) {
+  if (window.$dialog?.confirm) {
+    window.$dialog.confirm({
+      title,
+      content,
+      type,
+      positiveText,
+      negativeText: '取消',
+      confirm: onConfirm,
+    })
+    return
+  }
+
+  if (window.confirm(content)) {
+    onConfirm?.()
+  }
+}
+
+function openDetailEdit() {
+  if (!detailUser.value) return
+  openEditModal(detailUser.value)
+}
+
+function openDetailRole() {
+  if (!detailUser.value) return
+  openRoleModal(detailUser.value)
+}
+
+function openDetailGift() {
+  if (!detailUser.value) return
+  openGiftModal(detailUser.value)
+}
+
+function toggleDetailStatus() {
+  if (!detailUser.value) return
+  const nextValue = !detailUser.value.is_active
+  confirmDetailAction({
+    title: nextValue ? '启用用户' : '封禁用户',
+    content: `确定要${nextValue ? '启用' : '封禁'} ${readDisplayName(detailUser.value)} 吗？`,
+    type: nextValue ? 'success' : 'warning',
+    positiveText: nextValue ? '确认启用' : '确认封禁',
+    onConfirm: async () => {
+      await handleToggleStatus(detailUser.value, nextValue)
+      await refreshDetailDrawer()
+    },
+  })
+}
+
+function resetDetailUserPassword() {
+  if (!detailUser.value || detailUser.value.is_superuser) return
+  confirmDetailAction({
+    title: '重置密码',
+    content: `确定将 ${readDisplayName(detailUser.value)} 的密码重置为 123456 吗？`,
+    positiveText: '确认重置',
+    onConfirm: async () => {
+      try {
+        await api.resetPassword({ user_id: detailUser.value.id })
+        $message.success('密码已重置为 123456')
+        await $table.value?.handleSearch()
+        await refreshDetailDrawer()
+      } catch (error) {
+        $message.error(error?.message || '重置密码失败')
+      }
+    },
+  })
+}
+
+function deleteDetailUser() {
+  if (!detailUser.value) return
+  confirmDetailAction({
+    title: '删除用户',
+    content: `确定删除 ${readDisplayName(detailUser.value)} 吗？删除后无法恢复。`,
+    type: 'error',
+    positiveText: '确认删除',
+    onConfirm: async () => {
+      try {
+        await handleDelete({ user_id: detailUser.value.id }, false)
+        detailVisible.value = false
+        detailUser.value = null
+        detailLedgerRows.value = []
+      } catch (_) {
+        // useCRUD 内部已处理提示
+      }
+    },
+  })
+}
+
+async function openDetailDrawer(row) {
+  detailVisible.value = true
+  detailLoading.value = true
+  detailUser.value = {
+    ...row,
+  }
+  detailLedgerPagination.value.page = 1
+  try {
+    const [userRes] = await Promise.all([
+      api.getUserById({ user_id: row.id }),
+      loadDetailLedger(1, row.id),
+    ])
+    detailUser.value = {
+      ...row,
+      ...(userRes.data || {}),
+      dept: row.dept || {},
+      roles: row.roles || [],
+      invite_code: row.invite_code || {},
+    }
+  } catch (error) {
+    $message.error(error?.message || '加载用户详情失败')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function refreshDetailDrawer() {
+  const userId = detailUser.value?.id
+  if (!detailVisible.value || !userId) return
+  try {
+    const [userRes] = await Promise.all([
+      api.getUserById({ user_id: userId }),
+      loadDetailLedger(detailLedgerPagination.value.page, userId),
+    ])
+    detailUser.value = {
+      ...(detailUser.value || {}),
+      ...(userRes.data || {}),
+      dept: detailUser.value?.dept || {},
+      roles: detailUser.value?.roles || [],
+      invite_code: detailUser.value?.invite_code || {},
+    }
+    syncDetailUserFromTable(tableRows.value)
+  } catch (_) {
+    // Keep current detail data when refresh fails.
+  }
+}
+
+function syncDetailUserFromTable(rows = []) {
+  const userId = detailUser.value?.id
+  if (!userId) return
+  const row = rows.find((item) => item.id === userId)
+  if (!row) return
+  detailUser.value = {
+    ...detailUser.value,
+    ...row,
+    dept: row.dept || detailUser.value?.dept || {},
+    roles: row.roles || detailUser.value?.roles || [],
+    invite_code: row.invite_code || detailUser.value?.invite_code || {},
+  }
+}
+
+async function loadDetailLedger(page = 1, userId = detailUser.value?.id) {
+  if (!userId) return
+  detailLedgerLoading.value = true
+  try {
+    const res = await api.getPointLedgerList({
+      page,
+      page_size: detailLedgerPagination.value.pageSize,
+      user_id: userId,
+    })
+    detailLedgerRows.value = res.data || []
+    detailLedgerPagination.value.itemCount = res.total || 0
+    detailLedgerPagination.value.page = page
+  } catch (error) {
+    detailLedgerRows.value = []
+    detailLedgerPagination.value.itemCount = 0
+    $message.error(error?.message || '加载积分流水失败')
+  } finally {
+    detailLedgerLoading.value = false
+  }
+}
+
+function handleDetailLedgerPageChange(page) {
+  loadDetailLedger(page)
+}
+
+async function submitGift() {
+  giftFormRef.value?.validate(async (errors) => {
+    if (errors) return
+    giftModalLoading.value = true
+    try {
+      await api.giftUserPoints({
+        user_id: giftForm.value.user_id,
+        points: giftForm.value.points,
+        remark: giftForm.value.remark?.trim() || undefined,
+      })
+      $message.success('积分赠送成功')
+      giftModalVisible.value = false
+      await $table.value?.handleSearch()
+      await refreshDetailDrawer()
+    } catch (error) {
+      $message.error(error?.message || '积分赠送失败')
+    } finally {
+      giftModalLoading.value = false
+    }
+  })
 }
 
 async function handleToggleStatus(row, value) {
@@ -733,7 +948,7 @@ function findDeptNameById(nodes = [], targetId) {
             <div>
               <p class="user-table-panel__eyebrow">用户列表</p>
               <h3>账号状态、角色权限与调用概况</h3>
-              <p>将封禁、启用、角色编辑、删除和密码重置保持在同一张表内，减少跳转成本。</p>
+              <p>主表只保留账号概览，高频维护动作统一收口到右侧详情抽屉。</p>
             </div>
           </div>
 
@@ -742,7 +957,7 @@ function findDeptNameById(nodes = [], targetId) {
             v-model:query-items="queryItems"
             :columns="columns"
             :get-data="api.getUserList"
-            :scroll-x="1960"
+            :scroll-x="1320"
             @on-data-change="handleTableDataChange"
           >
             <template #queryBar>
@@ -828,6 +1043,179 @@ function findDeptNameById(nodes = [], targetId) {
           </NFormItem>
         </NForm>
       </CrudModal>
+
+      <CrudModal
+        v-model:visible="giftModalVisible"
+        title="赠送积分"
+        :loading="giftModalLoading"
+        @save="submitGift"
+      >
+        <NForm
+          ref="giftFormRef"
+          label-placement="left"
+          label-align="left"
+          :label-width="88"
+          :model="giftForm"
+          :rules="giftRules"
+        >
+          <NFormItem label="目标用户">
+            <NInput :value="giftTargetUser ? `${readDisplayName(giftTargetUser)} (@${giftTargetUser.username})` : ''" disabled />
+          </NFormItem>
+          <NFormItem label="当前余额">
+            <NInput :value="giftTargetUser ? String(readPointsSummary(giftTargetUser).balance) : '0'" disabled />
+          </NFormItem>
+          <NFormItem label="赠送积分" path="points">
+            <NInputNumber v-model:value="giftForm.points" :min="1" class="w-full" />
+          </NFormItem>
+          <NFormItem label="备注" path="remark">
+            <NInput
+              v-model:value="giftForm.remark"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 5 }"
+              placeholder="例如：活动奖励、补偿积分、人工赠送"
+            />
+          </NFormItem>
+        </NForm>
+      </CrudModal>
+
+      <NDrawer v-model:show="detailVisible" placement="right" :width="620">
+        <NDrawerContent closable>
+          <template #header>
+            <div v-if="detailUser" class="user-detail__header">
+              <div>
+                <p class="user-detail__eyebrow">用户详情</p>
+                <h3>{{ readDisplayName(detailUser) }}</h3>
+                <p>{{ readSecondaryName(detailUser) }} · {{ readInviteSourceLabel(detailUser) }}</p>
+              </div>
+              <NTag round :type="detailUser?.is_active ? 'success' : 'error'">
+                {{ detailUser?.is_active ? '启用中' : '已封禁' }}
+              </NTag>
+            </div>
+          </template>
+
+          <div v-if="detailUser" class="user-detail">
+            <section class="user-detail__summary">
+              <article class="user-detail__stat">
+                <span>当前积分</span>
+                <strong>{{ readPointsSummary(detailUser).balance }}</strong>
+                <small>可用于继续生成视频</small>
+              </article>
+              <article class="user-detail__stat">
+                <span>累计充值</span>
+                <strong>{{ readPointsSummary(detailUser).recharged }}</strong>
+                <small>App 内充值到账积分</small>
+              </article>
+              <article class="user-detail__stat">
+                <span>累计消耗</span>
+                <strong>{{ readPointsSummary(detailUser).spent }}</strong>
+                <small>视频生成扣费累计</small>
+              </article>
+              <article class="user-detail__stat">
+                <span>视频生成</span>
+                <strong>{{ detailMetric?.video_count || 0 }}</strong>
+                <small>成功 {{ detailMetric?.completed_count || 0 }} / 失败 {{ detailMetric?.failed_count || 0 }}</small>
+              </article>
+            </section>
+
+            <section class="user-detail__section">
+              <div class="user-detail__section-head">
+                <div>
+                  <h4>快捷操作</h4>
+                  <p>编辑资料、角色权限、积分赠送、启用封禁和删除统一在这里处理。</p>
+                </div>
+              </div>
+              <div class="user-detail__actions">
+                <NButton v-permission="'post/api/v1/user/update'" secondary type="primary" @click="openDetailEdit">
+                  编辑资料
+                </NButton>
+                <NButton v-permission="'post/api/v1/user/update'" secondary type="info" @click="openDetailRole">
+                  角色权限
+                </NButton>
+                <NButton v-permission="'post/api/v1/user/gift_points'" secondary type="success" @click="openDetailGift">
+                  赠送积分
+                </NButton>
+                <NButton
+                  v-permission="'post/api/v1/user/update'"
+                  secondary
+                  :type="detailUser?.is_active ? 'warning' : 'success'"
+                  @click="toggleDetailStatus"
+                >
+                  {{ detailUser?.is_active ? '封禁用户' : '启用用户' }}
+                </NButton>
+                <NButton
+                  v-if="!detailUser?.is_superuser"
+                  v-permission="'post/api/v1/user/reset_password'"
+                  secondary
+                  type="warning"
+                  @click="resetDetailUserPassword"
+                >
+                  重置密码
+                </NButton>
+                <NButton v-permission="'delete/api/v1/user/delete'" secondary type="error" @click="deleteDetailUser">
+                  删除用户
+                </NButton>
+              </div>
+            </section>
+
+            <section class="user-detail__section">
+              <div class="user-detail__section-head">
+                <h4>基础资料</h4>
+                <NButton quaternary type="primary" :loading="detailLoading" @click="refreshDetailDrawer">刷新</NButton>
+              </div>
+              <div class="user-detail__grid">
+                <article class="user-detail__card">
+                  <span>邮箱</span>
+                  <p>{{ detailUser.email || '--' }}</p>
+                </article>
+                <article class="user-detail__card">
+                  <span>手机号</span>
+                  <p>{{ detailUser.phone || '--' }}</p>
+                </article>
+                <article class="user-detail__card">
+                  <span>部门</span>
+                  <p>{{ detailUser.dept?.name || '--' }}</p>
+                </article>
+                <article class="user-detail__card">
+                  <span>邀请码</span>
+                  <p>{{ detailUser.invite_code?.code || '--' }}</p>
+                </article>
+                <article class="user-detail__card">
+                  <span>角色</span>
+                  <p>{{ (detailUser.roles || []).map((item) => item.name).join('、') || '未分配' }}</p>
+                </article>
+                <article class="user-detail__card">
+                  <span>最近登录</span>
+                  <p>{{ detailUser.last_login ? formatDate(detailUser.last_login) : '暂无记录' }}</p>
+                </article>
+              </div>
+            </section>
+
+            <section class="user-detail__section">
+              <div class="user-detail__section-head">
+                <div>
+                  <h4>积分流水</h4>
+                  <p>统一查看该用户的积分收入、消耗和失败退回记录。</p>
+                </div>
+              </div>
+              <NDataTable
+                :loading="detailLedgerLoading"
+                :columns="detailLedgerColumns"
+                :data="detailLedgerRows"
+                :scroll-x="980"
+                remote
+              />
+              <div class="user-detail__pagination">
+                <NPagination
+                  :page="detailLedgerPagination.page"
+                  :page-size="detailLedgerPagination.pageSize"
+                  :item-count="detailLedgerPagination.itemCount"
+                  @update:page="handleDetailLedgerPageChange"
+                />
+              </div>
+            </section>
+          </div>
+        </NDrawerContent>
+      </NDrawer>
     </div>
   </CommonPage>
 </template>
@@ -1102,6 +1490,109 @@ function findDeptNameById(nodes = [], targetId) {
   width: 100%;
 }
 
+.user-detail {
+  display: grid;
+  gap: 20px;
+}
+
+.user-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.user-detail__eyebrow {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brand-primary);
+}
+
+.user-detail__header h3,
+.user-detail__section h4 {
+  margin: 0;
+  color: var(--app-text);
+}
+
+.user-detail__header p,
+.user-detail__section-head p {
+  margin: 8px 0 0;
+  color: var(--app-muted);
+}
+
+.user-detail__summary,
+.user-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.user-detail__stat,
+.user-detail__card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid rgba(255, 105, 0, 0.08);
+}
+
+.user-detail__stat span,
+.user-detail__card span {
+  display: block;
+  font-size: 12px;
+  color: var(--app-muted);
+}
+
+.user-detail__stat strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--app-text);
+}
+
+.user-detail__stat small {
+  display: block;
+  margin-top: 8px;
+  color: var(--app-muted);
+}
+
+.user-detail__card p {
+  margin: 8px 0 0;
+  color: var(--app-text);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.user-detail__section {
+  display: grid;
+  gap: 12px;
+}
+
+.user-detail__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.user-detail__actions :deep(.n-button) {
+  width: 100%;
+}
+
+.user-detail__section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.user-detail__pagination {
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 1200px) {
   .user-workspace {
     grid-template-columns: 1fr;
@@ -1126,6 +1617,12 @@ function findDeptNameById(nodes = [], targetId) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .user-detail__summary,
+  .user-detail__grid,
+  .user-detail__actions {
+    grid-template-columns: 1fr;
+  }
+
   .user-metric-row {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -1133,6 +1630,12 @@ function findDeptNameById(nodes = [], targetId) {
 
   .user-metric-row__meta {
     justify-items: start;
+  }
+
+  .user-detail__header,
+  .user-detail__section-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

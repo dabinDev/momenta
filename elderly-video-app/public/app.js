@@ -1,4 +1,4 @@
-const $ = (id) => document.getElementById(id);
+﻿const $ = (id) => document.getElementById(id);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
 const STORE_KEYS = {
@@ -13,9 +13,9 @@ const FALLBACK_MODES = {
   simple: {
     code: 'simple',
     label: '简单',
-    title: 'AI快速创作',
-    subtitle: '输入内容后，完成语音转文字、AI校验、英文提示词生成和视频生成。',
-    highlights: ['语音转文字', 'AI校验', '少参数'],
+    title: 'AI 快速创作',
+    subtitle: '输入内容后，完成语音转文字、AI 校准、提示词生成和视频生成。',
+    highlights: ['语音转文字', 'AI 校准', '少参数'],
     default_prompt_template_key: '',
     default_video_template_key: 'warm_album',
   },
@@ -23,7 +23,7 @@ const FALLBACK_MODES = {
     code: 'starter',
     label: '入门',
     title: '链接入门创作',
-    subtitle: '在简单模式基础上增加链接地址，结合图片快速生成相关视频。',
+    subtitle: '在简单模式基础上增加视频链接输入，结合图片快速生成相关视频。',
     highlights: ['视频链接', '上传图片', '快速跟做'],
     default_prompt_template_key: '',
     default_video_template_key: 'warm_album',
@@ -38,7 +38,6 @@ const FALLBACK_MODES = {
     default_video_template_key: 'warm_album',
   },
 };
-
 const APP_LIMITS = {
   maxImages: 3,
   defaultDurations: [5, 10, 20],
@@ -56,7 +55,6 @@ const APP_META = Object.freeze({
   updateHint: '如有新版本，重新安装新的 APK 即可覆盖更新。',
   apkDownloadUrl: 'https://memovideos.cn/file/V1.2.0.apk',
 });
-
 const state = {
   authToken: '',
   currentUser: null,
@@ -79,6 +77,7 @@ const state = {
     processing: 0,
     failed: 0,
   },
+  inviteOverview: null,
   latestUpdateInfo: null,
   isSubmitting: false,
   pollingCount: 0,
@@ -124,12 +123,66 @@ function escapeAttr(value) {
   return escapeHtml(value).replace(/"/g, '&quot;');
 }
 
+function readUserPointsSummary(user) {
+  const summary = user?.points_summary && typeof user.points_summary === 'object'
+    ? user.points_summary
+    : {};
+  return {
+    balance: Number(user?.points_balance ?? summary.points_balance ?? 0),
+    spent: Number(user?.total_points_spent ?? summary.total_points_spent ?? 0),
+    recharged: Number(user?.total_points_recharged ?? summary.total_points_recharged ?? 0),
+    videoGenerationCost: Number(user?.video_generation_cost ?? summary.video_generation_cost ?? 0),
+  };
+}
+
+function readUserFeatureFlags(user) {
+  const summary = user?.points_summary && typeof user.points_summary === 'object'
+    ? user.points_summary
+    : {};
+  const featureFlags = user?.feature_flags && typeof user.feature_flags === 'object'
+    ? user.feature_flags
+    : {};
+  const pointsEnabled = (user?.points_enabled ?? featureFlags.points_enabled ?? summary.points_enabled) !== false;
+  const rechargeEnabled = (user?.recharge_enabled ?? featureFlags.recharge_enabled ?? summary.recharge_enabled) === true;
+  const wechatPayEnabled = (user?.wechat_pay_enabled ?? featureFlags.wechat_pay_enabled ?? summary.wechat_pay_enabled) === true;
+  const alipayPayEnabled = (user?.alipay_pay_enabled ?? featureFlags.alipay_pay_enabled ?? summary.alipay_pay_enabled) === true;
+  const paymentEnabled = (user?.payment_enabled ?? summary.payment_enabled) === true || wechatPayEnabled || alipayPayEnabled;
+  return {
+    pointsEnabled,
+    rechargeEnabled: pointsEnabled && rechargeEnabled,
+    wechatPayEnabled: pointsEnabled && rechargeEnabled && wechatPayEnabled,
+    alipayPayEnabled: pointsEnabled && rechargeEnabled && alipayPayEnabled,
+    paymentEnabled: pointsEnabled && rechargeEnabled && paymentEnabled,
+  };
+}
+
 function buildAccountMetaRows(user) {
-  return [
+  const pointSummary = readUserPointsSummary(user);
+  const featureFlags = readUserFeatureFlags(user);
+  const paymentMethods = [
+    featureFlags.wechatPayEnabled ? '微信' : '',
+    featureFlags.alipayPayEnabled ? '支付宝' : '',
+  ].filter(Boolean).join(' / ');
+  const rows = [
     ['账号', user?.username || '未设置'],
     ['手机号', user?.phone || '--'],
     ['版本号', versionLabel()],
-  ].map(([label, value]) => (
+  ];
+  if (featureFlags.pointsEnabled) {
+    rows.push(
+      ['当前积分', pointSummary.balance],
+      ['视频生成', `每次 ${pointSummary.videoGenerationCost || 0} 积分`],
+    );
+    if (featureFlags.rechargeEnabled) {
+      rows.push([
+        '充值入口',
+        featureFlags.paymentEnabled
+          ? `已开启，请在 App 内使用${paymentMethods || '已配置支付方式'}充值`
+          : '已开启，但暂未配置支付方式',
+      ]);
+    }
+  }
+  return rows.map(([label, value]) => (
     `<div class="account-meta-row"><span class="account-meta-label">${escapeHtml(label)}</span><strong class="account-meta-value">${escapeHtml(value)}</strong></div>`
   )).join('');
 }
@@ -157,6 +210,110 @@ function syncAccountSummary(user) {
   }
 }
 
+function renderInviteOverview() {
+  const metaNode = $('inviteMeta');
+  const listNode = $('inviteList');
+  if (!metaNode || !listNode) {
+    return;
+  }
+
+  const overview = state.inviteOverview;
+  const primaryCode = overview?.primary_invite_code || overview?.primaryInviteCode || null;
+  const invitedUsers = Array.isArray(overview?.invited_users)
+    ? overview.invited_users
+    : Array.isArray(overview?.invitedUsers)
+      ? overview.invitedUsers
+      : [];
+  const totalInvitedUsers = Number(
+    overview?.summary?.total_invited_users
+    ?? overview?.summary?.totalInvitedUsers
+    ?? invitedUsers.length,
+  ) || 0;
+
+  if (!state.authToken) {
+    metaNode.innerHTML = '<div class="empty-state">请先登录后查看邀请码与邀请记录。</div>';
+    listNode.innerHTML = '';
+    return;
+  }
+
+  if (!primaryCode) {
+    metaNode.innerHTML = '<div class="empty-state">正在加载邀请码信息...</div>';
+    listNode.innerHTML = '';
+    return;
+  }
+
+  metaNode.innerHTML = [
+    `邀请码：${escapeHtml(primaryCode.code || '--')}`,
+    `状态：${primaryCode.is_active === false || primaryCode.isActive === false ? '已停用' : '正常可用'}`,
+    `已邀请：${escapeHtml(totalInvitedUsers)} 位用户`,
+  ].map((item) => `<div>${item}</div>`).join('');
+
+  if (!invitedUsers.length) {
+    listNode.innerHTML = '<div class="empty-state">还没有邀请记录，分享邀请码后新用户注册就会显示在这里。</div>';
+    return;
+  }
+
+  listNode.innerHTML = invitedUsers.map((item) => {
+    const displayName = item.alias || item.username || '未命名用户';
+    const contact = item.phone || item.email || '--';
+    const createdAt = item.created_at || item.createdAt || '--';
+    return `
+      <article class="history-item">
+        <div class="history-item__head">
+          <div>
+            <strong>${escapeHtml(displayName)}</strong>
+            <div class="history-item__meta">${escapeHtml(item.username || '')}</div>
+          </div>
+          <span class="status-chip status-chip--done">已注册</span>
+        </div>
+        <div class="history-item__body">
+          <div class="history-item__prompt">${escapeHtml(contact)}</div>
+          <div class="history-item__time">注册时间：${escapeHtml(createdAt)}</div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function loadInviteOverview({ silent = true } = {}) {
+  if (!state.authToken) {
+    state.inviteOverview = null;
+    renderInviteOverview();
+    return null;
+  }
+
+  try {
+    const result = await apiFetch('/api/invite/overview');
+    state.inviteOverview = result || null;
+    renderInviteOverview();
+    return result || null;
+  } catch (error) {
+    state.inviteOverview = null;
+    renderInviteOverview();
+    if (!silent) {
+      showToast(sanitizeUiMessage(error.message, '获取邀请信息失败。'), 'error');
+    }
+    return null;
+  }
+}
+
+async function copyInviteCodeToClipboard() {
+  const code = String(
+    state.inviteOverview?.primary_invite_code?.code
+    || state.inviteOverview?.primaryInviteCode?.code
+    || '',
+  ).trim();
+  if (!code) {
+    showToast('当前还没有可复制的邀请码。', 'info');
+    return;
+  }
+  try {
+    await copyPlainText(code);
+    showToast('邀请码已复制。', 'success');
+  } catch (error) {
+    showToast(sanitizeUiMessage(error.message, '复制邀请码失败。'), 'error');
+  }
+}
 function compactPayload(payload) {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => {
@@ -219,7 +376,7 @@ async function copyPlainText(value) {
 
 function openWechatGuide({
   title = '微信内暂不支持直接下载',
-  subtitle = '请点击右上角“…”后选择“在浏览器打开”，再继续下载。',
+  subtitle = '请点击右上角“...”后选择“在浏览器打开”，再继续下载。',
   copyValue = window.location.href,
   copyLabel = '可复制地址',
   copyTip = '复制后请到系统浏览器中打开。',
@@ -468,10 +625,9 @@ function renderVersionInfo() {
   $('updateNotes').textContent = String(
     latest?.release_notes
     || latest?.releaseNotes
-    || 'H5 页面不参与版本更新检测，如需在安卓手机安装 App，请点击下方按钮获取 APK 下载链接。'
+    || 'H5 页面不参与版本更新检测，如需在安卓手机安装 App，请点击下方按钮获取 APK 下载链接。',
   ).trim() || APP_META.updateHint;
 }
-
 function updateUserUI() {
   syncAccountSummary(state.currentUser || null);
 }
@@ -684,13 +840,18 @@ function assetsSubtitle(mode) {
 }
 
 function submitLabel(mode) {
+  const pointSummary = readUserPointsSummary(state.currentUser || null);
+  const featureFlags = readUserFeatureFlags(state.currentUser || null);
+  const suffix = featureFlags.pointsEnabled && pointSummary.videoGenerationCost > 0
+    ? ` · ${pointSummary.videoGenerationCost}积分`
+    : '';
   switch (mode) {
     case 'starter':
-      return '生成入门视频';
+      return `生成入门视频${suffix}`;
     case 'custom':
-      return '生成模板视频';
+      return `生成模板视频${suffix}`;
     default:
-      return '生成视频';
+      return `生成视频${suffix}`;
   }
 }
 
@@ -872,7 +1033,7 @@ function renderCreatePage() {
   setHidden($('templateWrap'), state.activeCreateMode !== 'custom');
 
   $('referenceLinkTip').textContent = state.activeCreateMode === 'starter'
-    ? '复制公开视频链接，后端会参考其节奏和结构。'
+    ? '复制公开视频链接后，后端会参考其节奏和结构。'
     : '自定义模式可选填公开视频链接，与模板一起辅助生成。';
 
   $('imageHint').textContent = state.activeCreateMode === 'simple'
@@ -919,7 +1080,7 @@ async function correctText() {
   }
 
   $('correctBtn').disabled = true;
-  $('correctBtn').textContent = '校验中';
+  $('correctBtn').textContent = '校验中...';
   try {
     const result = await apiFetch('/api/correct-text', {
       method: 'POST',
@@ -949,7 +1110,7 @@ async function generatePrompt() {
   }
 
   $('promptBtn').disabled = true;
-  $('promptBtn').textContent = '生成中';
+  $('promptBtn').textContent = '生成中...';
   try {
     const result = await apiFetch('/api/generate-prompt', {
       method: 'POST',
@@ -1184,6 +1345,15 @@ function formatDate(value) {
   });
 }
 
+function readTaskPointsLabel(task) {
+  const pointsCost = Number(task?.pointsCost ?? task?.points_cost ?? 0);
+  const pointsRefunded = task?.pointsRefunded === true || task?.points_refunded === true;
+  if (pointsCost <= 0) {
+    return '';
+  }
+  return pointsRefunded ? `已退回 ${pointsCost} 积分` : `已扣 ${pointsCost} 积分`;
+}
+
 function effectiveTaskProgress() {
   if (state.currentTask?.status === 'completed') {
     return 1;
@@ -1224,6 +1394,7 @@ function renderTaskStatusPanel() {
   const metaLines = [
     state.currentTask?.mode ? `模式：${state.currentTask.mode}` : '',
     state.currentTask?.duration ? `时长：${state.currentTask.duration} 秒` : '',
+    readTaskPointsLabel(state.currentTask),
     state.currentTask?.videoTemplateName ? `模板：${state.currentTask.videoTemplateName}` : '',
     state.currentTask?.createdAt ? `创建时间：${formatDate(state.currentTask.createdAt)}` : '',
   ].filter(Boolean);
@@ -1349,6 +1520,7 @@ function markTaskCompleted(task, modalTitle) {
   state.currentTask = task;
   setSubmitting(false);
   renderTaskStatusPanel();
+  refreshCurrentUserSilently();
   showToast('视频生成完成。', 'success');
   if (task.videoUrl) {
     openModal(task.videoUrl, modalTitle, task.id || '');
@@ -1362,6 +1534,7 @@ function markTaskFailed(task) {
   state.currentTask = task;
   setSubmitting(false);
   renderTaskStatusPanel();
+  refreshCurrentUserSilently();
   showToast(sanitizeUiMessage(task.error, '视频生成失败，请稍后重试。'), 'error');
   if (state.activePage === 'history') {
     loadHistory(state.historyPage);
@@ -1418,6 +1591,24 @@ async function generateVideo() {
     return;
   }
 
+  const pointSummary = readUserPointsSummary(state.currentUser || null);
+  const featureFlags = readUserFeatureFlags(state.currentUser || null);
+  if (
+    featureFlags.pointsEnabled
+    && pointSummary.videoGenerationCost > 0
+    && pointSummary.balance < pointSummary.videoGenerationCost
+  ) {
+    if (featureFlags.rechargeEnabled && featureFlags.paymentEnabled) {
+      const shouldDownloadApp = window.confirm('当前积分不足，请先下载 App 充值积分后再生成视频。是否现在去下载 App？');
+      if (shouldDownloadApp) {
+        openApkDownload(false);
+      }
+    } else {
+      showToast('当前积分不足，充值功能暂未开启，请联系管理员。', 'error');
+    }
+    return;
+  }
+
   stopTaskPolling();
   if (!state.currentTask || !['queued', 'processing'].includes(String(state.currentTask.status || '').toLowerCase())) {
     state.currentTask = null;
@@ -1431,6 +1622,7 @@ async function generateVideo() {
       body: payload,
     });
     state.currentTask = result.record || null;
+    await refreshCurrentUserSilently();
     renderTaskStatusPanel();
 
     if (state.currentTask?.status === 'completed' && state.currentTask.videoUrl) {
@@ -1450,74 +1642,6 @@ async function generateVideo() {
     } else {
       showToast(message, 'error');
     }
-  }
-}
-
-function renderHistory(records, totalPages) {
-  if (!records.length) {
-    $('historyList').innerHTML = '<div class="empty-state">还没有任务记录，先去创作一条视频吧。</div>';
-    $('pagination').innerHTML = '';
-    return;
-  }
-
-  $('historyList').innerHTML = records.map((item) => {
-    const descriptor = statusDescriptor(item.status);
-    return `
-      <article class="history-item">
-        <div class="history-preview" ${item.videoUrl ? `data-play-video="${escapeAttr(item.videoUrl)}"` : ''}>
-          ${item.videoUrl ? `<video src="${escapeAttr(item.videoUrl)}" muted playsinline></video>` : '<div class="empty-state">暂无视频</div>'}
-        </div>
-        <div class="history-info">
-          <div class="history-title">${escapeHtml(item.displayText || item.prompt || '无提示词')}</div>
-          <div class="history-meta">
-            <span class="${descriptor.className}">${escapeHtml(descriptor.label)}</span>
-            <span>${escapeHtml(item.duration || 0)} 秒</span>
-            <span>${escapeHtml(formatDate(item.createdAt))}</span>
-            ${item.mode ? `<span>模式：${escapeHtml(item.mode)}</span>` : ''}
-            ${item.videoTemplateName ? `<span>模板：${escapeHtml(item.videoTemplateName)}</span>` : ''}
-            ${item.referenceLink ? '<span>含链接参考</span>' : ''}
-            ${item.referenceVideoPath ? '<span>含参考视频</span>' : ''}
-          </div>
-        </div>
-        <div class="history-actions">
-          ${item.videoUrl ? `<button class="btn btn--outline btn--small" type="button" data-play-video="${escapeAttr(item.videoUrl)}">播放</button>` : ''}
-          <button class="btn btn--ghost btn--small" type="button" data-delete-history="${escapeAttr(item.id)}">删除</button>
-        </div>
-      </article>
-    `;
-  }).join('');
-
-  $$('[data-play-video]').forEach((node) => {
-    node.addEventListener('click', () => openModal(node.dataset.playVideo || '', '历史视频'));
-  });
-  $$('[data-delete-history]').forEach((node) => {
-    node.addEventListener('click', () => deleteHistory(node.dataset.deleteHistory || ''));
-  });
-
-  if (totalPages <= 1) {
-    $('pagination').innerHTML = '';
-    return;
-  }
-
-  let html = `<button ${state.historyPage <= 1 ? 'disabled' : ''} data-page="${state.historyPage - 1}">上一页</button>`;
-  for (let page = 1; page <= totalPages; page += 1) {
-    html += `<button class="${page === state.historyPage ? 'active' : ''}" data-page="${page}">${page}</button>`;
-  }
-  html += `<button ${state.historyPage >= totalPages ? 'disabled' : ''} data-page="${state.historyPage + 1}">下一页</button>`;
-  $('pagination').innerHTML = html;
-  $$('[data-page]', $('pagination')).forEach((button) => {
-    button.addEventListener('click', () => loadHistory(Number(button.dataset.page || 1)));
-  });
-}
-
-async function loadHistory(page = 1) {
-  state.historyPage = page;
-  try {
-    const result = await apiFetch(`/api/history?page=${page}&limit=10`);
-    renderHistory(result.records || [], result.totalPages || 1);
-  } catch (error) {
-    $('historyList').innerHTML = `<div class="empty-state">${escapeHtml(sanitizeUiMessage(error.message, '记录加载失败。'))}</div>`;
-    $('pagination').innerHTML = '';
   }
 }
 
@@ -1612,9 +1736,9 @@ function showTranscribeState(active, text = '正在识别语音内容...') {
 function renderVoiceButton() {
   $('voiceBtn').disabled = state.recording.active || state.isTranscribing;
   $('voiceBtn').textContent = state.recording.active
-    ? '录音中'
+    ? '录音中...'
     : state.isTranscribing
-      ? '识别中'
+      ? '识别中...'
       : '语音转文字';
 }
 
@@ -1904,12 +2028,18 @@ function bindEvents() {
 function updateUserUI() {
   const user = state.currentUser || null;
   syncAccountSummary(user);
+  renderInviteOverview();
 
-  $('profileAlias').value = user?.alias || '';
-  $('profileEmail').value = user?.email || '';
-  $('profilePhone').value = user?.phone || '';
-  if (!$('forgotUsername').value.trim()) {
-    $('forgotUsername').value = user?.username || $('loginUsername').value.trim();
+  setInputValue('profileAlias', user?.alias || '');
+  setInputValue('profileEmail', user?.email || '');
+  setInputValue('profilePhone', user?.phone || '');
+  const forgotUsername = $('forgotUsername');
+  if (forgotUsername && !forgotUsername.value.trim()) {
+    forgotUsername.value = user?.username || $('loginUsername')?.value.trim() || '';
+  }
+  const generateBtn = $('generateBtn');
+  if (generateBtn) {
+    generateBtn.textContent = state.isSubmitting ? '生成中，请稍候' : submitLabel(state.activeCreateMode);
   }
 }
 
@@ -1931,12 +2061,26 @@ async function syncCurrentUserInfo({ silent = false } = {}) {
   }
 }
 
+function refreshCurrentUserSilently() {
+  if (!state.authToken) {
+    return Promise.resolve(null);
+  }
+  return syncCurrentUserInfo({ silent: true }).catch(() => null);
+}
+
 function openDialog(id) {
   setDialogOpen(id, true);
 }
 
 function closeDialog(id) {
   setDialogOpen(id, false);
+}
+
+function setInputValue(id, value) {
+  const node = $(id);
+  if (node) {
+    node.value = value;
+  }
 }
 
 function resetForgotPasswordForm() {
@@ -2186,7 +2330,7 @@ async function openApkDownload(silent = false) {
     }
     if (interceptWeChatDownload({
       title: '微信内无法直接下载 APK',
-      subtitle: '请点击右上角“…”后选择“在浏览器打开”，再下载安装包。',
+      subtitle: '请点击右上角“...”后选择“在浏览器打开”，再下载安装包。',
       copyValue: downloadUrl,
       copyLabel: 'APK 下载地址',
       copyTip: '复制后可在系统浏览器中直接打开并下载 APK。',
@@ -2213,10 +2357,14 @@ async function openApkDownload(silent = false) {
 async function loadSettingsPage() {
   if (state.authToken) {
     try {
-      await syncCurrentUserInfo({ silent: true });
+      await Promise.all([
+        syncCurrentUserInfo({ silent: true }),
+        loadInviteOverview({ silent: true }),
+      ]);
     } catch (_) {
     }
   } else {
+    state.inviteOverview = null;
     updateUserUI();
   }
   renderVersionInfo();
@@ -2237,6 +2385,7 @@ async function logout() {
   } catch (_) {
   }
   clearSession();
+  state.inviteOverview = null;
   renderHistorySummary();
   renderVersionInfo();
   updateUserUI();
@@ -2256,7 +2405,7 @@ async function downloadVideoByProxy(url, filenamePrefix = '拾光视频') {
 
   if (interceptWeChatDownload({
     title: '微信内无法直接下载视频',
-    subtitle: '请点击右上角“…”后选择“在浏览器打开”，再继续下载视频。',
+    subtitle: '请点击右上角“...”后选择“在浏览器打开”，再继续下载视频。',
     copyValue: url,
     copyLabel: '视频地址',
     copyTip: '复制后可在系统浏览器中直接打开视频地址。',
@@ -2299,82 +2448,6 @@ async function downloadVideoByProxy(url, filenamePrefix = '拾光视频') {
   link.click();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   return true;
-}
-
-async function downloadVideo() {
-  try {
-    await downloadVideoByProxy(state.currentVideoUrl, '拾光视频');
-  } catch (error) {
-    showToast(sanitizeUiMessage(error.message, '下载视频失败。'), 'error');
-  }
-}
-
-function renderHistory(records, totalPages) {
-  if (!records.length) {
-    $('historyList').innerHTML = '<div class="empty-state">还没有任务记录，先去创作一条视频吧。</div>';
-    $('pagination').innerHTML = '';
-    return;
-  }
-
-  $('historyList').innerHTML = records.map((item) => {
-    const descriptor = statusDescriptor(item.status);
-    return `
-      <article class="history-item">
-        <div class="history-preview" ${item.videoUrl ? `data-play-video="${escapeAttr(item.videoUrl)}"` : ''}>
-          ${item.videoUrl ? `<video src="${escapeAttr(item.videoUrl)}" muted playsinline></video>` : '<div class="empty-state">暂无视频</div>'}
-        </div>
-        <div class="history-info">
-          <div class="history-title">${escapeHtml(item.displayText || item.prompt || '无提示词')}</div>
-          <div class="history-meta">
-            <span class="${descriptor.className}">${escapeHtml(descriptor.label)}</span>
-            <span>${escapeHtml(item.duration || 0)} 秒</span>
-            <span>${escapeHtml(formatDate(item.createdAt))}</span>
-            ${item.mode ? `<span>模式：${escapeHtml(item.mode)}</span>` : ''}
-            ${item.videoTemplateName ? `<span>模板：${escapeHtml(item.videoTemplateName)}</span>` : ''}
-            ${item.referenceLink ? '<span>含链接参考</span>' : ''}
-            ${item.referenceVideoPath ? '<span>含参考视频</span>' : ''}
-          </div>
-        </div>
-        <div class="history-actions">
-          ${item.videoUrl ? `<button class="btn btn--outline btn--small" type="button" data-play-video="${escapeAttr(item.videoUrl)}">播放</button>` : ''}
-          ${item.videoUrl ? `<button class="btn btn--outline btn--small" type="button" data-download-video="${escapeAttr(item.videoUrl)}">下载</button>` : ''}
-          <button class="btn btn--ghost btn--small" type="button" data-delete-history="${escapeAttr(item.id)}">删除</button>
-        </div>
-      </article>
-    `;
-  }).join('');
-
-  $$('[data-play-video]').forEach((node) => {
-    node.addEventListener('click', () => openModal(node.dataset.playVideo || '', '历史视频'));
-  });
-  $$('[data-download-video]').forEach((node) => {
-    node.addEventListener('click', async () => {
-      try {
-        await downloadVideoByProxy(node.dataset.downloadVideo || '', '历史视频');
-        showToast('视频已开始下载。', 'success');
-      } catch (error) {
-        showToast(sanitizeUiMessage(error.message, '下载视频失败。'), 'error');
-      }
-    });
-  });
-  $$('[data-delete-history]').forEach((node) => {
-    node.addEventListener('click', () => deleteHistory(node.dataset.deleteHistory || ''));
-  });
-
-  if (totalPages <= 1) {
-    $('pagination').innerHTML = '';
-    return;
-  }
-
-  let html = `<button ${state.historyPage <= 1 ? 'disabled' : ''} data-page="${state.historyPage - 1}">上一页</button>`;
-  for (let page = 1; page <= totalPages; page += 1) {
-    html += `<button class="${page === state.historyPage ? 'active' : ''}" data-page="${page}">${page}</button>`;
-  }
-  html += `<button ${state.historyPage >= totalPages ? 'disabled' : ''} data-page="${state.historyPage + 1}">下一页</button>`;
-  $('pagination').innerHTML = html;
-  $$('[data-page]', $('pagination')).forEach((button) => {
-    button.addEventListener('click', () => loadHistory(Number(button.dataset.page || 1)));
-  });
 }
 
 async function loadHistory(page = 1) {
@@ -2461,7 +2534,7 @@ function ensureRegisterUi() {
             <h3>注册账号</h3>
           </div>
         </div>
-        <p class="register-dialog__copy">沿用当前登录页的浅暖色与轻玻璃层次。注册必须填写后台生成的邀请码，注册成功后会自动进入同一套账号体系。</p>
+        <p class="register-dialog__copy">沿用当前登录页的浅暖色与轻玻璃层次。注册必须填写后台生成的邀请码，注册成功后会自动回到同一套账号体系。</p>
         <div class="register-dialog__pills">
           <span class="hero-pill hero-pill--sky">邀请码校验</span>
           <span class="hero-pill hero-pill--coral">统一账号</span>
@@ -2485,7 +2558,7 @@ function ensureRegisterUi() {
             <span>注册成功后可在个人信息里再补充资料</span>
           </div>
           <label class="field">
-            <span class="field-label">受邀口令</span>
+            <span class="field-label">邀请码</span>
             <input class="input" id="registerInviteCode" type="text" placeholder="请输入邀请码">
           </label>
         </section>
@@ -2585,12 +2658,26 @@ function bindEvents() {
   bind('playCurrentTaskBtn', 'click', previewCurrentTask);
   bind('downloadCurrentTaskBtn', 'click', downloadCurrentTask);
   bind('taskStatusPanel', 'click', (event) => {
-    if (event.target.closest('#playCurrentTaskBtn, #downloadCurrentTaskBtn')) {
+    const actionButton = event.target.closest('[data-task-action]');
+    if (actionButton) {
+      const action = actionButton.dataset.taskAction || '';
+      if (action === 'play') {
+        previewCurrentTask();
+      } else if (action === 'download') {
+        downloadCurrentTask();
+      } else if (action === 'retry') {
+        retryCurrentTask();
+      } else if (action === 'delete') {
+        deleteCurrentTask();
+      }
       return;
     }
     previewCurrentTask();
   });
   bind('taskStatusPanel', 'keydown', (event) => {
+    if (event.target.closest('[data-task-action]')) {
+      return;
+    }
     if (event.key !== 'Enter' && event.key !== ' ') {
       return;
     }
@@ -2614,6 +2701,10 @@ function bindEvents() {
       showToast('账号信息已同步。', 'success');
     } catch (_) {
     }
+  });
+  bind('copyInviteCodeBtn', 'click', copyInviteCodeToClipboard);
+  bind('refreshInviteBtn', 'click', async () => {
+    await loadInviteOverview({ silent: false });
   });
   bind('checkUpdateBtn', 'click', () => openApkDownload(false));
 
@@ -2649,7 +2740,7 @@ async function downloadTaskById(taskId, filenamePrefix = '拾光视频', fallbac
   }
   if (interceptWeChatDownload({
     title: '微信内无法直接下载视频',
-    subtitle: '请点击右上角“…”后选择“在浏览器打开”，再继续下载视频。',
+    subtitle: '请点击右上角“...”后选择“在浏览器打开”，再继续下载视频。',
     copyValue: fallbackUrl || window.location.href,
     copyLabel: fallbackUrl ? '视频地址' : '当前页面地址',
     copyTip: fallbackUrl
@@ -2716,6 +2807,7 @@ async function retryCurrentTask() {
     const task = await retryTask(state.currentTask.id);
     state.currentTask = task;
     state.pollingCount = 0;
+    await refreshCurrentUserSilently();
     renderTaskStatusPanel();
     if (task?.id && ['queued', 'processing'].includes(String(task.status || '').toLowerCase())) {
       setSubmitting(true);
@@ -2761,6 +2853,7 @@ function renderHistory(records, totalPages) {
           <div class="history-meta">
             <span class="${descriptor.className}">${escapeHtml(descriptor.label)}</span>
             <span>${escapeHtml(item.duration || 0)} 秒</span>
+            ${readTaskPointsLabel(item) ? `<span>${escapeHtml(readTaskPointsLabel(item))}</span>` : ''}
             <span>${escapeHtml(formatDate(item.createdAt))}</span>
           </div>
         </div>
@@ -2797,6 +2890,7 @@ function renderHistory(records, totalPages) {
     node.addEventListener('click', async () => {
       try {
         await retryTask(node.dataset.retryHistory || '');
+        await refreshCurrentUserSilently();
         showToast('已重新提交任务。', 'success');
         await loadHistory(state.historyPage);
       } catch (error) {
@@ -2840,3 +2934,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoginShell();
   }
 });
+
+
+
+
+
