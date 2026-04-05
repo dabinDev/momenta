@@ -8,6 +8,8 @@ class HistoryItemModel {
     this.errorMessage,
     this.duration,
     this.createdAt,
+    this.pointsCost = 0,
+    this.pointsRefunded = false,
   });
 
   final String id;
@@ -18,10 +20,18 @@ class HistoryItemModel {
   final String? errorMessage;
   final int? duration;
   final DateTime? createdAt;
+  final int pointsCost;
+  final bool pointsRefunded;
 
   bool get isProcessing => status == 'queued' || status == 'processing';
   bool get isCompleted => status == 'completed';
   bool get isFailed => status == 'failed';
+  String? get pointsStatusLabel {
+    if (pointsCost <= 0) {
+      return null;
+    }
+    return pointsRefunded ? '已退回 $pointsCost 积分' : '已扣 $pointsCost 积分';
+  }
 
   String get displayTitle {
     final String value = (displayText ?? prompt)?.trim() ?? '';
@@ -37,6 +47,8 @@ class HistoryItemModel {
     String? errorMessage,
     int? duration,
     DateTime? createdAt,
+    int? pointsCost,
+    bool? pointsRefunded,
   }) {
     return HistoryItemModel(
       id: id ?? this.id,
@@ -47,6 +59,8 @@ class HistoryItemModel {
       errorMessage: errorMessage ?? this.errorMessage,
       duration: duration ?? this.duration,
       createdAt: createdAt ?? this.createdAt,
+      pointsCost: pointsCost ?? this.pointsCost,
+      pointsRefunded: pointsRefunded ?? this.pointsRefunded,
     );
   }
 
@@ -65,6 +79,11 @@ class HistoryItemModel {
       duration: int.tryParse((json['duration'] ?? '').toString()),
       createdAt: DateTime.tryParse(
           (json['createdAt'] ?? json['created_at'] ?? '').toString()),
+      pointsCost:
+          int.tryParse((json['pointsCost'] ?? json['points_cost'] ?? 0).toString()) ??
+              0,
+      pointsRefunded:
+          json['pointsRefunded'] == true || json['points_refunded'] == true,
     );
   }
 
@@ -78,6 +97,8 @@ class HistoryItemModel {
       'errorMessage': errorMessage,
       'duration': duration,
       'createdAt': createdAt?.toIso8601String(),
+      'pointsCost': pointsCost,
+      'pointsRefunded': pointsRefunded,
     };
   }
 }

@@ -84,7 +84,7 @@ class _ProfileHero extends StatelessWidget {
         ? '@${user!.username}'
         : '请先登录账号';
 
-    return Container(
+    return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
       child: Row(
         children: <Widget>[
@@ -148,7 +148,7 @@ class _BasicInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SectionCard(
       title: '个人基础信息',
-      subtitle: '关键信息收纳在这里',
+      subtitle: '账号、积分与常用入口收纳在这里',
       icon: Icons.badge_outlined,
       accentColor: AppTheme.sky,
       child: Obx(
@@ -165,6 +165,34 @@ class _BasicInfoCard extends StatelessWidget {
               label: '手机号',
               value:
                   user?.phone.trim().isNotEmpty == true ? user!.phone : '未设置',
+            ),
+            Divider(color: Theme.of(context).colorScheme.outlineVariant),
+            if (user?.pointsEnabled == true) ...<Widget>[
+              _InfoRow(
+                label: '当前积分',
+                value: '${user?.pointsBalance ?? 0}',
+              ),
+              Divider(color: Theme.of(context).colorScheme.outlineVariant),
+              _InfoRow(
+                label: '视频生成',
+                value: '每次 ${user?.videoGenerationCost ?? 0} 积分',
+              ),
+              if (user?.rechargeEnabled == true) ...<Widget>[
+                Divider(color: Theme.of(context).colorScheme.outlineVariant),
+                _InfoRow(
+                  label: '积分充值',
+                  value: _paymentLabel(user),
+                  onTap: controller.openRechargeCenter,
+                  trailing: '去充值',
+                ),
+              ],
+              Divider(color: Theme.of(context).colorScheme.outlineVariant),
+            ],
+            _InfoRow(
+              label: '我的邀请',
+              value: '查看邀请码和邀请记录',
+              onTap: controller.openInviteCenter,
+              trailing: '查看',
             ),
             Divider(color: Theme.of(context).colorScheme.outlineVariant),
             _InfoRow(
@@ -196,6 +224,21 @@ class _BasicInfoCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _paymentLabel(UserProfileModel? user) {
+    if (user == null || !user.rechargeEnabled || !user.paymentEnabled) {
+      return '暂未开启';
+    }
+    final List<String> methods = <String>[
+      if (user.wechatPayEnabled) '微信',
+      if (user.alipayPayEnabled) '支付宝',
+    ];
+    final String methodText =
+        methods.isEmpty ? '充值方式未配置' : '支持${methods.join(" / ")}充值';
+    return user.newUserRechargeAvailable == true
+        ? '$methodText，含新用户尝鲜包'
+        : methodText;
   }
 }
 

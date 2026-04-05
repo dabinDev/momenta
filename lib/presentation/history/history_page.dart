@@ -67,11 +67,6 @@ class HistoryPage extends GetView<HistoryController> {
                                       controller.items[index],
                                     )
                                 : null,
-                            onSaveAlbum: controller.items[index].isCompleted
-                                ? () => controller.saveItem(
-                                      controller.items[index],
-                                    )
-                                : null,
                             onRetry: controller.items[index].isFailed
                                 ? () => controller.retryItem(
                                       controller.items[index],
@@ -191,7 +186,6 @@ class _HistoryListItem extends StatelessWidget {
     required this.item,
     required this.onPlay,
     required this.onDownload,
-    required this.onSaveAlbum,
     required this.onRetry,
     required this.onDelete,
   });
@@ -199,7 +193,6 @@ class _HistoryListItem extends StatelessWidget {
   final HistoryItemModel item;
   final VoidCallback? onPlay;
   final VoidCallback? onDownload;
-  final VoidCallback? onSaveAlbum;
   final VoidCallback? onRetry;
   final VoidCallback onDelete;
 
@@ -244,6 +237,8 @@ class _HistoryListItem extends StatelessWidget {
             runSpacing: 8,
             children: <Widget>[
               if (item.duration != null) _MetaTag(label: '${item.duration} 秒'),
+              if (item.pointsStatusLabel != null)
+                _MetaTag(label: item.pointsStatusLabel!),
               _MetaTag(
                 label: item.isCompleted
                     ? '可播放'
@@ -278,12 +273,6 @@ class _HistoryListItem extends StatelessWidget {
                   icon: Icons.download_outlined,
                   label: '下载到本地',
                   onTap: onDownload,
-                ),
-              if (item.isCompleted)
-                _ActionChipButton(
-                  icon: Icons.photo_library_outlined,
-                  label: '保存到相册',
-                  onTap: onSaveAlbum,
                 ),
               if (item.isFailed)
                 _ActionChipButton(

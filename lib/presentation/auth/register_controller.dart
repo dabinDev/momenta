@@ -8,6 +8,8 @@ import 'invite_code_scanner_page.dart';
 import 'auth_controller.dart';
 
 class RegisterController extends GetxController {
+  static const int usernameMaxLength = 20;
+
   RegisterController() : _authController = Get.find<AuthController>();
 
   final AuthController _authController;
@@ -60,6 +62,10 @@ class RegisterController extends GetxController {
     }
     if (password != confirmPassword) {
       SnackbarHelper.error('两次输入的密码不一致');
+      return;
+    }
+    if (username.length > usernameMaxLength) {
+      SnackbarHelper.error('用户名最多 20 个字符');
       return;
     }
 

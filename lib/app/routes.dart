@@ -17,7 +17,11 @@ import '../presentation/history/history_binding.dart';
 import '../presentation/history/history_page.dart';
 import '../presentation/settings/edit_profile_binding.dart';
 import '../presentation/settings/edit_profile_page.dart';
+import '../presentation/settings/invite_center_binding.dart';
+import '../presentation/settings/invite_center_page.dart';
 import '../presentation/settings/profile_detail_page.dart';
+import '../presentation/settings/recharge_binding.dart';
+import '../presentation/settings/recharge_page.dart';
 import '../presentation/settings/settings_binding.dart';
 import '../presentation/settings/settings_page.dart';
 import '../presentation/shell/main_shell_binding.dart';
@@ -37,8 +41,10 @@ class AppRoutes {
   static const String create = '/create';
   static const String history = '/history';
   static const String settings = '/settings';
+  static const String recharge = '/recharge';
   static const String profileDetail = '/profile-detail';
   static const String editProfile = '/edit-profile';
+  static const String inviteCenter = '/invite-center';
   static const String downloadManager = '/download-manager';
   static const String videoPlayer = '/video-player';
 }
@@ -92,6 +98,11 @@ class AppPages {
       binding: SettingsBinding(),
     ),
     GetPage<dynamic>(
+      name: AppRoutes.recharge,
+      page: RechargePage.new,
+      binding: RechargeBinding(),
+    ),
+    GetPage<dynamic>(
       name: AppRoutes.profileDetail,
       page: ProfileDetailPage.new,
       binding: SettingsBinding(),
@@ -100,6 +111,11 @@ class AppPages {
       name: AppRoutes.editProfile,
       page: EditProfilePage.new,
       binding: EditProfileBinding(),
+    ),
+    GetPage<dynamic>(
+      name: AppRoutes.inviteCenter,
+      page: InviteCenterPage.new,
+      binding: InviteCenterBinding(),
     ),
     GetPage<dynamic>(
       name: AppRoutes.downloadManager,

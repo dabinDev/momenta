@@ -12,6 +12,7 @@ import '../../data/models/history_item_model.dart';
 import '../../data/models/video_task_model.dart';
 import '../../domain/repositories/history_repository.dart';
 import '../../domain/repositories/video_repository.dart';
+import '../auth/auth_controller.dart';
 
 class HistoryController extends GetxController {
   HistoryController()
@@ -124,16 +125,19 @@ class HistoryController extends GetxController {
   }
 
   void playItem(HistoryItemModel item) {
+    final String localPath =
+        _downloadManager.completedForTask(item.id)?.savePath ?? '';
     final String videoUrl =
         FileUtils.resolveUrl(AppConstants.serverBaseUrl, item.videoUrl);
-    if (videoUrl.isEmpty) {
+    if (localPath.isEmpty && videoUrl.isEmpty) {
       SnackbarHelper.error('该记录还没有可播放的视频');
       return;
     }
     Get.toNamed(
       AppRoutes.videoPlayer,
       arguments: <String, dynamic>{
-        'url': videoUrl,
+        if (localPath.isNotEmpty) 'localPath': localPath,
+        if (videoUrl.isNotEmpty) 'url': videoUrl,
         'title': '历史视频播放',
         'taskId': item.id,
       },
@@ -191,6 +195,8 @@ class HistoryController extends GetxController {
         videoUrl: task.videoUrl,
         errorMessage: task.errorMessage,
         duration: task.duration,
+        pointsCost: task.pointsCost,
+        pointsRefunded: task.pointsRefunded,
       );
       await _historyRepository.upsert(updated);
       final int index =
@@ -198,6 +204,7 @@ class HistoryController extends GetxController {
       if (index >= 0) {
         items[index] = updated;
       }
+      await _refreshPointsBalance();
       await _loadSummary();
       SnackbarHelper.success('已重新提交该任务');
     } catch (error) {
@@ -225,6 +232,8 @@ class HistoryController extends GetxController {
               videoUrl: status.videoUrl ?? item.videoUrl,
               errorMessage: status.errorMessage ?? item.errorMessage,
               duration: status.duration ?? item.duration,
+              pointsCost: status.pointsCost,
+              pointsRefunded: status.pointsRefunded,
             ),
           );
         } catch (_) {
@@ -246,5 +255,12 @@ class HistoryController extends GetxController {
 
   String _readError(Object error, {required String fallback}) {
     return AppException.resolveMessage(error, fallback: fallback);
+  }
+
+  Future<void> _refreshPointsBalance() async {
+    if (!Get.isRegistered<AuthController>()) {
+      return;
+    }
+    await Get.find<AuthController>().refreshCurrentUser(silent: true);
   }
 }

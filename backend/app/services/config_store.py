@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from app.models.admin import User
 from app.models.app_config import PlatformAIConfig, UserAppConfig
@@ -8,6 +9,13 @@ from app.schemas.app_config import AppConfigOut
 
 GLOBAL_CONFIG_KEY = "default"
 SERVICE_TYPES = ("llm", "video", "speech", "image")
+FEATURE_SWITCH_FIELDS = (
+    "points_enabled",
+    "recharge_enabled",
+    "wechat_pay_enabled",
+    "alipay_pay_enabled",
+)
+DEFAULT_VIDEO_GENERATION_COST = 10
 
 
 @dataclass(slots=True)
@@ -50,6 +58,16 @@ def default_app_config_values() -> dict[str, str]:
     }
 
 
+def default_app_feature_values() -> dict[str, bool | int]:
+    return {
+        "points_enabled": True,
+        "recharge_enabled": True,
+        "video_generation_cost": DEFAULT_VIDEO_GENERATION_COST,
+        "wechat_pay_enabled": True,
+        "alipay_pay_enabled": False,
+    }
+
+
 def default_private_override_values() -> dict[str, str | bool]:
     return {
         "override_enabled": False,
@@ -77,7 +95,10 @@ async def get_or_create_global_ai_config() -> PlatformAIConfig:
             await config_obj.save()
         return config_obj
 
-    payload = default_app_config_values()
+    payload = {
+        **default_app_config_values(),
+        **default_app_feature_values(),
+    }
     seed = await _find_seed_user_config()
     if seed is not None:
         payload["provider_base_url"] = _first_nonempty(
@@ -166,6 +187,65 @@ async def resolve_effective_user_app_config(user_id: int) -> EffectiveAppConfig:
         image_api_key=_resolve_service_api_key(primary_config, global_config, "image", provider_api_key),
         image_model=_resolve_model_value(primary_config, global_config, "image_model"),
     )
+
+
+def read_global_feature_settings(config_obj) -> dict[str, bool | int]:
+    defaults = default_app_feature_values()
+    normalized = normalize_global_feature_settings(
+        {
+            "points_enabled": bool(getattr(config_obj, "points_enabled", defaults["points_enabled"])),
+            "recharge_enabled": bool(getattr(config_obj, "recharge_enabled", defaults["recharge_enabled"])),
+            "wechat_pay_enabled": bool(getattr(config_obj, "wechat_pay_enabled", defaults["wechat_pay_enabled"])),
+            "alipay_pay_enabled": bool(getattr(config_obj, "alipay_pay_enabled", defaults["alipay_pay_enabled"])),
+            "video_generation_cost": _normalize_non_negative_int(
+                getattr(config_obj, "video_generation_cost", defaults["video_generation_cost"]),
+                default=int(defaults["video_generation_cost"]),
+            ),
+        }
+    )
+    return normalized
+
+
+def read_global_feature_switches(config_obj) -> dict[str, bool]:
+    settings = read_global_feature_settings(config_obj)
+    return {
+        field_name: bool(settings[field_name])
+        for field_name in FEATURE_SWITCH_FIELDS
+    }
+
+
+def build_client_feature_flags(config_obj) -> dict[str, bool]:
+    switches = read_global_feature_switches(config_obj)
+    return {
+        "points_enabled": bool(switches["points_enabled"]),
+        "recharge_enabled": bool(switches["recharge_enabled"]),
+        "wechat_pay_enabled": bool(switches["wechat_pay_enabled"]),
+        "alipay_pay_enabled": bool(switches["alipay_pay_enabled"]),
+    }
+
+
+async def get_client_feature_flags() -> dict[str, bool]:
+    config_obj = await get_or_create_global_ai_config()
+    return build_client_feature_flags(config_obj)
+
+
+def build_client_feature_payload(config_obj) -> dict[str, bool | int | list[str]]:
+    settings = read_global_feature_settings(config_obj)
+    payment_methods: list[str] = []
+    if bool(settings["wechat_pay_enabled"]):
+        payment_methods.append("wechat")
+    if bool(settings["alipay_pay_enabled"]):
+        payment_methods.append("alipay")
+    return {
+        **settings,
+        "payment_methods": payment_methods,
+        "payment_enabled": bool(payment_methods),
+    }
+
+
+async def get_client_feature_payload() -> dict[str, bool | int | list[str]]:
+    config_obj = await get_or_create_global_ai_config()
+    return build_client_feature_payload(config_obj)
 
 
 def read_service_base_url(config_obj, service_type: str) -> str:
@@ -269,10 +349,28 @@ async def _find_seed_user_config() -> UserAppConfig | None:
 async def _normalize_platform_config(config_obj: PlatformAIConfig) -> bool:
     changed = False
     defaults = default_app_config_values()
+    feature_defaults = default_app_feature_values()
 
     if not str(config_obj.provider_base_url or "").strip():
         config_obj.provider_base_url = defaults["provider_base_url"]
         changed = True
+
+    for field_name, default_value in feature_defaults.items():
+        current_value = getattr(config_obj, field_name, None)
+        if current_value is None:
+            setattr(config_obj, field_name, default_value)
+            changed = True
+
+    normalized_feature_settings = normalize_global_feature_settings(
+        {
+            field_name: getattr(config_obj, field_name, feature_defaults[field_name])
+            for field_name in feature_defaults
+        }
+    )
+    for field_name, normalized_value in normalized_feature_settings.items():
+        if getattr(config_obj, field_name, None) != normalized_value:
+            setattr(config_obj, field_name, normalized_value)
+            changed = True
 
     for field_name in ("llm_model", "video_model", "speech_model"):
         if not str(getattr(config_obj, field_name, "") or "").strip():
@@ -288,3 +386,44 @@ async def _normalize_platform_config(config_obj: PlatformAIConfig) -> bool:
             setattr(config_obj, key_field, getattr(config_obj, key_field, "") or "")
 
     return changed
+
+
+def normalize_global_feature_settings(values: dict[str, Any]) -> dict[str, bool | int]:
+    defaults = default_app_feature_values()
+
+    points_enabled = bool(values.get("points_enabled", defaults["points_enabled"]))
+    recharge_enabled = bool(values.get("recharge_enabled", defaults["recharge_enabled"]))
+    wechat_pay_enabled = bool(values.get("wechat_pay_enabled", defaults["wechat_pay_enabled"]))
+    alipay_pay_enabled = bool(values.get("alipay_pay_enabled", defaults["alipay_pay_enabled"]))
+    video_generation_cost = _normalize_non_negative_int(
+        values.get("video_generation_cost", defaults["video_generation_cost"]),
+        default=int(defaults["video_generation_cost"]),
+    )
+
+    if wechat_pay_enabled or alipay_pay_enabled:
+        points_enabled = True
+        recharge_enabled = True
+
+    if not points_enabled:
+        recharge_enabled = False
+        wechat_pay_enabled = False
+        alipay_pay_enabled = False
+    elif not recharge_enabled:
+        wechat_pay_enabled = False
+        alipay_pay_enabled = False
+
+    return {
+        "points_enabled": points_enabled,
+        "recharge_enabled": recharge_enabled,
+        "wechat_pay_enabled": wechat_pay_enabled,
+        "alipay_pay_enabled": alipay_pay_enabled,
+        "video_generation_cost": video_generation_cost,
+    }
+
+
+def _normalize_non_negative_int(value: Any, *, default: int) -> int:
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(normalized, 0)

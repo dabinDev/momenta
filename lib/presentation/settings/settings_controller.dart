@@ -61,6 +61,22 @@ class SettingsController extends GetxController {
     Get.toNamed(AppRoutes.downloadManager);
   }
 
+  void openRechargeCenter() {
+    final user = authController.currentUser.value;
+    if (user == null ||
+        !user.pointsEnabled ||
+        !user.rechargeEnabled ||
+        !user.paymentEnabled) {
+      SnackbarHelper.info('当前未开启积分充值功能');
+      return;
+    }
+    Get.toNamed(AppRoutes.recharge);
+  }
+
+  void openInviteCenter() {
+    Get.toNamed(AppRoutes.inviteCenter);
+  }
+
   Future<void> logout() async {
     await authController.logout();
   }

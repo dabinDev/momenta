@@ -44,6 +44,18 @@ class DownloadManagerService extends GetxService {
     return _findLatestByTaskId(taskId);
   }
 
+  DownloadTaskRecordModel? completedForTask(String taskId) {
+    for (final DownloadTaskRecordModel item in items) {
+      if (item.taskId == taskId &&
+          item.isCompleted &&
+          item.savePath.trim().isNotEmpty &&
+          File(item.savePath).existsSync()) {
+        return item;
+      }
+    }
+    return null;
+  }
+
   void reload() {
     final String? raw = _localStorageService.read<String>(_storageKey);
     if (raw == null || raw.trim().isEmpty) {

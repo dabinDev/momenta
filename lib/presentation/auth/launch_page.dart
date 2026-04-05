@@ -28,7 +28,10 @@ class _LaunchPageState extends State<LaunchPage> {
       return;
     }
     if (authController.isLoggedIn) {
-      authController.refreshCurrentUser(silent: true);
+      await authController.refreshCurrentUser(silent: true);
+      if (!mounted) {
+        return;
+      }
       Get.offAllNamed(AppRoutes.home);
       return;
     }

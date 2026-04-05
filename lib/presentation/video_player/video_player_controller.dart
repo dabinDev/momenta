@@ -10,14 +10,11 @@ import '../../core/errors/app_exception.dart';
 import '../../core/services/download_manager_service.dart';
 import '../../core/utils/snackbar_helper.dart';
 import '../../core/utils/video_save_helper.dart';
-import '../../data/api/api_service.dart';
 
 class VideoPlayerController extends GetxController {
   VideoPlayerController()
-      : _apiService = Get.find<ApiService>(),
-        _downloadManager = Get.find<DownloadManagerService>();
+      : _downloadManager = Get.find<DownloadManagerService>();
 
-  final ApiService _apiService;
   final DownloadManagerService _downloadManager;
 
   final RxBool isLoading = true.obs;
@@ -42,8 +39,7 @@ class VideoPlayerController extends GetxController {
   bool get canDownload => taskId.trim().isNotEmpty && !isLocalSource.value;
 
   bool get canSaveToGallery =>
-      (isLocalSource.value && localPath.trim().isNotEmpty) ||
-      taskId.trim().isNotEmpty;
+      isLocalSource.value && localPath.trim().isNotEmpty;
 
   String get sourceLabel => isLocalSource.value ? '本地视频预览' : '云端视频预览';
 
@@ -60,6 +56,9 @@ class VideoPlayerController extends GetxController {
     taskId = (args['taskId'] ?? '').toString();
     localPath = (args['localPath'] ?? '').toString();
     _remoteUrl = (args['url'] ?? '').toString();
+    if (localPath.trim().isEmpty && taskId.trim().isNotEmpty) {
+      localPath = _downloadManager.completedForTask(taskId)?.savePath ?? '';
+    }
     unawaited(initializePlayer());
   }
 
@@ -207,14 +206,7 @@ class VideoPlayerController extends GetxController {
 
     isSavingToGallery.value = true;
     try {
-      if (isLocalSource.value) {
-        await VideoSaveHelper.saveLocalVideoToGallery(filePath: localPath);
-      } else {
-        await VideoSaveHelper.saveTaskVideoToGallery(
-          apiService: _apiService,
-          taskId: taskId,
-        );
-      }
+      await VideoSaveHelper.saveLocalVideoToGallery(filePath: localPath);
       SnackbarHelper.success('视频已保存到系统相册');
     } catch (error) {
       SnackbarHelper.error(

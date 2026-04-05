@@ -20,9 +20,9 @@ class BaseUser(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr = Field(example="admin@qq.com")
-    username: str = Field(example="admin")
-    alias: Optional[str] = Field(default=None, example="Zhang")
-    phone: Optional[str] = Field(default=None, example="13800000000")
+    username: str = Field(example="admin", min_length=1, max_length=20)
+    alias: Optional[str] = Field(default=None, example="Zhang", max_length=30)
+    phone: Optional[str] = Field(default=None, example="13800000000", max_length=20)
     password: str = Field(example="123456", min_length=6)
     is_active: Optional[bool] = True
     is_superuser: Optional[bool] = False
@@ -36,9 +36,9 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     id: int
     email: EmailStr
-    username: str
-    alias: Optional[str] = None
-    phone: Optional[str] = None
+    username: str = Field(min_length=1, max_length=20)
+    alias: Optional[str] = Field(default=None, max_length=30)
+    phone: Optional[str] = Field(default=None, max_length=20)
     is_active: Optional[bool] = True
     is_superuser: Optional[bool] = False
     role_ids: Optional[List[int]] = []
@@ -51,21 +51,21 @@ class UpdatePassword(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    username: str = Field(description="Username")
+    username: str = Field(description="Username", min_length=1, max_length=20)
     email: EmailStr = Field(description="Email")
     new_password: str = Field(description="New password", min_length=6)
 
 
 class RegisterRequest(BaseModel):
-    username: str = Field(description="Username", min_length=3)
+    username: str = Field(description="Username", min_length=3, max_length=20)
     email: EmailStr = Field(description="Email")
     password: str = Field(description="Password", min_length=6)
     invite_code: str = Field(description="Invite code", min_length=1)
-    alias: Optional[str] = Field(default=None, description="Alias")
-    phone: Optional[str] = Field(default=None, description="Phone")
+    alias: Optional[str] = Field(default=None, description="Alias", max_length=30)
+    phone: Optional[str] = Field(default=None, description="Phone", max_length=20)
 
 
 class UpdateCurrentUserProfile(BaseModel):
     email: EmailStr = Field(description="Email")
-    alias: Optional[str] = Field(default=None, description="Alias")
-    phone: Optional[str] = Field(default=None, description="Phone")
+    alias: Optional[str] = Field(default=None, description="Alias", max_length=30)
+    phone: Optional[str] = Field(default=None, description="Phone", max_length=20)

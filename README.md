@@ -16,14 +16,14 @@
 | `/` | App 端 | Flutter 3.x + GetX | 用户登录、AI 创作、历史记录、设置、版本更新 |
 | `backend/` | 后端服务端 | FastAPI + Tortoise ORM + SQLite | 统一 API、任务管理、媒体存储、AI 网关、管理后台 API |
 | `frontend/` | Web 管理端 | Vue 3 + Vite + Naive UI | 用户/角色/菜单/API/任务/语音日志/发布管理/应用配置/AI 调试 |
-| `elderly-video-app/` | H5 Web 端 | Express + 静态页面 | Web 演示入口、登录、转发 App 业务接口、运行时切换后端地址 |
+| `elderly-video-app/` | H5 Web 端 | Vue 3 + Vite | 面向用户的移动端 Web 页面，统一登录、创作、历史、设置能力 |
 
 ## 2. 整体架构
 
 ```text
 Flutter App ----------------------\
                                    \
-H5 Web (Express + public) ---------> FastAPI Backend -----------------> 第三方 LLM / 视频 / 语音服务
+H5 Web (Vue + Vite) ----------------> FastAPI Backend -----------------> 第三方 LLM / 视频 / 语音服务
                                    /        |
 Web Admin (Vue3) -----------------/         +--> SQLite (backend/db.sqlite3)
                                             +--> 本地媒体目录 (backend/media)
@@ -78,8 +78,8 @@ App/H5 业务接口：
 | backend 默认值 | `http://127.0.0.1:10099` | 由 `.env.production` 覆盖到 `https://api.memovideos.cn` |
 | frontend 开发 | `frontend/.env.development` | 本地代理到 `127.0.0.1:10099` |
 | frontend 生产 | `frontend/.env.production` | 构建后走同源 `/api/v1` |
-| H5 本地 | `elderly-video-app/config.json` | 默认 `http://127.0.0.1:10099` |
-| H5 远端 | `BACKEND_BASE_URL` 环境变量 | 由 systemd 注入 `http://127.0.0.1:10099` |
+| H5 本地 | `elderly-video-app/.env.development` | 默认同源 `/api`，由 Vite 代理到 `127.0.0.1:10099` |
+| H5 远端 | `elderly-video-app/.env.production` | 默认同源 `/api`，由 Nginx 反向代理到后端 |
 | Flutter | `dart-define` | 本地调试与远端打包分别传入不同地址 |
 
 ### 代码里的现状
@@ -90,8 +90,8 @@ App/H5 业务接口：
 | 后端 `PUBLIC_BASE_URL` 默认值 | `http://127.0.0.1:10099` | `backend/app/settings/config.py` |
 | App 编译时默认后端地址 | `https://api.memovideos.cn` | `lib/app/constants.dart` |
 | 管理端开发代理目标 | `http://127.0.0.1:10099` | `frontend/.env.development` |
-| H5 默认后端地址 | `http://127.0.0.1:10099` | `elderly-video-app/config.json` |
-| H5 自身服务端口 | `3000` | `elderly-video-app/server.js` |
+| H5 默认后端地址 | `同源 /api` | `elderly-video-app/.env.development` + `elderly-video-app/vite.config.js` |
+| H5 开发端口 | `3000` | `elderly-video-app/vite.config.js` |
 | 管理端开发端口 | `3100` | `frontend/.env.development` |
 
 ### 发布时必须统一
@@ -104,7 +104,7 @@ App/H5 业务接口：
 
 - App 用 `--dart-define=AUTH_SERVER_BASE_URL=http://<IP>:9999`
 - 管理端开发代理改到 `http://<IP>:9999`
-- H5 `config.json` 改到 `http://<IP>:9999`
+- H5 `.env.development` 改到 `http://<IP>:9999`
 - 后端 `PUBLIC_BASE_URL` 也改到 `http://<IP>:9999`
 
 #### 方式 B：对外统一暴露 `10099` 或域名，后端内部仍跑 `9999`
@@ -389,19 +389,24 @@ server {
 
 ### 6.1 当前定位
 
-`elderly-video-app/` 不是纯静态页面，它本身是一个 Express 服务，负责：
+`elderly-video-app/` 已重构为标准 Vue + Vite 前端项目，负责：
 
-- 托管 `public/` 页面
-- 处理登录
-- 转发 App 业务接口到后端
-- 通过 `config.json` 或环境变量切换后端地址
+- 承载用户登录、注册、找回密码
+- 承载创作、历史、设置三大主页面
+- 直接调用统一后端接口
+- 通过 `.env.development` / `.env.production` 区分本地与线上后端地址
+
+需要特别注意：
+
+- 目录名 `elderly-video-app/` 仅为兼容历史脚本和部署路径保留
+- 旧的 `server.js + public/` Node/Express H5 形态已经废弃，后续不再维护
 
 ### 6.2 本地开发启动
 
 ```bash
 cd elderly-video-app
 npm install
-node server.js
+npm run dev
 ```
 
 默认端口：
@@ -414,32 +419,33 @@ http://127.0.0.1:3000
 
 H5 当前本地默认从这里读取后端地址：
 
-- `elderly-video-app/config.json`
+- `elderly-video-app/.env.development`
 
 当前仓库里的值是：
 
-```json
-{
-  "backendBaseUrl": "http://127.0.0.1:10099"
-}
+```env
+VITE_API_BASE_URL=
 ```
 
-当前仓库已经默认按本地 `10099` 配置好。
+同时 `vite.config.js` 会把 `/api/*`、`/media/*` 代理到本地 `http://127.0.0.1:10099`，这样浏览器联调不会再被 CORS 拦截。
 
-远端部署时，不建议改这个文件，而是通过环境变量覆盖：
+远端部署时，使用生产环境文件：
 
-```bash
-BACKEND_BASE_URL=http://127.0.0.1:10099
+```env
+VITE_API_BASE_URL=
 ```
 
-当前远端 systemd 已按这种方式配置，因此本地 `config.json` 和远端发布不会互相污染。
+正式环境也使用同源 `/api/*`，由站点 Nginx 代理到后端，这样 H5 登录、注册、鉴权不会再受跨域影响。
 
 ### 6.4 H5 对后端依赖的关键接口
 
-- `/api/auth/login`
+- `/api/v1/base/access_token`
+- `/api/v1/base/register`
+- `/api/v1/base/forgot_password`
+- `/api/v1/base/userinfo`
+- `/api/v1/base/update_profile`
+- `/api/v1/base/change_password`
 - `/api/create-workbench`
-- `/api/prompt-templates`
-- `/api/video-templates`
 - `/api/upload-images`
 - `/api/upload-reference-video`
 - `/api/correct-text`
@@ -448,20 +454,26 @@ BACKEND_BASE_URL=http://127.0.0.1:10099
 - `/api/tasks`
 - `/api/starter-tasks`
 - `/api/custom-tasks`
+- `/api/invite/overview`
 - `/api/app/releases/latest`
 
 ### 6.5 生产发布方式
 
-H5 端没有单独前端构建流程，直接运行 Node 服务即可：
+H5 端现在有单独前端构建流程：
 
 ```bash
 cd elderly-video-app
-npm install --production
-set BACKEND_BASE_URL=http://127.0.0.1:10099
-node server.js
+npm install
+npm run build
 ```
 
-建议放在 `pm2` 或系统服务中守护，并保留 `config.json` 的持久化。
+构建产物位于：
+
+```text
+elderly-video-app/dist
+```
+
+建议通过 Nginx 或其他静态站点方式部署到 `https://memovideos.cn/`。
 
 ### 6.6 发布后检查点
 
@@ -678,7 +690,7 @@ App 不直接内置安装包地址，而是通过后端接口查询：
 3. `https://memovideos.cn` 对外提供 H5 和管理端
 4. backend 使用 `.env.production`
 5. 管理端单独 `npm run build` 后以静态站部署到 `/admin/`
-6. H5 单独跑 Node 服务，并通过 `BACKEND_BASE_URL` 指向 `127.0.0.1:10099`
+6. H5 单独 `npm run build` 后以静态站方式部署到根路径，并通过 `.env.production` 指向 `https://api.memovideos.cn`
 7. App 打包时通过 `--dart-define` 写入 `https://api.memovideos.cn`
 8. 先录一条有效发布记录，再发安装包给测试人员
 

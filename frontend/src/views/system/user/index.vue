@@ -220,6 +220,28 @@ function readPointsSummary(row) {
   }
 }
 
+function readPointsHeadline(row) {
+  const summary = readPointsSummary(row)
+  return `余额 ${summary.balance}`
+}
+
+function readPointsFootnote(row) {
+  const summary = readPointsSummary(row)
+  return `充 ${summary.recharged} / 消 ${summary.spent}`
+}
+
+function readMetricHeadline(row) {
+  const metric = metricsByUserId.value.get(row.id)
+  if (!metric) return '暂无数据'
+  return `视频 ${metric.video_count || 0} · 语音 ${metric.voice_count || 0}`
+}
+
+function readMetricFootnote(row) {
+  const metric = metricsByUserId.value.get(row.id)
+  if (!metric) return '等待首次使用'
+  return `成功 ${metric.completed_count || 0} · 失败 ${metric.failed_count || 0}`
+}
+
 function readInviteSourceLabel(row) {
   return row?.registration_source === 'invite' ? '邀请码注册' : '后台创建'
 }
@@ -318,65 +340,44 @@ const columns = [
   {
     title: '用户',
     key: 'username',
-    width: 180,
-    ellipsis: { tooltip: true },
+    width: 190,
     render(row) {
-      return h('div', { class: 'user-name-cell' }, [
+      return h('div', { class: 'user-name-cell', title: `${readDisplayName(row)} ${readSecondaryName(row)}` }, [
         h('strong', { class: 'user-name-cell__title' }, readDisplayName(row)),
         h('span', { class: 'user-name-cell__meta' }, readSecondaryName(row)),
       ])
     },
   },
   {
-    title: '来源',
-    key: 'registration_source',
-    width: 120,
-    render(row) {
-      const fromInvite = row.registration_source === 'invite'
-      return h(
-        NTag,
-        {
-          size: 'small',
-          round: true,
-          type: fromInvite ? 'success' : 'default',
-        },
-        { default: () => (fromInvite ? '邀请码注册' : '后台创建') }
-      )
-    },
-  },
-  {
     title: '积分',
     key: 'points_balance',
-    width: 180,
+    width: 150,
     render(row) {
-      const summary = readPointsSummary(row)
-      return h('div', { class: 'user-usage-cell' }, [
-        h('strong', null, `余额 ${summary.balance}`),
-        h('span', null, `充值 ${summary.recharged}`),
-        h('span', null, `消耗 ${summary.spent}`),
+      return h('div', { class: 'user-usage-cell', title: `${readPointsHeadline(row)}\n${readPointsFootnote(row)}` }, [
+        h('strong', null, readPointsHeadline(row)),
+        h('span', null, readPointsFootnote(row)),
       ])
     },
   },
   {
     title: '数据用量',
     key: 'metric_usage',
-    width: 220,
+    width: 210,
     render(row) {
       const metric = metricsByUserId.value.get(row.id)
       if (!metric) {
         return h('span', { class: 'user-usage-empty' }, '暂无数据')
       }
-      return h('div', { class: 'user-usage-cell' }, [
-        h('strong', null, `视频 ${metric.video_count || 0}`),
-        h('span', null, `成功 ${metric.completed_count || 0} / 失败 ${metric.failed_count || 0}`),
-        h('span', null, `语音 ${metric.voice_count || 0}`),
+      return h('div', { class: 'user-usage-cell', title: `${readMetricHeadline(row)}\n${readMetricFootnote(row)}` }, [
+        h('strong', null, readMetricHeadline(row)),
+        h('span', null, readMetricFootnote(row)),
       ])
     },
   },
   {
     title: '最近登录',
     key: 'last_login',
-    width: 180,
+    width: 168,
     render(row) {
       return row.last_login ? formatDate(row.last_login) : '暂无记录'
     },
@@ -384,7 +385,7 @@ const columns = [
   {
     title: '状态',
     key: 'is_active',
-    width: 120,
+    width: 108,
     render(row) {
       return h(
         NTag,
@@ -400,7 +401,7 @@ const columns = [
   {
     title: '操作',
     key: 'actions',
-    width: 96,
+    width: 88,
     fixed: 'right',
     render(row) {
       return withDirectives(
@@ -957,7 +958,7 @@ function findDeptNameById(nodes = [], targetId) {
             v-model:query-items="queryItems"
             :columns="columns"
             :get-data="api.getUserList"
-            :scroll-x="1320"
+            :scroll-x="1020"
             @on-data-change="handleTableDataChange"
           >
             <template #queryBar>
@@ -1176,12 +1177,21 @@ function findDeptNameById(nodes = [], targetId) {
                   <p>{{ detailUser.dept?.name || '--' }}</p>
                 </article>
                 <article class="user-detail__card">
+                  <span>来源</span>
+                  <p>{{ readInviteSourceLabel(detailUser) }}</p>
+                </article>
+                <article class="user-detail__card">
                   <span>邀请码</span>
                   <p>{{ detailUser.invite_code?.code || '--' }}</p>
                 </article>
                 <article class="user-detail__card">
                   <span>角色</span>
-                  <p>{{ (detailUser.roles || []).map((item) => item.name).join('、') || '未分配' }}</p>
+                  <div v-if="(detailUser.roles || []).length" class="user-detail__tag-list">
+                    <NTag v-for="item in detailUser.roles || []" :key="item.id" size="small" round type="info">
+                      {{ item.name }}
+                    </NTag>
+                  </div>
+                  <p v-else>未分配</p>
                 </article>
                 <article class="user-detail__card">
                   <span>最近登录</span>
@@ -1406,12 +1416,25 @@ function findDeptNameById(nodes = [], targetId) {
 .user-usage-cell {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 .user-metric-row__copy strong,
 .user-name-cell__title,
 .user-usage-cell strong {
   color: var(--app-text);
+}
+
+.user-name-cell__title,
+.user-name-cell__meta,
+.user-usage-cell strong,
+.user-usage-cell span,
+.user-usage-empty {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-metric-row__copy span,
@@ -1502,6 +1525,10 @@ function findDeptNameById(nodes = [], targetId) {
   gap: 16px;
 }
 
+.user-detail__header > div {
+  min-width: 0;
+}
+
 .user-detail__eyebrow {
   margin: 0 0 6px;
   font-size: 12px;
@@ -1521,6 +1548,13 @@ function findDeptNameById(nodes = [], targetId) {
 .user-detail__section-head p {
   margin: 8px 0 0;
   color: var(--app-muted);
+}
+
+.user-detail__header h3,
+.user-detail__header p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-detail__summary,
@@ -1564,6 +1598,13 @@ function findDeptNameById(nodes = [], targetId) {
   color: var(--app-text);
   line-height: 1.7;
   word-break: break-word;
+}
+
+.user-detail__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .user-detail__section {

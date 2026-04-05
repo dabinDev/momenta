@@ -8,6 +8,8 @@ class VideoTaskModel {
     this.progress,
     this.errorMessage,
     this.duration,
+    this.pointsCost = 0,
+    this.pointsRefunded = false,
   });
 
   final String id;
@@ -18,10 +20,18 @@ class VideoTaskModel {
   final double? progress;
   final String? errorMessage;
   final int? duration;
+  final int pointsCost;
+  final bool pointsRefunded;
 
   bool get isProcessing => status == 'queued' || status == 'processing';
   bool get isCompleted => status == 'completed';
   bool get isFailed => status == 'failed';
+  String? get pointsStatusLabel {
+    if (pointsCost <= 0) {
+      return null;
+    }
+    return pointsRefunded ? '已退回 $pointsCost 积分' : '已扣 $pointsCost 积分';
+  }
 
   factory VideoTaskModel.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> data = json['data'] is Map<String, dynamic>
@@ -40,6 +50,9 @@ class VideoTaskModel {
           data['error_message']?.toString() ??
           data['error']?.toString(),
       duration: _asInt(data['duration']),
+      pointsCost: _asInt(data['pointsCost'] ?? data['points_cost']) ?? 0,
+      pointsRefunded: data['pointsRefunded'] == true ||
+          data['points_refunded'] == true,
     );
   }
 

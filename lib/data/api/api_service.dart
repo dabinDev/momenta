@@ -8,7 +8,10 @@ import '../../core/services/secure_storage_service.dart';
 import '../models/app_update_info_model.dart';
 import '../models/ai_template_model.dart';
 import '../models/create_workbench_model.dart';
+import '../models/invite_overview_model.dart';
 import '../models/paginated_history_model.dart';
+import '../models/recharge_order_model.dart';
+import '../models/recharge_product_model.dart';
 import '../models/uploaded_file_model.dart';
 import '../models/video_task_model.dart';
 import 'api_client.dart';
@@ -282,6 +285,61 @@ class ApiService {
       '/api/tasks',
       options: await _authOptions(),
     );
+  }
+
+  Future<List<RechargeProductModel>> fetchRechargeProducts() async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/recharge/products',
+      options: await _authOptions(),
+    );
+    final Map<String, dynamic> data = _readEnvelopeMap(response.data);
+    final List<dynamic> items = data['items'] as List<dynamic>? ?? <dynamic>[];
+    return items
+        .map((dynamic item) => RechargeProductModel.fromJson(_readMap(item)))
+        .toList();
+  }
+
+  Future<List<RechargeOrderModel>> fetchRechargeOrders({
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/recharge/orders',
+      queryParameters: <String, dynamic>{
+        'page': page,
+        'page_size': pageSize,
+      },
+      options: await _authOptions(),
+    );
+    final Map<String, dynamic> data = _readEnvelopeMap(response.data);
+    final List<dynamic> items = data['items'] as List<dynamic>? ?? <dynamic>[];
+    return items
+        .map((dynamic item) => RechargeOrderModel.fromJson(_readMap(item)))
+        .toList();
+  }
+
+  Future<RechargeOrderModel> createRechargeOrder({
+    required String packageCode,
+    required String payMethod,
+  }) async {
+    final Response<dynamic> response = await _dio.post(
+      '/api/recharge/orders',
+      data: <String, dynamic>{
+        'package_code': packageCode,
+        'pay_method': payMethod,
+      },
+      options: await _authOptions(),
+    );
+    final Map<String, dynamic> data = _readEnvelopeMap(response.data);
+    return RechargeOrderModel.fromJson(_readMap(data['order']));
+  }
+
+  Future<InviteOverviewModel> fetchInviteOverview() async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/invite/overview',
+      options: await _authOptions(),
+    );
+    return InviteOverviewModel.fromJson(_readEnvelopeMap(response.data));
   }
 
   Future<VideoTaskModel> retryTask(String id) async {

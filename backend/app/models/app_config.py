@@ -5,6 +5,11 @@ from .base import BaseModel, TimestampMixin
 
 class PlatformAIConfig(BaseModel, TimestampMixin):
     config_key = fields.CharField(max_length=32, unique=True, default="default", description="Config key", index=True)
+    points_enabled = fields.BooleanField(default=True, description="Whether points system is enabled")
+    recharge_enabled = fields.BooleanField(default=True, description="Whether recharge system is enabled")
+    video_generation_cost = fields.IntField(default=10, description="Points cost per generated video")
+    wechat_pay_enabled = fields.BooleanField(default=True, description="Whether WeChat Pay is enabled")
+    alipay_pay_enabled = fields.BooleanField(default=False, description="Whether Alipay is enabled")
     provider_base_url = fields.CharField(
         max_length=255,
         default="https://api.99hub.top",

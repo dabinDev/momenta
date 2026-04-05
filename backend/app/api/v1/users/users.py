@@ -7,9 +7,12 @@ from tortoise.expressions import Q
 
 from app.controllers.dept import dept_controller
 from app.controllers.invite_code import invite_code_controller
+from app.controllers.points import points_controller
 from app.controllers.user import user_controller
+from app.core.ctx import CTX_USER_ID
 from app.models.video_task import VideoTask, VoiceTranscriptionLog
 from app.schemas.base import Fail, Success, SuccessExtra
+from app.schemas.points import PointGiftIn
 from app.schemas.users import UserCreate, UserUpdate
 
 logger = logging.getLogger(__name__)
@@ -17,13 +20,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/list", summary="List users")
+@router.get("/list", summary="获取用户列表")
 async def list_user(
-    page: int = Query(1, description="Page"),
-    page_size: int = Query(10, description="Page size"),
-    username: str = Query("", description="Username search"),
-    email: str = Query("", description="Email search"),
-    dept_id: int | None = Query(None, description="Department ID"),
+    page: int = Query(1, description="页码"),
+    page_size: int = Query(10, description="每页数量"),
+    username: str = Query("", description="用户名搜索"),
+    email: str = Query("", description="邮箱搜索"),
+    dept_id: int | None = Query(None, description="部门 ID"),
 ):
     q = Q()
     if username:
@@ -48,17 +51,17 @@ async def list_user(
     return SuccessExtra(data=data, total=total, page=page, page_size=page_size)
 
 
-@router.get("/get", summary="Get user")
-async def get_user(user_id: int = Query(..., description="User ID")):
+@router.get("/get", summary="获取用户详情")
+async def get_user(user_id: int = Query(..., description="用户 ID")):
     user_obj = await user_controller.get(id=user_id)
     user_dict = await user_obj.to_dict(exclude_fields=["password"])
     return Success(data=user_dict)
 
 
-@router.get("/metrics", summary="User metrics")
+@router.get("/metrics", summary="获取用户统计")
 async def user_metrics(
-    username: str = Query("", description="Username search"),
-    dept_id: int | None = Query(None, description="Department ID"),
+    username: str = Query("", description="用户名搜索"),
+    dept_id: int | None = Query(None, description="部门 ID"),
 ):
     user_query = user_controller.model.all()
     if username:
@@ -155,43 +158,64 @@ async def user_metrics(
     return Success(data=jsonable_encoder({"summary": summary, "ranking": ranking}))
 
 
-@router.post("/create", summary="Create user")
+@router.post("/create", summary="创建用户")
 async def create_user(user_in: UserCreate):
     email_user, username_user = await user_controller.get_by_email_or_username(
         email=user_in.email,
         username=user_in.username,
     )
     if email_user:
-        return Fail(code=400, msg="Email already exists")
+        return Fail(code=400, msg="邮箱已存在")
     if username_user:
-        return Fail(code=400, msg="Username already exists")
+        return Fail(code=400, msg="用户名已存在")
     new_user = await user_controller.create_user(obj_in=user_in)
     await user_controller.update_roles(new_user, user_in.role_ids or [])
-    return Success(msg="Created successfully")
+    return Success(msg="创建成功")
 
 
-@router.post("/update", summary="Update user")
+@router.post("/update", summary="更新用户")
 async def update_user(user_in: UserUpdate):
     email_user = await user_controller.get_by_email(user_in.email)
     if email_user and email_user.id != user_in.id:
-        return Fail(code=400, msg="Email already exists")
+        return Fail(code=400, msg="邮箱已存在")
 
     username_user = await user_controller.get_by_username(user_in.username)
     if username_user and username_user.id != user_in.id:
-        return Fail(code=400, msg="Username already exists")
+        return Fail(code=400, msg="用户名已存在")
 
     user = await user_controller.update(id=user_in.id, obj_in=user_in)
     await user_controller.update_roles(user, user_in.role_ids or [])
-    return Success(msg="Updated successfully")
+    return Success(msg="更新成功")
 
 
-@router.delete("/delete", summary="Delete user")
-async def delete_user(user_id: int = Query(..., description="User ID")):
+@router.delete("/delete", summary="删除用户")
+async def delete_user(user_id: int = Query(..., description="用户 ID")):
     await user_controller.remove(id=user_id)
-    return Success(msg="Deleted successfully")
+    return Success(msg="删除成功")
 
 
-@router.post("/reset_password", summary="Reset password")
-async def reset_password(user_id: int = Body(..., description="User ID", embed=True)):
+@router.post("/reset_password", summary="重置密码")
+async def reset_password(user_id: int = Body(..., description="用户 ID", embed=True)):
     await user_controller.reset_password(user_id)
-    return Success(msg="Password reset to 123456")
+    return Success(msg="密码已重置为 123456")
+
+
+@router.post("/gift_points", summary="赠送积分")
+async def gift_points(req_in: PointGiftIn):
+    ledger, user = await points_controller.grant_points(
+        user_id=req_in.user_id,
+        points=req_in.points,
+        operator_user_id=CTX_USER_ID.get(None),
+        remark=req_in.remark,
+    )
+    return Success(
+        msg="积分赠送成功",
+        data={
+            "ledger": await points_controller.serialize_ledger(ledger),
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "points_balance": user.points_balance,
+            },
+        },
+    )

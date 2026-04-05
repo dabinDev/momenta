@@ -8,11 +8,17 @@ from app.models.admin import User
 from app.models.app_config import PlatformAIConfig, UserAppConfig
 from app.schemas.app_config_admin import AppConfigAdminUpdate, GlobalAppConfigAdminUpdate
 from app.services.config_store import (
+    build_client_feature_flags,
+    build_client_feature_payload,
     default_app_config_values,
+    default_app_feature_values,
     default_private_override_values,
     get_or_create_global_ai_config,
     get_or_create_user_app_config,
     get_user_app_config,
+    normalize_global_feature_settings,
+    read_global_feature_settings,
+    read_global_feature_switches,
     read_service_api_key,
     resolve_effective_user_app_config,
 )
@@ -20,6 +26,13 @@ from app.settings import settings
 
 
 class AppConfigController:
+    feature_flag_fields = (
+        "points_enabled",
+        "recharge_enabled",
+        "video_generation_cost",
+        "wechat_pay_enabled",
+        "alipay_pay_enabled",
+    )
     config_fields = (
         "provider_base_url",
         "provider_api_key",
@@ -39,6 +52,9 @@ class AppConfigController:
 
     def defaults(self) -> dict[str, str]:
         return default_app_config_values()
+
+    def feature_defaults(self) -> dict[str, bool]:
+        return default_app_feature_values()
 
     def private_defaults(self) -> dict[str, str | bool]:
         return default_private_override_values()
@@ -107,6 +123,11 @@ class AppConfigController:
         config = await get_or_create_global_ai_config()
         for field in self.config_fields:
             setattr(config, field, getattr(obj_in, field))
+        normalized_features = normalize_global_feature_settings(
+            {field: getattr(obj_in, field) for field in self.feature_flag_fields}
+        )
+        for field, value in normalized_features.items():
+            setattr(config, field, value)
         await config.save()
         return await self.serialize_global_config(config=config, include_secrets=True)
 
@@ -114,12 +135,17 @@ class AppConfigController:
         config = await get_or_create_global_ai_config()
         for field, value in self.defaults().items():
             setattr(config, field, value)
+        for field, value in self.feature_defaults().items():
+            setattr(config, field, value)
         await config.save()
         return await self.serialize_global_config(config=config, include_secrets=True)
 
     async def get_effective_config(self, *, user_id: int) -> dict:
         user = await User.get(id=user_id)
+        global_config = await get_or_create_global_ai_config()
         effective = await resolve_effective_user_app_config(user_id)
+        feature_settings = read_global_feature_settings(global_config)
+        feature_payload = build_client_feature_payload(global_config)
         return {
             "user_id": user.id,
             "user": {
@@ -141,6 +167,14 @@ class AppConfigController:
             "speech_model": effective.speech_model,
             "image_base_url": effective.image_base_url,
             "image_model": effective.image_model,
+            "feature_flags": build_client_feature_flags(global_config),
+            "points_enabled": bool(feature_settings["points_enabled"]),
+            "recharge_enabled": bool(feature_settings["recharge_enabled"]),
+            "video_generation_cost": int(feature_settings["video_generation_cost"]),
+            "wechat_pay_enabled": bool(feature_settings["wechat_pay_enabled"]),
+            "alipay_pay_enabled": bool(feature_settings["alipay_pay_enabled"]),
+            "payment_enabled": bool(feature_payload["payment_enabled"]),
+            "payment_methods": list(feature_payload["payment_methods"]),
             "llm_configured": bool(effective.llm_api_key and effective.llm_base_url and effective.llm_model),
             "video_configured": bool(effective.video_api_key and effective.video_base_url and effective.video_model),
             "speech_configured": bool(effective.speech_api_key and effective.speech_base_url and effective.speech_model),
@@ -215,6 +249,9 @@ class AppConfigController:
         config: PlatformAIConfig,
         include_secrets: bool,
     ) -> dict:
+        feature_switches = read_global_feature_switches(config)
+        feature_settings = read_global_feature_settings(config)
+        feature_payload = build_client_feature_payload(config)
         provider_api_key = str(config.provider_api_key or "").strip()
         llm_api_key = read_service_api_key(config, "llm")
         video_api_key = read_service_api_key(config, "video")
@@ -224,6 +261,14 @@ class AppConfigController:
         return {
             "id": str(config.id),
             "config_key": config.config_key,
+            "points_enabled": feature_switches["points_enabled"],
+            "recharge_enabled": feature_switches["recharge_enabled"],
+            "video_generation_cost": int(feature_settings["video_generation_cost"]),
+            "wechat_pay_enabled": feature_switches["wechat_pay_enabled"],
+            "alipay_pay_enabled": feature_switches["alipay_pay_enabled"],
+            "payment_enabled": bool(feature_payload["payment_enabled"]),
+            "payment_methods": list(feature_payload["payment_methods"]),
+            "feature_flags": build_client_feature_flags(config),
             "provider_base_url": config.provider_base_url,
             "provider_api_key": provider_api_key if include_secrets else "",
             "provider_api_key_masked": self._mask_secret(provider_api_key),

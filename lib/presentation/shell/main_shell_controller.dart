@@ -13,6 +13,7 @@ class MainShellController extends GetxController {
   void onInit() {
     super.onInit();
     if (Get.isRegistered<SettingsController>()) {
+      unawaited(Get.find<SettingsController>().refreshProfile());
       unawaited(Get.find<SettingsController>().checkForUpdates(silent: true));
     }
   }

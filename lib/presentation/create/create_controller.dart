@@ -25,6 +25,7 @@ import '../../data/models/video_task_model.dart';
 import '../../domain/repositories/history_repository.dart';
 import '../../domain/repositories/media_repository.dart';
 import '../../domain/repositories/video_repository.dart';
+import '../auth/auth_controller.dart';
 import '../history/history_controller.dart';
 
 enum CreateWorkbenchMode {
@@ -608,6 +609,9 @@ class CreateController extends GetxController {
     if (isSubmitting.value) {
       return;
     }
+    if (!_ensureCanConsumePointsBeforeCreate()) {
+      return;
+    }
     final bool keepCurrentTaskVisible =
         currentTask.value?.isProcessing ?? false;
     isSubmitting.value = true;
@@ -680,6 +684,7 @@ class CreateController extends GetxController {
           inputText: inputText,
         ),
       );
+      await _refreshPointsBalance();
 
       if (task.isCompleted && (task.videoUrl?.isNotEmpty ?? false)) {
         _handleCompleted();
@@ -764,6 +769,7 @@ class CreateController extends GetxController {
         return;
       }
       if (status.isFailed) {
+        await _refreshPointsBalance();
         SnackbarHelper.error(status.errorMessage ?? '视频生成失败，请稍后重试');
         if (Get.isRegistered<HistoryController>()) {
           await Get.find<HistoryController>().refreshList();
@@ -779,11 +785,15 @@ class CreateController extends GetxController {
   }
 
   void openCurrentVideo() {
+    final String taskId = currentTask.value?.id ?? '';
+    final String localPath = taskId.isEmpty
+        ? ''
+        : (_downloadManager.completedForTask(taskId)?.savePath ?? '');
     final String videoUrl = FileUtils.resolveUrl(
       AppConstants.serverBaseUrl,
       currentTask.value?.videoUrl,
     );
-    if (videoUrl.isEmpty) {
+    if (localPath.isEmpty && videoUrl.isEmpty) {
       SnackbarHelper.error('当前没有可播放的视频');
       return;
     }
@@ -791,8 +801,9 @@ class CreateController extends GetxController {
     Get.toNamed(
       AppRoutes.videoPlayer,
       arguments: <String, dynamic>{
-        'url': videoUrl,
-        'taskId': currentTask.value?.id ?? '',
+        if (localPath.isNotEmpty) 'localPath': localPath,
+        if (videoUrl.isNotEmpty) 'url': videoUrl,
+        'taskId': taskId,
         'title': '生成结果预览',
       },
     );
@@ -862,6 +873,9 @@ class CreateController extends GetxController {
     if (task == null || !task.isFailed) {
       return;
     }
+    if (!_ensureCanConsumePointsBeforeCreate()) {
+      return;
+    }
 
     final String fallbackPrompt = task.displayText?.trim().isNotEmpty == true
         ? task.displayText!.trim()
@@ -871,6 +885,7 @@ class CreateController extends GetxController {
       final VideoTaskModel nextTask = await _apiService.retryTask(task.id);
       currentTask.value = nextTask;
       await _persistTask(nextTask, fallbackPrompt: fallbackPrompt);
+      await _refreshPointsBalance();
       SnackbarHelper.success('已重新提交生成任务');
       if (nextTask.isProcessing) {
         isSubmitting.value = true;
@@ -932,8 +947,42 @@ class CreateController extends GetxController {
         errorMessage: task.errorMessage,
         duration: task.duration ?? selectedDuration.value,
         createdAt: DateTime.now(),
+        pointsCost: task.pointsCost,
+        pointsRefunded: task.pointsRefunded,
       ),
     );
+  }
+
+  Future<void> _refreshPointsBalance() async {
+    if (!Get.isRegistered<AuthController>()) {
+      return;
+    }
+    await Get.find<AuthController>().refreshCurrentUser(silent: true);
+  }
+
+  bool _ensureCanConsumePointsBeforeCreate() {
+    if (!Get.isRegistered<AuthController>()) {
+      return true;
+    }
+    final AuthController authController = Get.find<AuthController>();
+    final user = authController.currentUser.value;
+    if (user == null || !user.pointsEnabled) {
+      return true;
+    }
+
+    final int cost = user.videoGenerationCost;
+    if (cost <= 0 || user.pointsBalance >= cost) {
+      return true;
+    }
+
+    if (user.rechargeEnabled && user.paymentEnabled) {
+      SnackbarHelper.info('当前积分不足，请先在 App 内充值后再生成视频');
+      Get.toNamed(AppRoutes.recharge);
+      return false;
+    }
+
+    SnackbarHelper.error('当前积分不足，充值功能暂未开启，请联系管理员');
+    return false;
   }
 
   Future<bool> _initializeSpeechRecognizer() async {
@@ -1321,6 +1370,8 @@ class CreateController extends GetxController {
           videoUrl: latest.videoUrl,
           errorMessage: latest.errorMessage,
           duration: latest.duration,
+          pointsCost: latest.pointsCost,
+          pointsRefunded: latest.pointsRefunded,
         );
       }
     } catch (_) {

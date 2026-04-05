@@ -96,6 +96,8 @@ class HistoryRepositoryImpl implements HistoryRepository {
         errorMessage: _firstNonEmpty(item.errorMessage, existing.errorMessage),
         duration: item.duration ?? existing.duration,
         createdAt: existing.createdAt ?? item.createdAt ?? DateTime.now(),
+        pointsCost: item.pointsCost > 0 ? item.pointsCost : existing.pointsCost,
+        pointsRefunded: item.pointsRefunded,
       );
     } else {
       items.add(

@@ -16,6 +16,7 @@ export default {
   updateUser: (data = {}) => request.post('/user/update', data),
   deleteUser: (params = {}) => request.delete(`/user/delete`, { params }),
   resetPassword: (data = {}) => request.post(`/user/reset_password`, data),
+  giftUserPoints: (data = {}) => request.post('/user/gift_points', data),
   // invite codes
   getInviteCodeList: (params = {}) => request.get('/invite_code/list', { params }),
   createInviteCode: (data = {}) => request.post('/invite_code/create', data),
@@ -52,6 +53,9 @@ export default {
   syncTask: (params = {}) => request.post('/task/sync', null, { params }),
   retryTask: (params = {}) => request.post('/task/retry', null, { params }),
   getVoiceLogList: (params = {}) => request.get('/voice_log/list', { params }),
+  getPointLedgerList: (params = {}) => request.get('/point_ledger/list', { params }),
+  getRechargeOrderList: (params = {}) => request.get('/recharge_order/list', { params }),
+  updateRechargeOrderStatus: (data = {}) => request.post('/recharge_order/update_status', data),
   // user app config
   getGlobalAppConfig: () => request.get('/app_config/global'),
   updateGlobalAppConfig: (data = {}) => request.post('/app_config/global', data),

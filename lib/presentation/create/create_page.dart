@@ -13,6 +13,7 @@ import '../../shared/widgets/large_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/status_chip.dart';
+import '../auth/auth_controller.dart';
 import 'create_controller.dart';
 import 'create_mode_sheet.dart';
 
@@ -806,13 +807,23 @@ class _SubmitPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Obx(
-          () => PrimaryButton(
-            label: controller.isSubmitting.value ? '生成中，请稍候' : label,
+        Obx(() {
+          final AuthController authController = Get.find<AuthController>();
+          final int pointsCost =
+              authController.currentUser.value?.videoGenerationCost ?? 0;
+          final bool pointsEnabled =
+              authController.currentUser.value?.pointsEnabled == true;
+          final String submitLabel = pointsEnabled && pointsCost > 0
+              ? '$label · $pointsCost积分'
+              : label;
+          return PrimaryButton(
+            label: controller.isSubmitting.value
+                ? '生成中，请稍候'
+                : submitLabel,
             icon: Icons.movie_creation_outlined,
             onPressed: controller.isSubmitting.value ? null : onPressed,
-          ),
-        ),
+          );
+        }),
         const SizedBox(height: 14),
         _CurrentTaskStatusPanel(controller: controller),
       ],
@@ -871,11 +882,21 @@ class _TaskStatusPanel extends StatelessWidget {
                     StatusChip(status: task.status),
                     Text(
                       task.errorMessage?.trim().isNotEmpty == true
-                          ? task.errorMessage!
-                          : '任务编号：${task.id}',
+                        ? task.errorMessage!
+                        : '任务编号：${task.id}',
                     ),
                   ],
                 ),
+                if (task.pointsStatusLabel != null) ...<Widget>[
+                  const SizedBox(height: 10),
+                  Text(
+                    task.pointsStatusLabel!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.primaryDeep,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
                 if (task.isCompleted &&
                     (task.videoUrl?.isNotEmpty ?? false)) ...<Widget>[
                   const SizedBox(height: 14),
@@ -895,15 +916,6 @@ class _TaskStatusPanel extends StatelessWidget {
                         onPressed: controller.isQueuingCurrentDownload.value
                             ? null
                             : controller.downloadCurrentVideo,
-                      ),
-                      PrimaryButton.outline(
-                        label: controller.isSavingCurrentVideo.value
-                            ? '保存中...'
-                            : '保存到相册',
-                        icon: Icons.photo_library_outlined,
-                        onPressed: controller.isSavingCurrentVideo.value
-                            ? null
-                            : controller.saveCurrentVideo,
                       ),
                     ],
                   ),
@@ -972,6 +984,16 @@ class _CurrentTaskStatusPanel extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (task.pointsStatusLabel != null) ...<Widget>[
+                  const SizedBox(height: 10),
+                  Text(
+                    task.pointsStatusLabel!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.primaryDeep,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
                 if (task.isCompleted &&
                     (task.videoUrl?.isNotEmpty ?? false)) ...<Widget>[
                   const SizedBox(height: 14),
@@ -990,15 +1012,6 @@ class _CurrentTaskStatusPanel extends StatelessWidget {
                         onPressed: controller.isQueuingCurrentDownload.value
                             ? null
                             : controller.downloadCurrentVideo,
-                      ),
-                      PrimaryButton.outline(
-                        label: controller.isSavingCurrentVideo.value
-                            ? '保存中'
-                            : '保存到相册',
-                        icon: Icons.download_rounded,
-                        onPressed: controller.isSavingCurrentVideo.value
-                            ? null
-                            : controller.saveCurrentVideo,
                       ),
                     ],
                   ),

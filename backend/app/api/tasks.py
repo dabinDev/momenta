@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
+from app.controllers.points import points_controller
 from app.controllers.task import VideoGenerationRateLimitError, task_controller
 from app.core.ctx import CTX_USER_ID
 from app.core.dependency import DependAuth
@@ -62,24 +63,37 @@ async def _build_task_response(
     prompt: str | None,
     duration: int,
     images: list[str],
+    points_cost: int = 0,
+    points_charge_token: str | None = None,
 ):
     if not isinstance(payload, dict):
         payload = {"data": payload}
 
     resolved_prompt = _resolve_requested_prompt(payload, fallback=prompt)
 
-    task = await task_controller.create_task(
-        user_id=user_id,
-        task_source="app",
-        task_type="image_to_video" if images else "text_to_video",
-        provider=provider,
-        input_text=input_text,
-        polished_text=polished_text,
-        prompt=resolved_prompt,
-        duration=duration,
-        images=images,
-        provider_payload=payload,
-    )
+    try:
+        task = await task_controller.create_task(
+            user_id=user_id,
+            task_source="app",
+            task_type="image_to_video" if images else "text_to_video",
+            provider=provider,
+            input_text=input_text,
+            polished_text=polished_text,
+            prompt=resolved_prompt,
+            duration=duration,
+            images=images,
+            provider_payload=payload,
+            points_cost=points_cost,
+            points_charge_token=points_charge_token,
+        )
+    except Exception:
+        if points_charge_token:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=points_charge_token,
+                reason="任务创建失败，积分已退回",
+            )
+        raise
     return Success(data=await task_controller.serialize_task(task))
 
 
@@ -183,10 +197,16 @@ async def get_create_workbench():
 async def create_task(req_in: VideoTaskCreateIn):
     user_id = CTX_USER_ID.get()
     slot_claimed = False
+    charge_info = None
 
     try:
         await task_controller.claim_generation_slot(user_id=user_id)
         slot_claimed = True
+        charge_info = await points_controller.reserve_video_generation_points(
+            user_id=user_id,
+            task_source="app",
+            task_type="simple",
+        )
         provider, payload = await business_gateway_service.generate_video(
             user_id=user_id,
             prompt=req_in.prompt,
@@ -204,11 +224,26 @@ async def create_task(req_in: VideoTaskCreateIn):
             prompt=req_in.prompt,
             duration=req_in.duration,
             images=req_in.images,
+            points_cost=int(charge_info["points_cost"]),
+            points_charge_token=str(charge_info["charge_token"]),
         )
     except VideoGenerationRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+            )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+                reason="任务创建失败，积分已退回",
+            )
+        raise
     finally:
         if slot_claimed:
             await task_controller.release_generation_slot(user_id=user_id)
@@ -218,10 +253,16 @@ async def create_task(req_in: VideoTaskCreateIn):
 async def create_starter_task(req_in: StarterVideoTaskCreateIn):
     user_id = CTX_USER_ID.get()
     slot_claimed = False
+    charge_info = None
 
     try:
         await task_controller.claim_generation_slot(user_id=user_id)
         slot_claimed = True
+        charge_info = await points_controller.reserve_video_generation_points(
+            user_id=user_id,
+            task_source="app",
+            task_type="starter",
+        )
         provider, payload = await business_gateway_service.generate_starter_video(
             user_id=user_id,
             prompt=req_in.prompt,
@@ -242,11 +283,26 @@ async def create_starter_task(req_in: StarterVideoTaskCreateIn):
             prompt=req_in.prompt,
             duration=req_in.duration,
             images=req_in.images,
+            points_cost=int(charge_info["points_cost"]),
+            points_charge_token=str(charge_info["charge_token"]),
         )
     except VideoGenerationRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+            )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+                reason="任务创建失败，积分已退回",
+            )
+        raise
     finally:
         if slot_claimed:
             await task_controller.release_generation_slot(user_id=user_id)
@@ -256,10 +312,16 @@ async def create_starter_task(req_in: StarterVideoTaskCreateIn):
 async def create_custom_task(req_in: CustomVideoTaskCreateIn):
     user_id = CTX_USER_ID.get()
     slot_claimed = False
+    charge_info = None
 
     try:
         await task_controller.claim_generation_slot(user_id=user_id)
         slot_claimed = True
+        charge_info = await points_controller.reserve_video_generation_points(
+            user_id=user_id,
+            task_source="app",
+            task_type="custom",
+        )
         provider, payload = await business_gateway_service.generate_custom_video(
             user_id=user_id,
             prompt=req_in.prompt,
@@ -281,11 +343,26 @@ async def create_custom_task(req_in: CustomVideoTaskCreateIn):
             prompt=req_in.prompt,
             duration=req_in.duration,
             images=req_in.images,
+            points_cost=int(charge_info["points_cost"]),
+            points_charge_token=str(charge_info["charge_token"]),
         )
     except VideoGenerationRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+            )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+                reason="任务创建失败，积分已退回",
+            )
+        raise
     finally:
         if slot_claimed:
             await task_controller.release_generation_slot(user_id=user_id)
@@ -342,14 +419,45 @@ async def get_task(task_id: int):
 @router.post("/tasks/{task_id}/retry", summary="Retry a failed task", dependencies=[DependAuth])
 async def retry_task(task_id: int):
     user_id = CTX_USER_ID.get()
+    charge_info = None
     try:
-        task = await task_controller.retry_user_task(task_id=task_id, user_id=user_id)
+        charge_info = await points_controller.reserve_video_generation_points(
+            user_id=user_id,
+            task_source="app",
+            task_type="retry",
+        )
+        task = await task_controller.retry_user_task(
+            task_id=task_id,
+            user_id=user_id,
+            points_cost=int(charge_info["points_cost"]),
+            points_charge_token=str(charge_info["charge_token"]),
+        )
     except VideoGenerationRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+                reason="任务重试失败，积分已退回",
+            )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+                reason="任务重试失败，积分已退回",
+            )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception:
+        if charge_info:
+            await points_controller.refund_video_generation_points(
+                user_id=user_id,
+                charge_token=str(charge_info["charge_token"]),
+                reason="任务重试失败，积分已退回",
+            )
+        raise
     return Success(data=await task_controller.serialize_task(task))
 
 
@@ -359,7 +467,7 @@ async def download_task_video(task_id: int):
     task = await task_controller.get_user_task(task_id=task_id, user_id=user_id)
     target_url = _resolve_video_url(task.video_url or "")
     if not target_url:
-        raise HTTPException(status_code=404, detail="Task video is not ready")
+        raise HTTPException(status_code=404, detail="当前任务视频尚未生成完成")
 
     client = httpx.AsyncClient(
         timeout=httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0),
@@ -373,10 +481,10 @@ async def download_task_video(task_id: int):
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         await client.aclose()
-        raise HTTPException(status_code=exc.response.status_code, detail="Failed to download task video") from exc
+        raise HTTPException(status_code=exc.response.status_code, detail="下载任务视频失败") from exc
     except httpx.HTTPError as exc:
         await client.aclose()
-        raise HTTPException(status_code=502, detail="Failed to download task video") from exc
+        raise HTTPException(status_code=502, detail="下载任务视频失败") from exc
 
     headers = {
         "Content-Disposition": f'attachment; filename="{_download_filename(task.id, target_url)}"',
@@ -397,14 +505,14 @@ async def download_task_video(task_id: int):
 async def delete_task(task_id: int):
     user_id = CTX_USER_ID.get()
     await task_controller.mark_deleted(task_id=task_id, user_id=user_id)
-    return Success(msg="Task marked deleted in local history")
+    return Success(msg="任务已从当前账号历史记录中删除")
 
 
 @router.delete("/tasks", summary="Clear current user history", dependencies=[DependAuth])
 async def clear_tasks():
     user_id = CTX_USER_ID.get()
     await task_controller.mark_all_deleted(user_id=user_id)
-    return Success(msg="History items marked deleted in local history")
+    return Success(msg="当前账号历史记录已清空")
 
 
 tasks_router = router

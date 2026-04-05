@@ -25,4 +25,8 @@ class AppConfigAdminUpdate(AppConfigAdminBase):
 
 
 class GlobalAppConfigAdminUpdate(AppConfigAdminBase):
-    pass
+    points_enabled: bool = Field(default=True, description="是否开启积分系统")
+    recharge_enabled: bool = Field(default=True, description="是否开启充值系统")
+    video_generation_cost: int = Field(default=10, ge=0, description="每次视频生成消耗积分")
+    wechat_pay_enabled: bool = Field(default=True, description="是否开启微信支付")
+    alipay_pay_enabled: bool = Field(default=False, description="是否开启支付宝支付")

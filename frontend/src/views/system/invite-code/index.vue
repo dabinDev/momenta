@@ -9,6 +9,7 @@ import {
   NInputNumber,
   NModal,
   NPopconfirm,
+  NSelect,
   NSwitch,
   NTag,
 } from 'naive-ui'
@@ -19,19 +20,20 @@ import CrudModal from '@/components/table/CrudModal.vue'
 import CrudTable from '@/components/table/CrudTable.vue'
 import TheIcon from '@/components/icon/TheIcon.vue'
 
+import api from '@/api'
 import { formatDate, renderIcon } from '@/utils'
 import { useCRUD } from '@/composables'
-import api from '@/api'
 
 defineOptions({ name: '邀请码管理' })
 
 const $table = ref(null)
 const queryItems = ref({
-  code: null,
+  code: '',
 })
 const tableRows = ref([])
 const qrVisible = ref(false)
 const activeInvite = ref(null)
+const userOptions = ref([])
 const vPermission = resolveDirective('permission')
 
 const {
@@ -49,6 +51,7 @@ const {
   name: '邀请码',
   initForm: {
     remark: '',
+    owner_user_id: null,
     max_uses: 1,
     expires_at: null,
     is_active: true,
@@ -75,22 +78,22 @@ const overviewStats = computed(() => {
     {
       label: '当前页邀请码',
       value: tableRows.value.length,
-      hint: '本次查询已加载记录数',
+      hint: '本次查询已加载的记录数量',
     },
     {
       label: '可用邀请码',
       value: tableRows.value.filter((item) => item.is_active).length,
-      hint: '可继续发给用户注册',
+      hint: '仍可继续分发注册',
     },
     {
-      label: '已达上限',
-      value: tableRows.value.filter((item) => Number(item.used_count || 0) >= Number(item.max_uses || 0)).length,
-      hint: '已用完，不再允许注册',
+      label: '已绑邀请人',
+      value: tableRows.value.filter((item) => item.owner_user?.id).length,
+      hint: '注册成功后会给邀请人返积分',
     },
     {
-      label: '即将过期',
+      label: '已设置有效期',
       value: tableRows.value.filter((item) => item.expires_at && new Date(item.expires_at).getTime() > now).length,
-      hint: '已设置失效时间',
+      hint: '超过时间后自动失效',
     },
   ]
 })
@@ -127,7 +130,7 @@ const columns = [
                 $message.success('邀请码已复制')
               },
             },
-            { default: () => '复制' }
+            { default: () => '复制' },
           ),
         ]),
         h('span', { class: 'invite-code-cell__meta' }, row.remark || '未填写备注'),
@@ -136,20 +139,27 @@ const columns = [
     },
   },
   {
+    title: '邀请人',
+    key: 'owner_user',
+    width: 180,
+    render(row) {
+      const owner = row.owner_user
+      if (!owner?.id) return '--'
+      return h('div', { class: 'invite-owner' }, [
+        h('strong', null, owner.alias || owner.username || '--'),
+        h('span', null, `@${owner.username || '--'}`),
+      ])
+    },
+  },
+  {
     title: '状态',
     key: 'is_active',
-    width: 110,
+    width: 100,
     render(row) {
       return h(
         NTag,
-        {
-          size: 'small',
-          round: true,
-          type: row.is_active ? 'success' : 'default',
-        },
-        {
-          default: () => (row.is_active ? '可用' : '停用'),
-        }
+        { size: 'small', round: true, type: row.is_active ? 'success' : 'default' },
+        { default: () => (row.is_active ? '可用' : '停用') },
       )
     },
   },
@@ -196,9 +206,9 @@ const columns = [
             {
               default: () => '二维码',
               icon: renderIcon('material-symbols:qr-code-2-rounded', { size: 16 }),
-            }
+            },
           ),
-          [[vPermission, 'post/api/v1/invite_code/update']]
+          [[vPermission, 'post/api/v1/invite_code/update']],
         ),
         withDirectives(
           h(
@@ -207,14 +217,14 @@ const columns = [
               size: 'small',
               quaternary: true,
               type: 'primary',
-              onClick: () => handleEdit({ ...row }),
+              onClick: () => openEditModal(row),
             },
             {
               default: () => '编辑',
               icon: renderIcon('material-symbols:edit-outline', { size: 16 }),
-            }
+            },
           ),
-          [[vPermission, 'post/api/v1/invite_code/update']]
+          [[vPermission, 'post/api/v1/invite_code/update']],
         ),
         withDirectives(
           h(
@@ -235,9 +245,9 @@ const columns = [
             {
               default: () => (row.is_active ? '停用' : '启用'),
               icon: renderIcon('material-symbols:key-vertical-outline', { size: 16 }),
-            }
+            },
           ),
-          [[vPermission, 'post/api/v1/invite_code/toggle']]
+          [[vPermission, 'post/api/v1/invite_code/toggle']],
         ),
         h(
           NPopconfirm,
@@ -257,21 +267,30 @@ const columns = [
                   {
                     default: () => '删除',
                     icon: renderIcon('material-symbols:delete-outline', { size: 16 }),
-                  }
+                  },
                 ),
-                [[vPermission, 'delete/api/v1/invite_code/delete']]
+                [[vPermission, 'delete/api/v1/invite_code/delete']],
               ),
             default: () => h('div', {}, '确定删除这个邀请码吗？'),
-          }
+          },
         ),
       ])
     },
   },
 ]
 
-onMounted(() => {
+onMounted(async () => {
   $table.value?.handleSearch()
+  await loadUserOptions()
 })
+
+async function loadUserOptions() {
+  const res = await api.getUserList({ page: 1, page_size: 9999 })
+  userOptions.value = (res.data || []).map((item) => ({
+    label: item.alias?.trim() ? `${item.alias} @${item.username}` : item.username,
+    value: item.id,
+  }))
+}
 
 function handleTableDataChange(data = []) {
   tableRows.value = data
@@ -281,11 +300,20 @@ function openCreateInviteCode() {
   handleAdd()
   modalForm.value.max_uses = 1
   modalForm.value.is_active = true
+  modalForm.value.owner_user_id = null
+}
+
+function openEditModal(row) {
+  handleEdit({ ...row, owner_user_id: row.owner_user?.id ?? row.owner_user_id ?? null })
+  delete modalForm.value.owner_user
 }
 
 function normalizeForm() {
   if (!modalForm.value.expires_at) {
     modalForm.value.expires_at = null
+  }
+  if (!modalForm.value.owner_user_id) {
+    modalForm.value.owner_user_id = null
   }
 }
 
@@ -318,8 +346,8 @@ async function copyInviteCode() {
           <p class="invite-page__eyebrow">邀请注册</p>
           <h2>邀请码管理</h2>
           <p>
-            邀请码只保留真正必要的运营字段，生成后可直接复制链接或二维码给用户。H5 打开会自动带入邀请码，App
-            也可复用同一份邀请信息。
+            邀请码可以直接绑定到某个用户。新用户使用邀请码注册成功后，注册人和邀请码归属人都会自动获得 30
+            积分；扫码链接默认指向 H5 注册页，也可以复用到 App 注册页。
           </p>
         </div>
         <NButton v-permission="'post/api/v1/invite_code/create'" type="primary" @click="openCreateInviteCode">
@@ -344,7 +372,7 @@ async function copyInviteCode() {
           v-model:query-items="queryItems"
           :columns="columns"
           :get-data="api.getInviteCodeList"
-          :scroll-x="1080"
+          :scroll-x="1220"
           @on-data-change="handleTableDataChange"
         >
           <template #queryBar>
@@ -375,8 +403,17 @@ async function copyInviteCode() {
           <NFormItem v-if="modalAction === 'edit'" label="邀请码">
             <NInput :value="modalForm.code || ''" disabled />
           </NFormItem>
+          <NFormItem label="归属用户" path="owner_user_id">
+            <NSelect
+              v-model:value="modalForm.owner_user_id"
+              clearable
+              filterable
+              :options="userOptions"
+              placeholder="不选择则只奖励注册人"
+            />
+          </NFormItem>
           <NFormItem label="备注" path="remark">
-            <NInput v-model:value="modalForm.remark" clearable placeholder="例如：渠道合作、测试用户" />
+            <NInput v-model:value="modalForm.remark" clearable placeholder="例如：渠道合作、活动邀请、达人裂变" />
           </NFormItem>
           <NFormItem label="可用次数" path="max_uses">
             <NInputNumber v-model:value="modalForm.max_uses" :min="1" class="w-full" />
@@ -400,8 +437,12 @@ async function copyInviteCode() {
         <div class="invite-qr">
           <div class="invite-qr__code">{{ activeInvite?.code || '--' }}</div>
           <p class="invite-qr__copy">
-            二维码默认指向 H5 注册链接，用户扫码后会自动带入邀请码。也可以单独复制邀请码给 App 注册页使用。
+            扫码默认打开 H5 注册页并自动带入邀请码，也可以复制邀请码给 App 注册页直接使用。
           </p>
+          <div class="invite-qr__meta">
+            <span>邀请人</span>
+            <strong>{{ activeInvite?.owner_user?.alias || activeInvite?.owner_user?.username || '未绑定' }}</strong>
+          </div>
           <div class="invite-qr__image-wrap">
             <img v-if="qrImageUrl" :src="qrImageUrl" alt="邀请码二维码" class="invite-qr__image" />
           </div>
@@ -496,7 +537,10 @@ async function copyInviteCode() {
   color: var(--app-muted);
 }
 
-.invite-code-cell {
+.invite-code-cell,
+.invite-owner,
+.invite-qr,
+.invite-qr__meta {
   display: grid;
   gap: 4px;
 }
@@ -507,12 +551,17 @@ async function copyInviteCode() {
   gap: 8px;
 }
 
-.invite-code-cell__title {
+.invite-code-cell__title,
+.invite-owner strong,
+.invite-qr__code,
+.invite-qr__meta strong {
   color: var(--app-text);
-  font-size: 14px;
 }
 
-.invite-code-cell__meta {
+.invite-code-cell__meta,
+.invite-owner span,
+.invite-qr__copy,
+.invite-qr__meta span {
   font-size: 12px;
   color: var(--app-muted);
 }
@@ -530,20 +579,13 @@ async function copyInviteCode() {
   gap: 4px;
 }
 
-.invite-qr {
-  display: grid;
-  gap: 14px;
-}
-
 .invite-qr__code {
   font-size: 22px;
   font-weight: 800;
-  color: var(--app-text);
 }
 
 .invite-qr__copy {
   margin: 0;
-  color: var(--app-muted);
   line-height: 1.6;
 }
 

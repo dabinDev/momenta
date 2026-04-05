@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter
 
+from app.controllers.points import points_controller
 from app.controllers.user import user_controller
 from app.core.ctx import CTX_USER_ID
 from app.core.dependency import DependAuth
@@ -10,6 +11,7 @@ from app.models.admin import Api, Dept, Menu, Role, User
 from app.schemas.base import Success
 from app.schemas.login import CredentialsSchema, JWTPayload, JWTOut
 from app.schemas.users import ForgotPasswordRequest, RegisterRequest, UpdateCurrentUserProfile, UpdatePassword
+from app.services.config_store import get_client_feature_flags, get_client_feature_payload
 from app.settings import settings
 from app.utils.jwt_utils import create_access_token
 
@@ -21,13 +23,26 @@ async def _serialize_current_user(user_obj: User) -> dict:
     data = await user_obj.to_dict(m2m=True, exclude_fields=["password"])
     data["avatar"] = "https://avatars.githubusercontent.com/u/54677442?v=4"
     data["roles"] = data.get("roles") or []
+    feature_flags = await get_client_feature_flags()
+    feature_payload = await get_client_feature_payload()
+    points_summary = points_controller.build_user_summary(user_obj, feature_flags=feature_payload)
+    data["feature_flags"] = feature_flags
+    data["points_enabled"] = feature_payload["points_enabled"]
+    data["recharge_enabled"] = feature_payload["recharge_enabled"]
+    data["wechat_pay_enabled"] = feature_payload["wechat_pay_enabled"]
+    data["alipay_pay_enabled"] = feature_payload["alipay_pay_enabled"]
+    data["payment_enabled"] = feature_payload["payment_enabled"]
+    data["payment_methods"] = feature_payload["payment_methods"]
+    data["points_summary"] = points_summary
+    data["video_generation_cost"] = points_summary["video_generation_cost"]
+    data["new_user_recharge_available"] = points_summary["new_user_recharge_available"]
 
     dept = await Dept.filter(id=user_obj.dept_id).first() if user_obj.dept_id else None
     data["dept"] = await dept.to_dict() if dept else {}
     return data
 
 
-@router.post("/access_token", summary="Get access token")
+@router.post("/access_token", summary="获取访问令牌")
 async def login_access_token(credentials: CredentialsSchema):
     user: User = await user_controller.authenticate(credentials)
     try:
@@ -51,14 +66,14 @@ async def login_access_token(credentials: CredentialsSchema):
     return Success(data=data.model_dump())
 
 
-@router.get("/userinfo", summary="Get current user info", dependencies=[DependAuth])
+@router.get("/userinfo", summary="获取当前用户信息", dependencies=[DependAuth])
 async def get_userinfo():
     user_id = CTX_USER_ID.get()
     user_obj = await user_controller.get(id=user_id)
     return Success(data=await _serialize_current_user(user_obj))
 
 
-@router.get("/usermenu", summary="Get current user menu", dependencies=[DependAuth])
+@router.get("/usermenu", summary="获取当前用户菜单", dependencies=[DependAuth])
 async def get_user_menu():
     user_id = CTX_USER_ID.get()
     user_obj = await User.filter(id=user_id).first()
@@ -88,7 +103,7 @@ async def get_user_menu():
     return Success(data=res)
 
 
-@router.get("/userapi", summary="Get current user API permissions", dependencies=[DependAuth])
+@router.get("/userapi", summary="获取当前用户接口权限", dependencies=[DependAuth])
 async def get_user_api():
     user_id = CTX_USER_ID.get()
     user_obj = await User.filter(id=user_id).first()
@@ -104,7 +119,7 @@ async def get_user_api():
     return Success(data=list(set(apis)))
 
 
-@router.post("/update_password", summary="Update password", dependencies=[DependAuth])
+@router.post("/update_password", summary="修改密码", dependencies=[DependAuth])
 async def update_user_password(req_in: UpdatePassword):
     user_id = CTX_USER_ID.get()
     await user_controller.change_password(
@@ -112,34 +127,36 @@ async def update_user_password(req_in: UpdatePassword):
         old_password=req_in.old_password,
         new_password=req_in.new_password,
     )
-    return Success(msg="Password updated successfully")
+    return Success(msg="密码修改成功")
 
 
-@router.post("/change_password", summary="Change password", dependencies=[DependAuth])
+@router.post("/change_password", summary="修改密码", dependencies=[DependAuth])
 async def change_user_password(req_in: UpdatePassword):
     return await update_user_password(req_in)
 
 
-@router.post("/forgot_password", summary="Forgot password")
+@router.post("/forgot_password", summary="忘记密码")
 async def forgot_password(req_in: ForgotPasswordRequest):
     await user_controller.forgot_password(req_in)
-    return Success(msg="Password reset successfully")
+    return Success(msg="密码重置成功")
 
 
-@router.post("/register", summary="Register account")
+@router.post("/register", summary="注册账号")
 async def register(req_in: RegisterRequest):
-    user_obj = await user_controller.register_user(req_in)
+    user_obj, reward_summary = await user_controller.register_user(req_in)
     return Success(
-        msg="Registered successfully",
+        msg="注册成功",
         data={
             "id": user_obj.id,
             "username": user_obj.username,
             "email": user_obj.email,
+            "reward_summary": reward_summary,
+            "personal_invite_code": reward_summary.get("personal_invite_code"),
         },
     )
 
 
-@router.post("/update_profile", summary="Update current user profile", dependencies=[DependAuth])
+@router.post("/update_profile", summary="更新当前用户资料", dependencies=[DependAuth])
 async def update_current_user_profile(req_in: UpdateCurrentUserProfile):
     user_id = CTX_USER_ID.get()
     user_obj = await user_controller.update_current_profile(

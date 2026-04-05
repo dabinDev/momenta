@@ -2,8 +2,8 @@ class AppConstants {
   AppConstants._();
 
   static const String appTitle = '拾光视频';
-  static const String appVersion = '1.2.0';
-  static const String appBuildNumber = '3';
+  static const String appVersion = '1.3.0';
+  static const String appBuildNumber = '4';
   static const String releasePlatform = 'android';
   static const String releaseChannelCode = 'lan';
   static const String updateChannel = '局域网安装包';

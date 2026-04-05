@@ -22,6 +22,10 @@ class User(BaseModel, TimestampMixin):
     last_login = fields.DatetimeField(null=True, description="Last login time", index=True)
     registration_source = fields.CharField(max_length=20, default="admin", description="Registration source", index=True)
     invite_code_id = fields.BigIntField(null=True, description="Invite code ID", index=True)
+    points_balance = fields.IntField(default=0, description="Current points balance")
+    total_points_spent = fields.IntField(default=0, description="Total spent points")
+    total_points_recharged = fields.IntField(default=0, description="Total recharged points")
+    completed_recharge_count = fields.IntField(default=0, description="Completed recharge count")
     roles = fields.ManyToManyField("models.Role", related_name="user_roles", db_constraint=False)
     dept_id = fields.IntField(null=True, description="Department ID", index=True)
 
@@ -104,6 +108,7 @@ class InviteCode(BaseModel, TimestampMixin):
     is_active = fields.BooleanField(default=True, description="Is active", index=True)
     expires_at = fields.DatetimeField(null=True, description="Expiration time", index=True)
     created_by_user_id = fields.BigIntField(null=True, description="Creator user ID", index=True)
+    owner_user_id = fields.BigIntField(null=True, description="Invite owner user ID", index=True)
 
     class Meta:
         table = "invite_code"

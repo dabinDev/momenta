@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.exceptions import normalize_error_message as normalize_api_error_message
+from app.controllers.points import points_controller
 from app.models.admin import User
 from app.models.video_task import VideoTask, VideoTaskAsset, VoiceTranscriptionLog
 from app.services.business_gateway import business_gateway_service
@@ -71,6 +72,8 @@ class TaskController:
         duration: int,
         images: list[str],
         provider_payload: dict[str, Any],
+        points_cost: int = 0,
+        points_charge_token: str | None = None,
     ) -> VideoTask:
         now = datetime.now()
         status = self._read_status(provider_payload)
@@ -93,11 +96,15 @@ class TaskController:
             error_code=self._read_error_code(provider_payload),
             error_message=self._read_error_message(provider_payload),
             provider_payload=provider_payload,
+            points_cost=points_cost,
+            points_charge_token=points_charge_token,
+            points_refunded=False,
             started_at=now if status in {"queued", "processing", "completed", "failed"} else None,
             finished_at=now if status in self.final_statuses else None,
         )
 
         await self.replace_assets(task=task, images=images)
+        await self._refund_task_points_if_needed(task)
         return task
 
     async def replace_assets(self, *, task: VideoTask, images: list[str]) -> None:
@@ -155,6 +162,7 @@ class TaskController:
             task.finished_at = now
 
         await task.save()
+        await self._refund_task_points_if_needed(task)
         return task
 
     async def claim_generation_slot(self, *, user_id: int) -> None:
@@ -232,6 +240,8 @@ class TaskController:
         *,
         task: VideoTask,
         payload: dict[str, Any],
+        points_cost: int | None = None,
+        points_charge_token: str | None = None,
     ) -> VideoTask:
         request_context = self._read_request_context(payload)
         if not request_context:
@@ -270,9 +280,16 @@ class TaskController:
         task.cover_image_url = self._read_cover_image(next_payload) or task.cover_image_url
         task.error_code = None
         task.error_message = None
+        if points_cost is not None:
+            task.points_cost = points_cost
+        if points_charge_token is not None:
+            task.points_charge_token = points_charge_token
+            task.points_refunded = False
+            task.points_refunded_at = None
         task.started_at = now
         task.finished_at = None
         await task.save()
+        await self._refund_task_points_if_needed(task)
         return task
 
     def _merge_request_context(
@@ -314,15 +331,33 @@ class TaskController:
             filters["is_deleted"] = False
         return await VideoTask.get(**filters)
 
-    async def retry_user_task(self, *, task_id: int, user_id: int) -> VideoTask:
+    async def retry_user_task(
+        self,
+        *,
+        task_id: int,
+        user_id: int,
+        points_cost: int | None = None,
+        points_charge_token: str | None = None,
+    ) -> VideoTask:
         task = await self.get_user_task(task_id=task_id, user_id=user_id)
-        return await self.retry_task(task)
+        return await self.retry_task(task, points_cost=points_cost, points_charge_token=points_charge_token)
 
-    async def retry_task(self, task: VideoTask) -> VideoTask:
+    async def retry_task(
+        self,
+        task: VideoTask,
+        *,
+        points_cost: int | None = None,
+        points_charge_token: str | None = None,
+    ) -> VideoTask:
         payload = task.provider_payload or {}
         if not isinstance(payload, dict):
             raise ValueError("Task payload is invalid")
-        retried_task = await self._retry_task_from_request_context(task=task, payload=payload)
+        retried_task = await self._retry_task_from_request_context(
+            task=task,
+            payload=payload,
+            points_cost=points_cost,
+            points_charge_token=points_charge_token,
+        )
         if retried_task.id != task.id:
             return retried_task
         return retried_task
@@ -466,6 +501,8 @@ class TaskController:
         data["progress"] = float(task.progress or 0)
         data["is_deleted"] = task.is_deleted
         data["cover_image_url"] = task.cover_image_url or ""
+        data["points_cost"] = int(task.points_cost or 0)
+        data["points_refunded"] = bool(task.points_refunded)
         request_context = self._read_request_context(task.provider_payload or {})
         data["request_context"] = request_context
         data["creation_mode"] = str(request_context.get("creation_mode") or "simple")
@@ -616,6 +653,26 @@ class TaskController:
     def _file_name(path: str) -> str:
         clean_path = path.replace("\\", "/")
         return clean_path.rsplit("/", 1)[-1]
+
+    async def _refund_task_points_if_needed(self, task: VideoTask) -> None:
+        if task.status not in {"failed", "cancelled"}:
+            return
+        if not int(task.points_cost or 0):
+            return
+        if task.points_refunded:
+            return
+        charge_token = str(task.points_charge_token or "").strip()
+        if not charge_token:
+            return
+        refunded_ledger, _ = await points_controller.refund_video_generation_points(
+            user_id=task.user_id,
+            charge_token=charge_token,
+            task_id=task.id,
+        )
+        if refunded_ledger:
+            task.points_refunded = True
+            task.points_refunded_at = datetime.now()
+            await task.save(update_fields=["points_refunded", "points_refunded_at", "updated_at"])
 
     def _normalize_error_message(self, value: Any) -> str | None:
         extracted = self._extract_error_message(value)
