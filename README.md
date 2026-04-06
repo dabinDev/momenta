@@ -1,546 +1,579 @@
-# 拾光视频
+# 拾光视频 Flutter 客户端
 
-面向中老年用户的 AI 短视频项目，当前仓库包含 4 个主要端：
+面向中老年用户的 AI 短视频创作 App。当前仓库是移动端 Flutter 客户端，负责账号登录、AI 创作、历史记录、下载管理、积分充值、邀请体系、版本更新等用户侧能力。
 
-- Flutter App 端
-- H5 Web 端
-- Web 管理端
-- FastAPI 后端服务端
+本仓库不包含完整后端服务源码。App 运行时通过 `AUTH_SERVER_BASE_URL` 连接外部服务端，服务端再负责账号体系、模板配置、视频任务、积分、支付、邀请、版本发布等业务能力。
 
-后端已经承担了 AI 创作工作台、提示词模板、视频模板、文本纠错、提示词生成、视频任务、语音转写、版本发布等核心能力；App、H5、管理端都围绕同一套后端接口工作。
+## 1. 项目概览
 
-## 1. 仓库结构
+### 1.1 产品定位
 
-| 目录 | 角色 | 技术栈 | 主要职责 |
+- 产品名称：拾光视频
+- 产品形态：Android / iOS 移动端 App
+- 用户人群：中老年用户、家人代操作用户、社区活动视频制作场景
+- 核心目标：降低短视频创作门槛，让用户通过文字、语音、图片、链接、模板等输入快速生成视频
+
+### 1.2 当前仓库边界
+
+- 本仓库是 Flutter 客户端工程，不是后端单体仓库
+- App 所有业务数据均来自服务端接口
+- App 内不保存真实 AI 模型密钥，服务端地址通过 `dart-define` 注入
+- 仓库中的 `.env.example` 主要用于配套服务端部署参考，Flutter 客户端运行时不会自动读取这个文件
+
+### 1.3 当前版本
+
+- App Version：`1.3.1`
+- Build Number：`5`
+- 更新平台标识：`android`
+- 更新渠道标识：`lan`
+
+对应常量文件：`lib/app/constants.dart`
+
+## 2. 技术栈与架构
+
+### 2.1 技术栈
+
+- Flutter 3.x
+- Dart 3.6.x
+- 状态管理与路由：GetX
+- 网络请求：Dio
+- 本地存储：GetStorage
+- 安全存储：flutter_secure_storage
+- 图片/视频选择：image_picker
+- 视频播放：video_player
+- 语音识别：speech_to_text
+- 相册保存：gal
+- 链接打开：url_launcher
+- 扫码能力：mobile_scanner
+
+### 2.2 分层结构
+
+项目整体遵循清晰分层，核心目录如下：
+
+```text
+lib/
+├─ app/                         # 应用级配置：主题、路由、全局依赖注入、常量
+├─ core/
+│  ├─ errors/                  # 统一异常封装
+│  ├─ services/                # 本地存储、安全存储、下载管理等基础服务
+│  └─ utils/                   # Snackbar、文件处理、视频保存等工具
+├─ data/
+│  ├─ api/                     # Dio 客户端、接口服务
+│  ├─ models/                  # 数据模型
+│  └─ repositories/            # Repository 实现层
+├─ domain/
+│  └─ repositories/            # Repository 抽象定义
+├─ presentation/               # 页面、Controller、Binding
+└─ shared/
+   └─ widgets/                 # 公共 UI 组件
+```
+
+### 2.3 依赖注入与启动
+
+- 应用入口：`lib/main.dart`
+- 全局依赖注册：`lib/app/app_binding.dart`
+- 路由表：`lib/app/routes.dart`
+- 主题：`lib/app/theme.dart`
+
+启动流程：
+
+1. `main()` 中执行 `GetStorage.init()`
+2. 通过 `GetMaterialApp` 挂载全局主题、Binding 和命名路由
+3. `AppBinding` 注册存储服务、API、Repository、全局 `AuthController`
+4. 首屏进入启动页，根据本地登录态决定跳转登录或主页
+
+## 3. 页面与模块说明
+
+### 3.1 命名路由总览
+
+当前项目的核心路由如下：
+
+| 路由 | 页面 | 作用 |
+| --- | --- | --- |
+| `/` | LaunchPage | 启动页，做登录态判断 |
+| `/login` | LoginPage | 登录 |
+| `/register` | RegisterPage | 注册 |
+| `/forgot-password` | ForgotPasswordPage | 忘记密码 |
+| `/change-password` | ChangePasswordPage | 修改密码 |
+| `/home` | MainShellPage | 主框架页，包含三大主 Tab |
+| `/create` | CreatePage | 独立创作页 |
+| `/history` | HistoryPage | 历史任务页 |
+| `/settings` | SettingsPage | 个人中心 |
+| `/recharge` | RechargePage | 积分充值 |
+| `/profile-detail` | ProfileDetailPage | 个人资料详情 |
+| `/edit-profile` | EditProfilePage | 编辑资料 |
+| `/invite-center` | InviteCenterPage | 邀请中心 |
+| `/download-manager` | DownloadManagerPage | 下载管理 |
+| `/video-player` | VideoPlayerPage | 视频播放页 |
+
+### 3.2 主框架页
+
+主框架页位于 `lib/presentation/shell/main_shell_page.dart`，底部导航固定为三大主 Tab：
+
+- `AI`：创作工作台
+- `历史`：历史任务与生成结果
+- `我的`：账号信息、积分、邀请、下载、版本更新
+
+### 3.3 账号与鉴权模块
+
+账号模块包含登录、注册、忘记密码、修改密码、资料编辑等完整流程。
+
+当前实现特点：
+
+- 登录成功后，将 `auth_access_token` 写入 `flutter_secure_storage`
+- 用户名、资料缓存写入 `GetStorage`
+- 注册时必须填写邀请码
+- 注册页支持邀请码扫码填充
+- App 启动时可从本地恢复登录态
+- 退出登录时清理 Token 和本地资料缓存
+
+关键文件：
+
+- `lib/presentation/auth/auth_controller.dart`
+- `lib/data/repositories/auth_repository_impl.dart`
+- `lib/core/services/secure_storage_service.dart`
+- `lib/core/services/local_storage_service.dart`
+
+### 3.4 AI 创作模块
+
+创作页位于 `lib/presentation/create/create_page.dart`，是当前项目最核心的业务页面。
+
+当前版本不是单一表单，而是三种创作模式共用一套工作台：
+
+| 模式 | 代码标识 | 适用场景 | 主要输入 |
 | --- | --- | --- | --- |
-| `/` | App 端 | Flutter 3.x + GetX | 用户登录、AI 创作、历史记录、设置、版本更新 |
-| `backend/` | 后端服务端 | FastAPI + Tortoise ORM + SQLite | 统一 API、任务管理、媒体存储、AI 网关、管理后台 API |
-| `frontend/` | Web 管理端 | Vue 3 + Vite + Naive UI | 用户/角色/菜单/API/任务/语音日志/发布管理/应用配置/AI 调试 |
-| `elderly-video-app/` | H5 Web 端 | Vue 3 + Vite | 面向用户的移动端 Web 页面，统一登录、创作、历史、设置能力 |
+| 简单模式 | `simple` | 快速从文案生成视频 | 文本、提示词、图片、时长 |
+| 入门模式 | `starter` | 参考公开视频链接快速跟做 | 文本、链接、提示词、图片、时长 |
+| 自定义模式 | `custom` | 基于模板或参考视频做更高自由度创作 | 文本、链接、模板、提示词、图片、参考视频、时长 |
 
-## 2. 整体架构
+创作模块支持的核心能力：
 
-```text
-Flutter App ----------------------\
-                                   \
-H5 Web (Vue + Vite) ----------------> FastAPI Backend -----------------> 第三方 LLM / 视频 / 语音服务
-                                   /        |
-Web Admin (Vue3) -----------------/         +--> SQLite (backend/db.sqlite3)
-                                            +--> 本地媒体目录 (backend/media)
-                                            +--> App 发布记录 / 任务 / 语音日志
-```
+- 手动输入文案
+- 设备侧语音识别转文字
+- AI 文案纠正
+- AI 生成英文提示词
+- 提示词模板与视频模板选择
+- 上传最多 3 张参考图
+- 自定义模式上传参考视频
+- 选择视频时长
+- 提交生成任务
+- 轮询任务进度
+- 成功后直接播放或下载
+- 失败后重试或删除
 
-### 后端当前实际承载的业务接口
+当前代码中的默认业务规则：
 
-App/H5 业务接口：
+- 默认时长选项：`5 / 10 / 20` 秒
+- 最多上传图片数：`3`
+- 轮询间隔：`3` 秒
+- 最大轮询次数：`180`
+- 最大语音识别时长：`60` 秒
 
-- `/api/create-workbench`：下发创作工作台配置
-- `/api/prompt-templates`：提示词模板列表
-- `/api/video-templates`：视频模板列表
-- `/api/upload-images`：上传参考图片
-- `/api/upload-reference-video`：上传参考视频
-- `/api/correct-text`：AI 纠错
-- `/api/generate-prompt`：AI 生成英文提示词
-- `/api/voice/transcribe`：语音转文字
-- `/api/tasks`：简单模式创建任务
-- `/api/starter-tasks`：入门模式创建任务
-- `/api/custom-tasks`：自定义模式创建任务
-- `/api/tasks/*`：任务查询、历史、删除、汇总
-- `/api/app/releases/latest`：App 更新检测
+### 3.5 历史记录模块
 
-管理端接口：
+历史页位于 `lib/presentation/history/history_page.dart`。
 
-- `/api/v1/*`：登录、鉴权、用户、角色、菜单、接口、部门、审计日志、任务、语音日志、App 发布、应用配置等
+它不是简单列表，而是生成任务的操作中心，支持：
 
-静态资源：
+- 查看总任务数
+- 下拉刷新
+- 分页加载更多
+- 查看任务状态
+- 播放已完成视频
+- 下载视频到本地
+- 失败任务重试
+- 删除单条任务
+- 清空全部历史
 
-- `/media/*`：参考图片、参考视频、生成视频
+状态表现与交互对中老年用户做了简化，优先保证“能看懂现在是否成功、失败、可播放、可下载”。
 
-## 3. 端口和地址统一规则
+### 3.6 下载管理模块
 
-这是当前仓库最需要注意的发布点。当前已经整理为“本地开发”和“远端部署”两套可共存配置，不需要再来回手改同一个 `.env`。
+下载管理页位于 `lib/presentation/downloads/download_manager_page.dart`。
 
-### 当前推荐的最终结构
+这个模块用于承接“下载到本地”后的全链路管理，支持：
 
-| 场景 | 地址 | 说明 |
-| --- | --- | --- |
-| H5 首页 | `https://memovideos.cn/` | 对外 Web 入口 |
-| Web 管理端 | `https://memovideos.cn/admin/` | 对外管理后台入口 |
-| 后端 API | `https://api.memovideos.cn` | App / 管理端 / 对外 API 入口 |
-| 后端服务内部监听 | `http://127.0.0.1:10099` | 服务器内部服务互调 |
-| H5 服务内部监听 | `http://127.0.0.1:3000` | 服务器内部服务互调 |
+- 下载中 / 已完成 / 失败数量概览
+- 本地下载记录持久化
+- 自动恢复下载列表
+- 查看本地文件路径
+- 重新下载失败项
+- 删除单条下载记录
+- 清理全部已完成下载
+- 保存到系统相册
 
-### 本地开发与远端部署共存规则
+下载记录会按当前登录账号隔离保存，不同账号切换后互不干扰。
 
-| 模块 | 本地默认 | 远端发布 |
-| --- | --- | --- |
-| backend | `backend/.env` | `backend/.env.production` |
-| backend 默认值 | `http://127.0.0.1:10099` | 由 `.env.production` 覆盖到 `https://api.memovideos.cn` |
-| frontend 开发 | `frontend/.env.development` | 本地代理到 `127.0.0.1:10099` |
-| frontend 生产 | `frontend/.env.production` | 构建后走同源 `/api/v1` |
-| H5 本地 | `elderly-video-app/.env.development` | 默认同源 `/api`，由 Vite 代理到 `127.0.0.1:10099` |
-| H5 远端 | `elderly-video-app/.env.production` | 默认同源 `/api`，由 Nginx 反向代理到后端 |
-| Flutter | `dart-define` | 本地调试与远端打包分别传入不同地址 |
+### 3.7 个人中心模块
 
-### 代码里的现状
+个人中心页位于 `lib/presentation/settings/settings_page.dart`，除“设置”外还承载了账号资产和运营入口。
 
-| 模块 | 当前默认值 | 来源 |
-| --- | --- | --- |
-| 后端服务端口 | `10099` | `deploy/tencent-cvm/momenta-backend.service` |
-| 后端 `PUBLIC_BASE_URL` 默认值 | `http://127.0.0.1:10099` | `backend/app/settings/config.py` |
-| App 编译时默认后端地址 | `https://api.memovideos.cn` | `lib/app/constants.dart` |
-| 管理端开发代理目标 | `http://127.0.0.1:10099` | `frontend/.env.development` |
-| H5 默认后端地址 | `同源 /api` | `elderly-video-app/.env.development` + `elderly-video-app/vite.config.js` |
-| H5 开发端口 | `3000` | `elderly-video-app/vite.config.js` |
-| 管理端开发端口 | `3100` | `frontend/.env.development` |
+当前页面可见能力包括：
 
-### 发布时必须统一
+- 头像、昵称、用户名展示
+- 手机号展示
+- 当前积分展示
+- 单次视频生成积分消耗说明
+- 积分充值入口
+- 邀请中心入口
+- 下载管理入口
+- 版本检查入口
+- 资料详情入口
+- 退出登录
 
-建议先确定一个对外统一地址，再让所有端都指向它。推荐两种方式：
+### 3.8 邀请中心与充值模块
 
-#### 方式 A：后端对外直接暴露 `9999`
+这是当前项目相对完整的一块运营能力：
 
-适合本地联调。
+- 邀请中心展示当前邀请码、使用次数、被邀请用户列表
+- 注册流程要求邀请码，形成闭环
+- 充值中心支持按服务端配置的支付方式发起充值订单
+- 新用户尝鲜包、积分余额、每次生成消耗都由服务端返回
 
-- App 用 `--dart-define=AUTH_SERVER_BASE_URL=http://<IP>:9999`
-- 管理端开发代理改到 `http://<IP>:9999`
-- H5 `.env.development` 改到 `http://<IP>:9999`
-- 后端 `PUBLIC_BASE_URL` 也改到 `http://<IP>:9999`
+### 3.9 视频播放模块
 
-#### 方式 B：对外统一暴露 `10099` 或域名，后端内部仍跑 `9999`
+视频播放页负责承接以下场景：
 
-适合正式部署。
+- 播放刚生成成功的视频
+- 播放历史记录中的成片
+- 播放本地下载成功的视频
+- 从播放页直接发起下载或跳转下载管理
 
-- Nginx/网关对外监听 `10099` 或 `443`
-- 反向代理到 `127.0.0.1:9999`
-- App、H5、管理端全部只认公网地址
-- 后端 `PUBLIC_BASE_URL` 也要改成公网地址
+## 4. 功能使用说明
 
-如果这一层不统一，会直接影响：
+### 4.1 首次使用
 
-- App 登录和任务创建
-- H5 登录和接口转发
-- 管理端代理转发
-- `/media/*` 生成的资源访问地址
-- 生成视频回写后的下载地址
-
-## 4. 后端服务端发布文档
-
-### 4.1 技术和数据落点
-
-- Python：`>=3.11`
-- Web 框架：FastAPI
-- ORM：Tortoise ORM
-- 默认数据库：`backend/db.sqlite3`
-- 媒体目录：`backend/media`
-- 环境变量读取顺序：`backend/.env` -> 仓库根目录 `.env`
-
-### 4.2 当前后端负责的核心能力
-
-- 鉴权和管理后台接口
-- 用户 AI 配置存储
-- 提示词模板、视频模板、工作台模式下发
-- 文本纠错和提示词生成
-- 简单 / 入门 / 自定义三种视频任务编排
-- 本地图片、参考视频、生成视频存储
-- 语音转写日志
-- App 发布记录和更新检测
-
-### 4.3 AI 配置的真实生效方式
-
-当前代码已经改成“后端统一维护，全局生效”模式。
-
-- 平台 `base URL` 与全局 `SK` 由管理端“平台配置”统一维护
-- 图片生成、视频生成、音频解析、文字解析四类模型由管理端“模型管理”统一维护
-- App、H5、后台 AI 调试台默认都读取这一套全局模型配置
-- 少量付费用户如果开通专属通道，才会覆盖全局配置，且入口隐藏在管理端内部
-
-当前代码默认值对应的是：
-
-- 图片模型：`gemini-2.5-flash-image`
-- 文案模型：`gpt-5.4-mini`
-- 视频模型：`veo_3_1-fast-components-4K`
-- 语音识别模型：`gpt-4o-mini-audio-preview`
-- 默认 AI Base URL：`https://api.99hub.top`
+1. 启动 App。
+2. 若未登录，进入登录页。
+3. 没有账号时进入注册页。
+4. 注册时填写用户名、邮箱、邀请码、密码。
+5. 注册成功后返回登录页。
+6. 登录成功进入主框架页。
 
 说明：
 
-- `.env.example` 里的平台地址与默认模型仅作为部署参考
-- 发布前应在管理端确认“平台配置”和“模型管理”两页都已配置完成
+- 邀请码是必填项，不填或无效会注册失败
+- 邀请码可以手动输入，也可以通过扫码页识别填充
+- 登录后会自动恢复用户信息和下载记录
 
-### 4.4 本地开发启动
+### 4.2 创作页使用流程
 
-推荐先复制一份本地环境文件：
+推荐按下面顺序使用创作页：
 
-```bash
-cd backend
-copy .env.example .env
-```
+1. 先选择创作模式。
+2. 输入创作文案。
+3. 如需快速输入，可使用语音识别。
+4. 点击 AI 校正文案。
+5. 点击生成提示词，得到英文视频提示词。
+6. 选择图片、模板、链接或参考视频。
+7. 选择视频时长。
+8. 点击提交生成。
+9. 等待轮询完成。
+10. 成功后播放或下载。
 
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 10099 --reload
-```
+#### 简单模式
 
-本地默认监听：
+适合“有文案，想直接生成”的场景。
 
-```text
-http://127.0.0.1:10099
-```
+- 只需要输入文本即可启动基本创作
+- 可叠加参考图提升画面一致性
+- 可通过 AI 自动润色文案和生成英文提示词
 
-### 4.5 建议的生产启动方式
+#### 入门模式
 
-生产环境不要直接依赖本地 `.env`，而应使用单独的生产环境文件：
+适合“有参考视频链接，想快速模仿节奏”的场景。
 
-```bash
-cp backend/.env.production.example backend/.env.production
-```
+- 在简单模式基础上增加链接输入
+- 适合把抖音、视频号等公开视频当作节奏参考
+- 仍可叠加图片与提示词
 
-并填写生产地址，例如：
+#### 自定义模式
 
-```env
-SERVER_BASE_URL=https://api.memovideos.cn
-PUBLIC_BASE_URL=https://api.memovideos.cn
-```
+适合“要按模板做更像的成片”的场景。
 
-`backend/run.py` 默认带 `reload=True`，适合开发，不建议直接作为生产守护命令。
+- 支持选择视频模板
+- 支持查看模板样片
+- 支持上传参考视频
+- 更适合运营、活动宣传、节日祝福等固定模板场景
 
-生产建议改用：
+### 4.3 语音识别说明
 
-```bash
-cd backend
-.venv\Scripts\activate
-uvicorn app:app --host 0.0.0.0 --port 10099
-```
+当前创作页的语音输入主要依赖设备侧 `speech_to_text`：
 
-如果是 Linux 服务器，可配合 `systemd` / `supervisor` / `pm2` 守护。
+- 需要系统麦克风权限
+- 识别失败后不影响继续手动输入
+- 语音识别结果会自动回填到文本框
 
-### 4.6 必配环境变量
+代码层面同时预留了服务端转写接口能力，但当前创作页面主流程优先走设备侧识别。
 
-本地至少确认以下配置：
+### 4.4 历史记录使用说明
 
-```env
-SERVER_BASE_URL=http://127.0.0.1:10099
-PUBLIC_BASE_URL=http://127.0.0.1:10099
-IMAGE_PROXY_UPLOAD_URL=https://imageproxy.zhongzhuan.chat/api/upload
-```
+进入历史页后，可以完成以下操作：
 
-说明：
+- 查看最近生成任务
+- 按状态判断任务是否完成
+- 播放已完成视频
+- 下载已完成视频
+- 对失败任务发起重试
+- 删除不需要的记录
+- 清空全部历史记录
 
-- `SERVER_BASE_URL` 仍用于部分 legacy 业务网关
-- `PUBLIC_BASE_URL` 决定 `/media/*` 的对外访问地址
-- 如果 `PUBLIC_BASE_URL` 填错，前端会拿到无法访问的图片和视频 URL
+### 4.5 下载管理使用说明
 
-### 4.7 默认管理员账号
+下载管理适合处理“下载后去哪里找、下载失败怎么办”的问题。
 
-首次初始化且数据库里没有用户时，会自动创建：
+建议使用方式：
 
-- 用户名：`admin`
-- 邮箱：`admin@admin.com`
-- 密码：`123456`
+1. 在创作页或历史页点击下载。
+2. 进入下载管理查看进度。
+3. 下载完成后可直接播放。
+4. 需要保存到系统相册时执行保存操作。
+5. 失败项点击重试。
+6. 不需要的记录或文件可以删除。
 
-发布后应第一时间修改该账号密码。
+### 4.6 个人中心使用说明
 
-### 4.8 推荐反向代理
+个人中心适合做账号与运营操作：
 
-如果后端内部跑 `9999`，对外统一暴露 `10099`，可参考：
+- 刷新当前用户资料
+- 查看积分余额与扣费规则
+- 进入充值中心购买积分
+- 查看邀请奖励与邀请记录
+- 查看下载管理
+- 检查新版本并跳转下载地址
+- 修改资料或退出登录
 
-```nginx
-server {
-    listen 10099;
-    server_name _;
-    client_max_body_size 100m;
+## 5. 服务端依赖与接口说明
 
-    location /api/ {
-        proxy_pass http://127.0.0.1:9999;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+### 5.1 客户端连接方式
 
-    location /media/ {
-        alias /path/to/momenta/backend/media/;
-    }
-}
-```
-
-### 4.9 生产验收清单
-
-- `GET /api/app/releases/latest` 可正常返回
-- 管理端“平台配置”可读取并保存全局平台配置
-- 管理端“模型管理”可同步目录、推荐模型并应用为全局模型
-- `/api/create-workbench` 能拿到 3 种模式和模板列表
-- 图片上传后 `/media/*` 可外网访问
-- 简单 / 入门 / 自定义任务都能创建
-- 生成完成后视频地址可直接下载
-- 语音转写日志能在后台看到
-
-## 5. Web 管理端发布文档
-
-### 5.1 技术栈和职责
-
-- Vue 3
-- Vite
-- Naive UI
-
-当前管理端覆盖的模块包括：
-
-- 工作台
-- 用户管理
-- 角色管理
-- 菜单管理
-- 接口管理
-- 部门管理
-- 审计日志
-- 视频任务
-- 语音日志
-- 版本发布
-- 应用配置
-- AI 调试
-
-### 5.2 本地开发启动
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-默认本地访问：
+Flutter 客户端只认一个服务端入口：
 
 ```text
-http://127.0.0.1:3100
+AUTH_SERVER_BASE_URL
 ```
 
-当前开发代理默认指向：
-
-```text
-http://127.0.0.1:10099
-```
-
-当前仓库已经默认按本地 `10099` 配置好，一般不需要再改。
-
-### 5.3 生产构建
-
-生产环境直接使用：
-
-```text
-frontend/.env.production
-```
-
-该文件会让管理端构建后通过同源 `/api/v1` 访问后端，因此适合部署到：
-
-- `https://memovideos.cn/admin/`
-
-构建命令：
-
-```bash
-cd frontend
-npm install
-npm run build
-```
-
-构建产物目录：
-
-```text
-frontend/dist
-```
-
-### 5.4 生产发布方式
-
-推荐把 `frontend/dist` 当静态站点发布，再将 `/api/v1` 反向代理到后端。
-
-示例：
-
-```nginx
-server {
-    listen 8080;
-    server_name _;
-    root /path/to/momenta/frontend/dist;
-    index index.html;
-
-    location / {
-        try_files $uri /index.html;
-    }
-
-    location /api/v1/ {
-        proxy_pass http://127.0.0.1:9999/api/v1/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-### 5.5 登录和发布配合
-
-管理端上线后，建议优先做三件事：
-
-1. 修改默认管理员密码
-2. 检查“应用配置 / AI 调试”页面能否正常联通后端
-3. 在“版本发布”页面创建一条有效发布记录，供 App 检测更新
-
-## 6. H5 Web 端发布文档
-
-### 6.1 当前定位
-
-`elderly-video-app/` 已重构为标准 Vue + Vite 前端项目，负责：
-
-- 承载用户登录、注册、找回密码
-- 承载创作、历史、设置三大主页面
-- 直接调用统一后端接口
-- 通过 `.env.development` / `.env.production` 区分本地与线上后端地址
-
-需要特别注意：
-
-- 目录名 `elderly-video-app/` 仅为兼容历史脚本和部署路径保留
-- 旧的 `server.js + public/` Node/Express H5 形态已经废弃，后续不再维护
-
-### 6.2 本地开发启动
-
-```bash
-cd elderly-video-app
-npm install
-npm run dev
-```
-
-默认端口：
-
-```text
-http://127.0.0.1:3000
-```
-
-### 6.3 后端地址配置
-
-H5 当前本地默认从这里读取后端地址：
-
-- `elderly-video-app/.env.development`
-
-当前仓库里的值是：
-
-```env
-VITE_API_BASE_URL=
-```
-
-同时 `vite.config.js` 会把 `/api/*`、`/media/*` 代理到本地 `http://127.0.0.1:10099`，这样浏览器联调不会再被 CORS 拦截。
-
-远端部署时，使用生产环境文件：
-
-```env
-VITE_API_BASE_URL=
-```
-
-正式环境也使用同源 `/api/*`，由站点 Nginx 代理到后端，这样 H5 登录、注册、鉴权不会再受跨域影响。
-
-### 6.4 H5 对后端依赖的关键接口
-
-- `/api/v1/base/access_token`
-- `/api/v1/base/register`
-- `/api/v1/base/forgot_password`
-- `/api/v1/base/userinfo`
-- `/api/v1/base/update_profile`
-- `/api/v1/base/change_password`
-- `/api/create-workbench`
-- `/api/upload-images`
-- `/api/upload-reference-video`
-- `/api/correct-text`
-- `/api/generate-prompt`
-- `/api/voice/transcribe`
-- `/api/tasks`
-- `/api/starter-tasks`
-- `/api/custom-tasks`
-- `/api/invite/overview`
-- `/api/app/releases/latest`
-
-### 6.5 生产发布方式
-
-H5 端现在有单独前端构建流程：
-
-```bash
-cd elderly-video-app
-npm install
-npm run build
-```
-
-构建产物位于：
-
-```text
-elderly-video-app/dist
-```
-
-建议通过 Nginx 或其他静态站点方式部署到 `https://memovideos.cn/`。
-
-### 6.6 发布后检查点
-
-- 登录是否正常
-- 设置页是否能保存 AI 配置
-- 工作台是否能拉到模式和模板
-- 图片、参考视频上传是否成功
-- 语音识别、AI 纠错、提示词生成是否成功
-- 任务轮询后是否能看到视频结果
-
-## 7. App 端发布文档
-
-### 7.1 基础信息
-
-- 应用名称：`拾光视频`
-- Flutter 包名：`momenta`
-- Android `applicationId`：`com.dabindev.momenta.momenta`
-- iOS Bundle Identifier：`com.dabindev.momenta.momenta`
-- Android `minSdk`：`23`
-
-### 7.2 App 当前能力
-
-- 登录和个人设置
-- 语音录入
-- AI 文本纠错
-- AI 提示词生成
-- 简单 / 入门 / 自定义三种创作入口
-- 上传参考图片
-- 上传参考短视频
-- 历史记录和结果下载
-- 检查后端下发的最新版本
-
-### 7.3 App 连接后端的方式
-
-App 后端地址来自编译时参数：
-
-```dart
-String.fromEnvironment('AUTH_SERVER_BASE_URL')
-```
-
-当前默认值写在 `lib/app/constants.dart` 中：
+默认值定义在 `lib/app/constants.dart`：
 
 ```text
 https://api.memovideos.cn
 ```
 
-因此发布和联调时，建议始终显式传入正确地址。
+运行时通过 `--dart-define` 注入即可覆盖。
 
-### 7.4 本地调试
+### 5.2 当前客户端实际使用的接口能力
 
-```bash
-flutter pub get
+按业务划分如下。
+
+#### 鉴权与用户
+
+- `POST /api/v1/base/access_token`
+- `POST /api/v1/base/register`
+- `GET /api/v1/base/userinfo`
+- `POST /api/v1/base/forgot_password`
+- `POST /api/v1/base/change_password`
+- `POST /api/v1/base/update_profile`
+
+#### 创作工作台与模板
+
+- `GET /api/create-workbench`
+- `GET /api/prompt-templates`
+- `GET /api/video-templates`
+
+#### 素材与 AI 处理
+
+- `POST /api/upload-images`
+- `POST /api/upload-reference-video`
+- `POST /api/voice/transcribe`
+- `POST /api/correct-text`
+- `POST /api/generate-prompt`
+
+#### 视频任务
+
+- `POST /api/tasks`
+- `POST /api/starter-tasks`
+- `POST /api/custom-tasks`
+- `GET /api/tasks/:id`
+- `GET /api/tasks?page=1&limit=10&filter=all`
+- `GET /api/tasks/summary`
+- `POST /api/tasks/:id/retry`
+- `DELETE /api/tasks/:id`
+- `DELETE /api/tasks`
+- `GET /api/tasks/:id/download`
+
+#### 运营能力
+
+- `GET /api/recharge/products`
+- `GET /api/recharge/orders`
+- `POST /api/recharge/orders`
+- `GET /api/invite/overview`
+- `GET /api/app/releases/latest`
+
+### 5.3 认证方式
+
+登录成功后，客户端会把访问令牌保存到安全存储中。后续请求统一自动带上：
+
+```text
+Authorization: Bearer <token>
+```
+
+同时兼容带上 `token` 头，便于适配已有服务端。
+
+## 6. 本地存储说明
+
+### 6.1 安全存储
+
+通过 `flutter_secure_storage` 保存敏感数据：
+
+- `auth_access_token`
+
+### 6.2 普通存储
+
+通过 `GetStorage` 保存普通数据：
+
+- 用户名缓存
+- 用户资料缓存
+- 下载记录
+
+下载记录按当前用户名分桶保存，避免多账号互相覆盖。
+
+## 7. 配置说明
+
+### 7.1 Flutter 客户端运行配置
+
+最常用的是下面这一项：
+
+```powershell
 flutter run --dart-define=AUTH_SERVER_BASE_URL=http://127.0.0.1:10099
 ```
 
-如果是真机调试：
+真机联调时不要使用 `127.0.0.1`，应改成电脑局域网 IP 或可访问域名。
 
-- Android 真机不要用 `127.0.0.1`
-- 应改为电脑可访问的局域网 IP 或正式域名
+### 7.2 `.env.example` 的正确理解
 
-### 7.5 Android 打包发布
+仓库中的 `.env.example` 不是 Flutter 客户端自动加载的配置文件，它更像是配套服务端的环境变量模板，主要包含：
 
-签名读取自：
+- 服务端基础地址
+- Moonshot / Kimi LLM 配置
+- 视频模型服务配置
+- COS 对象存储配置
+- 讯飞 ASR 配置
 
-- `android/key.properties`
+如果你在同时部署配套服务端，可以参考这个文件补齐环境变量；如果你只运行本 Flutter 客户端，则只需要保证 `AUTH_SERVER_BASE_URL` 正确即可。
 
-格式示例：
+### 7.3 版本更新相关配置
+
+客户端发起版本检查时会带上：
+
+- `platform`
+- `channel`
+- `current_version`
+- `current_build_number`
+
+这些值来自 `lib/app/constants.dart`。如果服务端要正确返回升级信息，发布平台、渠道和版本号必须与客户端实际构建保持一致。
+
+## 8. 开发环境准备
+
+### 8.1 基础要求
+
+- Flutter 3.x
+- Dart SDK 3.6.x
+- JDK 17
+- Android SDK
+- Android Studio
+- 已安装设备驱动或可用模拟器
+
+Android 构建要求见 `android/app/build.gradle`：
+
+- `minSdk = 23`
+
+### 8.2 Windows 示例环境
+
+如果你的 SDK 都放在 F 盘，可以参考下面的布局：
+
+```text
+F:\AndroidSdk
+F:\AndroidSdk\platform-tools
+F:\AndroidSdk\cmdline-tools\latest
+F:\Android Studio
+F:\java\jdk-17
+```
+
+推荐执行：
+
+```powershell
+flutter config --android-sdk F:\AndroidSdk
+[Environment]::SetEnvironmentVariable('ANDROID_SDK_ROOT', 'F:\AndroidSdk', 'User')
+[Environment]::SetEnvironmentVariable('ANDROID_HOME', 'F:\AndroidSdk', 'User')
+[Environment]::SetEnvironmentVariable('JAVA_HOME', 'F:\java\jdk-17', 'User')
+```
+
+然后把以下目录加入用户级 `Path`：
+
+```text
+F:\AndroidSdk\platform-tools
+F:\AndroidSdk\cmdline-tools\latest\bin
+F:\java\jdk-17\bin
+```
+
+重新打开终端后检查：
+
+```powershell
+flutter doctor -v
+adb devices
+flutter devices
+```
+
+### 8.3 获取依赖与启动
+
+```powershell
+flutter pub get
+flutter run --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+```
+
+如果需要指定设备：
+
+```powershell
+flutter run -d windows
+flutter run -d chrome
+flutter run -d android
+```
+
+## 9. 构建与发布
+
+### 9.1 Android Debug 构建
+
+```powershell
+flutter build apk --debug --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+```
+
+输出文件：
+
+```text
+build/app/outputs/flutter-apk/app-debug.apk
+```
+
+### 9.2 Android Release APK
+
+```powershell
+flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+```
+
+### 9.3 Android App Bundle
+
+```powershell
+flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+```
+
+### 9.4 Android 签名配置
+
+发布签名文件位置：
+
+```text
+android/key.properties
+```
+
+示例内容：
 
 ```properties
 storeFile=../release.jks
@@ -549,149 +582,184 @@ keyAlias=your-alias
 keyPassword=your-password
 ```
 
-构建命令：
+当前 Gradle 配置特点：
 
-```bash
-flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+- 如果存在 `android/key.properties`，Release 构建会使用正式签名
+- 如果不存在，Release 构建会回退到 Debug 签名
+
+这适合内部联调，不适合正式上架。要发布到应用市场，必须补齐正式签名。
+
+### 9.5 iOS 构建说明
+
+iOS 构建需要在 macOS 上执行：
+
+```powershell
+flutter build ios --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
 ```
 
-如果需要 `aab`：
+或在 Xcode 中打开 `ios/Runner.xcworkspace` 做签名和归档。
 
-```bash
-flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
-```
-
-默认图标资源：
-
-- `assets/app_icon/app_icon.png`
-
-如果替换图标后需要重新生成平台图标：
-
-```bash
-dart run flutter_launcher_icons
-```
-
-### 7.6 iOS 发布
-
-iOS 侧已配置：
+当前 iOS 已声明的关键权限：
 
 - 麦克风权限
 - 语音识别权限
 - 相册读取权限
 - 相册写入权限
 
-发布步骤：
+对应文件：`ios/Runner/Info.plist`
 
-1. 用 Xcode 打开 `ios/Runner.xcworkspace`
-2. 配置签名证书和 Team
-3. 确认 Bundle Identifier
-4. 用 Release 模式构建归档
-5. 保持 `AUTH_SERVER_BASE_URL` 指向正式后端地址
+### 9.6 发布前检查建议
 
-示例：
+建议每次发版前至少完成以下检查：
 
-```bash
-flutter build ios --release --dart-define=AUTH_SERVER_BASE_URL=https://your-host
+- `flutter pub get`
+- `flutter analyze`
+- `flutter test`
+- `flutter doctor -v`
+- 真机完成一次完整登录流程
+- 真机完成一次创作提交流程
+- 真机验证历史页、下载页、个人中心
+- 服务端 `/api/app/releases/latest` 已配置当前渠道和平台
+
+## 10. 配套服务端部署说明
+
+如果你要部署完整系统，而不只是运行客户端，需要额外准备一个可用服务端。
+
+建议至少满足以下条件：
+
+- 提供本 README 第 5 节列出的接口
+- 返回统一可解析的数据包结构
+- 能处理账号体系、视频任务、模板、积分、邀请、更新信息
+- 可选对接 Moonshot / Kimi、视频模型服务、对象存储、ASR 服务
+
+`.env.example` 中可以重点关注这些分组：
+
+- 基础地址：`SERVER_BASE_URL`、`PUBLIC_BASE_URL`
+- LLM：`LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`
+- 视频模型：`VIDEO_BASE_URL`、`VIDEO_MODEL`、`VIDEO_API_KEY`
+- 存储：`COS_*`
+- 语音：`XFYUN_ASR_*`
+
+注意：
+
+- 真实密钥不要写入 Flutter 源码
+- 客户端只连接自己的业务后端
+- 业务后端再去连接大模型、视频模型或对象存储
+
+## 11. 常见问题排查
+
+### 11.1 `adb` 无法识别
+
+现象：
+
+```powershell
+adb : 无法将“adb”项识别为 cmdlet、函数、脚本文件或可运行程序的名称
 ```
 
-### 7.7 App 更新发布链路
+排查方法：
 
-App 不直接内置安装包地址，而是通过后端接口查询：
+- 确认 `platform-tools` 已安装
+- 确认 `F:\AndroidSdk\platform-tools` 已加入 `Path`
+- 关闭并重新打开终端
+- 再执行 `adb devices`
 
-- `/api/app/releases/latest`
+### 11.2 `flutter doctor` 提示 Android SDK 异常
 
-所以 Android 包发版的完整流程是：
+优先确认：
 
-1. 打出 APK
-2. 把 APK 上传到可下载地址
-3. 登录管理端
-4. 在“版本发布”里新增版本记录
-5. 填写 `platform`、`channel`、`version_name`、`build_number`、`download_url`
-6. 设为激活版本
-7. App 再通过更新检测接口拿到最新版本
+- `flutter config --android-sdk F:\AndroidSdk`
+- `ANDROID_SDK_ROOT` 是否指向正确目录
+- `cmdline-tools` 是否完整安装
+- Android Studio 是否能正常打开 SDK Manager
 
-## 8. 推荐发布顺序
+### 11.3 JDK 版本不匹配
 
-推荐按下面顺序上线：
+如果出现 Gradle、AGP、Java 相关报错，优先切换到 JDK 17：
 
-1. 准备远端配置文件：`backend/.env.production`
-2. 部署后端，先确保 `https://api.memovideos.cn` 和 `/media/*` 可用
-3. 登录后台修改默认管理员密码
-4. 用测试账号在 App 或 H5 中完成 AI 配置
-5. 发布管理端到 `https://memovideos.cn/admin/`
-6. 发布 H5 到 `https://memovideos.cn/`
-7. 打包 App，显式传 `https://api.memovideos.cn`
-8. 在管理端录入 App 发布记录
-9. 用真机完整回归简单 / 入门 / 自定义三种链路
+```powershell
+[Environment]::SetEnvironmentVariable('JAVA_HOME', 'F:\java\jdk-17', 'User')
+```
 
-## 9. 联调与回归建议
+重新打开终端后执行：
 
-至少做以下复测：
+```powershell
+java -version
+flutter doctor -v
+```
 
-### 通用
+### 11.4 Windows 中文用户名导致缓存或构建异常
 
-- 用户能正常登录
-- H5 与 App 设置页不再展示服务器地址和 AI 配置
-- `/api/create-workbench` 返回 3 个模式
-- 模板列表正常显示
+如果 Flutter、Gradle、Kotlin 缓存路径落在中文目录下，部分机器会出现奇怪编译错误。可以把缓存迁移到纯英文路径：
 
-### AI 链路
+```powershell
+[Environment]::SetEnvironmentVariable('PUB_CACHE', 'F:\PubCache', 'User')
+[Environment]::SetEnvironmentVariable('GRADLE_USER_HOME', 'F:\GradleCache', 'User')
+```
 
-- 语音识别成功
-- 纠错成功
-- 提示词生成成功
-- 简单模式任务成功
-- 入门模式任务成功
-- 自定义模式任务成功
+### 11.5 真机访问不到本地服务
 
-### 资源链路
+检查以下问题：
 
-- 图片上传成功
-- 参考视频上传成功
-- 生成后视频可在线播放或下载
-- 管理端能看到任务记录和语音日志
+- 手机和电脑是否在同一局域网
+- 是否误用了 `127.0.0.1`
+- 服务端端口是否已开放
+- Windows 防火墙是否拦截
+- Nginx 或反向代理是否正确转发
 
-### 发版链路
+### 11.6 语音识别不可用
 
-- 管理端新建发布记录后，App 能检测到更新
-- 下载地址可用
-- 强制更新开关符合预期
+优先检查：
 
-## 10. 当前仓库需要特别注意的事项
+- 系统麦克风权限是否已授权
+- 系统语音识别服务是否可用
+- 当前设备是否支持 `speech_to_text`
 
-### 10.1 `9999` 和 `10099` 并不统一
+即使语音失败，用户仍可继续手动输入文案，不会阻塞主流程。
 
-这是当前最容易踩坑的点。发布前必须统一后再打包 App、启动 H5、启动管理端。
+### 11.7 下载完成但本地文件找不到
 
-### 10.2 `backend/run.py` 仅适合开发
+下载管理服务会在启动时自动校验文件是否还存在。如果文件已被系统清理或手动删除，会把记录标记为失败，提示重新下载。
 
-因为它固定 `reload=True`，生产不要直接拿它做守护进程入口。
+### 11.8 版本更新检测无效
 
-### 10.3 `backend/Dockerfile` 仍按旧目录结构写的
+检查以下项是否一致：
 
-当前 `backend/Dockerfile` 和 `backend/deploy/web.conf` 仍使用历史上的 `web/` 目录约定，但仓库里的管理端实际在 `frontend/`。
+- `lib/app/constants.dart` 中的 `appVersion`
+- `lib/app/constants.dart` 中的 `appBuildNumber`
+- `lib/app/constants.dart` 中的 `releasePlatform`
+- `lib/app/constants.dart` 中的 `releaseChannelCode`
+- 服务端发布信息配置
 
-这意味着：
+## 12. 关键文件索引
 
-- 现有 Dockerfile 不能直接无改动拿来打当前仓库的一体化镜像
-- 如果要走一体化镜像方案，需要先把 Dockerfile 里的前端构建路径改成当前 `frontend/`
-- 更稳妥的做法是先按“后端、管理端、H5 分开发布”的方式落地
+- 应用入口：`lib/main.dart`
+- 全局依赖：`lib/app/app_binding.dart`
+- 路由定义：`lib/app/routes.dart`
+- 应用常量：`lib/app/constants.dart`
+- 主题定义：`lib/app/theme.dart`
+- API 客户端：`lib/data/api/api_client.dart`
+- API 服务：`lib/data/api/api_service.dart`
+- 创作控制器：`lib/presentation/create/create_controller.dart`
+- 历史控制器：`lib/presentation/history/history_controller.dart`
+- 下载管理服务：`lib/core/services/download_manager_service.dart`
+- 个人中心控制器：`lib/presentation/settings/settings_controller.dart`
+- Android 构建配置：`android/app/build.gradle`
+- iOS 权限配置：`ios/Runner/Info.plist`
 
-### 10.4 `.env.example` 不是完整真实运行态
+## 13. 快速命令清单
 
-当前 AI 实际调用依赖的是用户侧配置，不要只改 `.env.example` 就认为已经完成 AI 接入。
+```powershell
+flutter pub get
+flutter doctor -v
+adb devices
+flutter devices
+flutter run --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter analyze
+flutter test
+flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+```
 
-## 11. 建议的最小上线方案
+---
 
-如果你要尽快稳定上线，推荐这样做：
-
-1. 后端内部监听 `127.0.0.1:10099`
-2. `https://api.memovideos.cn` 对外提供 FastAPI
-3. `https://memovideos.cn` 对外提供 H5 和管理端
-4. backend 使用 `.env.production`
-5. 管理端单独 `npm run build` 后以静态站部署到 `/admin/`
-6. H5 单独 `npm run build` 后以静态站方式部署到根路径，并通过 `.env.production` 指向 `https://api.memovideos.cn`
-7. App 打包时通过 `--dart-define` 写入 `https://api.memovideos.cn`
-8. 先录一条有效发布记录，再发安装包给测试人员
-
-这样最接近当前仓库真实结构，也最不容易因为目录或端口不一致导致发布失败。
+如果这份 README 还需要继续补“接口返回示例”“发布流程图”“后台部署参数说明表”，可以在此基础上继续扩展，但作为当前 Flutter 客户端仓库说明，它已经覆盖了项目介绍、模块说明、功能使用、构建发布和排障使用。
