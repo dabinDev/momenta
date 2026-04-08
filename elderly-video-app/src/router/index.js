@@ -5,7 +5,16 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   {
     path: '/',
-    redirect: '/app/create',
+    redirect: (to) => {
+      const inviteCode = typeof to.query.inviteCode === 'string' ? to.query.inviteCode.trim() : ''
+      if (inviteCode) {
+        return {
+          name: 'register',
+          query: { inviteCode },
+        }
+      }
+      return '/app/create'
+    },
   },
   {
     path: '/login',

@@ -19,6 +19,8 @@ class VideoTask(BaseModel, TimestampMixin):
     duration = fields.IntField(default=5, description="Video duration in seconds")
     cover_image_url = fields.CharField(max_length=500, null=True, description="Cover image URL")
     video_url = fields.CharField(max_length=500, null=True, description="Generated video URL")
+    remote_video_url = fields.CharField(max_length=500, null=True, description="Generated remote video URL")
+    cos_video_url = fields.CharField(max_length=500, null=True, description="Generated COS video URL")
     provider = fields.CharField(max_length=50, default="legacy", description="Upstream provider", index=True)
     provider_task_id = fields.CharField(max_length=120, null=True, description="Upstream task ID", index=True)
     progress = fields.FloatField(default=0, description="Task progress")

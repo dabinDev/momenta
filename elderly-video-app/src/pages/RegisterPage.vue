@@ -41,7 +41,19 @@
         </form>
 
         <div class="auth-form-card__links auth-form-card__links--single">
-          <button type="button" class="text-link" @click="router.push({ name: 'login', query: { username: form.username } })">
+          <button
+            type="button"
+            class="text-link"
+            @click="
+              router.push({
+                name: 'login',
+                query: {
+                  username: form.username,
+                  inviteCode: form.inviteCode || undefined,
+                },
+              })
+            "
+          >
             返回登录
           </button>
         </div>
@@ -51,7 +63,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AuthHero from '@/components/AuthHero.vue'
@@ -67,12 +79,20 @@ const USERNAME_MAX_LENGTH = 20
 const form = reactive({
   username: '',
   email: '',
-  inviteCode: String(route.query.inviteCode || ''),
+  inviteCode: '',
   password: '',
   confirmPassword: '',
 })
 
 const submitting = ref(false)
+
+watch(
+  () => route.query.inviteCode,
+  (value) => {
+    form.inviteCode = String(value || '').trim()
+  },
+  { immediate: true },
+)
 
 async function submit() {
   if (!form.username || !form.email || !form.inviteCode || !form.password || !form.confirmPassword) {
@@ -99,7 +119,10 @@ async function submit() {
     toastStore.push('注册成功，请使用新账号登录', 'success')
     router.replace({
       name: 'login',
-      query: { username: form.username },
+      query: {
+        username: form.username,
+        inviteCode: form.inviteCode,
+      },
     })
   } catch (error) {
     toastStore.push(error.message || '注册失败', 'danger')

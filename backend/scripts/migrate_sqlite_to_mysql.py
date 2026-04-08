@@ -6,6 +6,7 @@ import pymysql
 
 
 TABLE_ORDER = [
+    "platform_ai_config",
     "dept",
     "role",
     "menu",
@@ -13,6 +14,10 @@ TABLE_ORDER = [
     "user",
     "user_app_config",
     "app_release",
+    "ai_model_catalog",
+    "invite_code",
+    "point_ledger",
+    "recharge_order",
     "video_task",
     "video_task_asset",
     "voice_transcription_log",
@@ -139,6 +144,9 @@ def main() -> None:
         mysql_conn.commit()
 
         for table_name in TABLE_ORDER:
+            if table_name == "aerich":
+                print("[skip] aerich table is not required for runtime migration")
+                continue
             migrate_table(sqlite_conn, mysql_conn, table_name, truncate_target=truncate_target)
     finally:
         try:

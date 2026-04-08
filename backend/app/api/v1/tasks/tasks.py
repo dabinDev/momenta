@@ -61,10 +61,7 @@ async def list_tasks(
     data = []
     for task in tasks:
         if task.status in {"queued", "processing"}:
-            try:
-                task = await task_controller.sync_task_status(task)
-            except (LegacyGatewayError, VideoGatewayError, LocalMediaError):
-                pass
+            task_controller.schedule_task_status_sync(task)
         data.append(await task_controller.serialize_task(task, include_user=True))
     return SuccessExtra(data=data, total=total, page=page, page_size=page_size)
 

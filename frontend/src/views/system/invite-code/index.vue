@@ -2,6 +2,8 @@
 import { computed, h, onMounted, ref, resolveDirective, withDirectives } from 'vue'
 import {
   NButton,
+  NCollapse,
+  NCollapseItem,
   NDatePicker,
   NForm,
   NFormItem,
@@ -15,16 +17,19 @@ import {
 } from 'naive-ui'
 
 import CommonPage from '@/components/page/CommonPage.vue'
+import TheIcon from '@/components/icon/TheIcon.vue'
 import QueryBarItem from '@/components/query-bar/QueryBarItem.vue'
 import CrudModal from '@/components/table/CrudModal.vue'
 import CrudTable from '@/components/table/CrudTable.vue'
-import TheIcon from '@/components/icon/TheIcon.vue'
 
 import api from '@/api'
-import { formatDate, renderIcon } from '@/utils'
 import { useCRUD } from '@/composables'
+import { formatDate, formatDateTime, renderIcon } from '@/utils'
 
 defineOptions({ name: '邀请码管理' })
+
+const DEFAULT_INVITE_MAX_USES = 100
+const DEFAULT_INVITE_EXPIRE_DAYS = 30
 
 const $table = ref(null)
 const queryItems = ref({
@@ -33,8 +38,18 @@ const queryItems = ref({
 const tableRows = ref([])
 const qrVisible = ref(false)
 const activeInvite = ref(null)
+const advancedFormSections = ref([])
 const userOptions = ref([])
 const vPermission = resolveDirective('permission')
+
+function defaultInviteExpiration() {
+  return formatDateTime(Date.now() + DEFAULT_INVITE_EXPIRE_DAYS * 24 * 60 * 60 * 1000, 'YYYY-MM-DD HH:mm:ss')
+}
+
+function normalizePickerDateTime(value) {
+  if (!value) return null
+  return formatDateTime(value, 'YYYY-MM-DD HH:mm:ss')
+}
 
 const {
   modalVisible,
@@ -52,8 +67,8 @@ const {
   initForm: {
     remark: '',
     owner_user_id: null,
-    max_uses: 1,
-    expires_at: null,
+    max_uses: DEFAULT_INVITE_MAX_USES,
+    expires_at: defaultInviteExpiration(),
     is_active: true,
   },
   doCreate: api.createInviteCode,
@@ -62,7 +77,7 @@ const {
   refresh: () => $table.value?.handleSearch(),
 })
 
-const h5RegisterBaseUrl = computed(() => 'https://memovideos.cn/?inviteCode=')
+const h5RegisterBaseUrl = computed(() => `${window.location.origin}/register?inviteCode=`)
 const appSchemeBaseUrl = computed(() => 'momenta://register?inviteCode=')
 
 const qrImageUrl = computed(() => {
@@ -72,31 +87,28 @@ const qrImageUrl = computed(() => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encodeURIComponent(url)}`
 })
 
-const overviewStats = computed(() => {
-  const now = Date.now()
-  return [
-    {
-      label: '当前页邀请码',
-      value: tableRows.value.length,
-      hint: '本次查询已加载的记录数量',
-    },
-    {
-      label: '可用邀请码',
-      value: tableRows.value.filter((item) => item.is_active).length,
-      hint: '仍可继续分发注册',
-    },
-    {
-      label: '已绑邀请人',
-      value: tableRows.value.filter((item) => item.owner_user?.id).length,
-      hint: '注册成功后会给邀请人返积分',
-    },
-    {
-      label: '已设置有效期',
-      value: tableRows.value.filter((item) => item.expires_at && new Date(item.expires_at).getTime() > now).length,
-      hint: '超过时间后自动失效',
-    },
-  ]
-})
+const overviewStats = computed(() => [
+  {
+    label: '当前页邀请码',
+    value: tableRows.value.length,
+    hint: '本次查询已加载的邀请码数量',
+  },
+  {
+    label: '可用邀请码',
+    value: tableRows.value.filter((item) => item.is_available).length,
+    hint: '仍可继续分发和注册使用',
+  },
+  {
+    label: '已绑定邀请人',
+    value: tableRows.value.filter((item) => item.owner_user?.id).length,
+    hint: '注册成功后可给邀请人发放积分奖励',
+  },
+  {
+    label: '已失效邀请码',
+    value: tableRows.value.filter((item) => ['expired', 'used_up'].includes(item.status)).length,
+    hint: '过期或次数用尽后会自动标记失效',
+  },
+])
 
 const rules = {
   max_uses: [
@@ -107,6 +119,27 @@ const rules = {
       trigger: ['blur', 'change'],
     },
   ],
+}
+
+function getInviteStatusType(status) {
+  const mapping = {
+    active: 'success',
+    inactive: 'default',
+    expired: 'error',
+    used_up: 'warning',
+  }
+  return mapping[status] || 'default'
+}
+
+function canToggleInvite(row) {
+  return !['expired', 'used_up'].includes(row.status)
+}
+
+function getToggleButtonLabel(row) {
+  if (['expired', 'used_up'].includes(row.status)) {
+    return row.status_text || '已失效'
+  }
+  return row.is_active ? '停用' : '启用'
 }
 
 const columns = [
@@ -153,13 +186,13 @@ const columns = [
   },
   {
     title: '状态',
-    key: 'is_active',
-    width: 100,
+    key: 'status',
+    width: 110,
     render(row) {
       return h(
         NTag,
-        { size: 'small', round: true, type: row.is_active ? 'success' : 'default' },
-        { default: () => (row.is_active ? '可用' : '停用') },
+        { size: 'small', round: true, type: getInviteStatusType(row.status) },
+        { default: () => row.status_text || '未知状态' },
       )
     },
   },
@@ -176,7 +209,7 @@ const columns = [
     key: 'expires_at',
     width: 180,
     render(row) {
-      return row.expires_at ? formatDate(row.expires_at) : '长期有效'
+      return row.expires_at ? formatDateTime(row.expires_at) : '长期有效'
     },
   },
   {
@@ -233,6 +266,7 @@ const columns = [
               size: 'small',
               quaternary: true,
               type: row.is_active ? 'warning' : 'success',
+              disabled: !canToggleInvite(row),
               onClick: async () => {
                 await api.toggleInviteCode({
                   invite_code_id: row.id,
@@ -243,7 +277,7 @@ const columns = [
               },
             },
             {
-              default: () => (row.is_active ? '停用' : '启用'),
+              default: () => getToggleButtonLabel(row),
               icon: renderIcon('material-symbols:key-vertical-outline', { size: 16 }),
             },
           ),
@@ -298,22 +332,36 @@ function handleTableDataChange(data = []) {
 
 function openCreateInviteCode() {
   handleAdd()
-  modalForm.value.max_uses = 1
+  advancedFormSections.value = []
+  modalForm.value.max_uses = DEFAULT_INVITE_MAX_USES
   modalForm.value.is_active = true
   modalForm.value.owner_user_id = null
+  modalForm.value.remark = ''
+  modalForm.value.expires_at = defaultInviteExpiration()
 }
 
 function openEditModal(row) {
-  handleEdit({ ...row, owner_user_id: row.owner_user?.id ?? row.owner_user_id ?? null })
+  advancedFormSections.value = ['advanced']
+  handleEdit({
+    ...row,
+    owner_user_id: row.owner_user?.id ?? row.owner_user_id ?? null,
+    expires_at: normalizePickerDateTime(row.expires_at),
+  })
   delete modalForm.value.owner_user
 }
 
 function normalizeForm() {
+  if (!modalForm.value.max_uses) {
+    modalForm.value.max_uses = DEFAULT_INVITE_MAX_USES
+  }
   if (!modalForm.value.expires_at) {
     modalForm.value.expires_at = null
   }
   if (!modalForm.value.owner_user_id) {
     modalForm.value.owner_user_id = null
+  }
+  if (!modalForm.value.remark?.trim()) {
+    modalForm.value.remark = null
   }
 }
 
@@ -346,8 +394,7 @@ async function copyInviteCode() {
           <p class="invite-page__eyebrow">邀请注册</p>
           <h2>邀请码管理</h2>
           <p>
-            邀请码可以直接绑定到某个用户。新用户使用邀请码注册成功后，注册人和邀请码归属人都会自动获得 30
-            积分；扫码链接默认指向 H5 注册页，也可以复用到 App 注册页。
+            新建邀请码时默认 30 天有效、100 次可用，直接保存即可分发。需要绑定邀请人、调整有效期或使用次数时，再展开更多设置修改。
           </p>
         </div>
         <NButton v-permission="'post/api/v1/invite_code/create'" type="primary" @click="openCreateInviteCode">
@@ -400,36 +447,49 @@ async function copyInviteCode() {
         "
       >
         <NForm ref="modalFormRef" :model="modalForm" :rules="rules" label-placement="left" :label-width="90">
+          <div class="invite-modal__hint">
+            默认可直接创建：30 天有效、100 次可用。不填归属用户时，仅奖励注册用户本人。
+          </div>
+
           <NFormItem v-if="modalAction === 'edit'" label="邀请码">
             <NInput :value="modalForm.code || ''" disabled />
           </NFormItem>
+
           <NFormItem label="归属用户" path="owner_user_id">
             <NSelect
               v-model:value="modalForm.owner_user_id"
               clearable
               filterable
               :options="userOptions"
-              placeholder="不选择则只奖励注册人"
+              placeholder="可不选，不选则不奖励邀请人"
             />
           </NFormItem>
+
           <NFormItem label="备注" path="remark">
-            <NInput v-model:value="modalForm.remark" clearable placeholder="例如：渠道合作、活动邀请、达人裂变" />
+            <NInput v-model:value="modalForm.remark" clearable placeholder="可不填，例如：渠道活动、达人合作" />
           </NFormItem>
-          <NFormItem label="可用次数" path="max_uses">
-            <NInputNumber v-model:value="modalForm.max_uses" :min="1" class="w-full" />
-          </NFormItem>
-          <NFormItem label="过期时间" path="expires_at">
-            <NDatePicker
-              v-model:formatted-value="modalForm.expires_at"
-              value-format="yyyy-MM-dd HH:mm:ss"
-              type="datetime"
-              clearable
-              class="w-full"
-            />
-          </NFormItem>
-          <NFormItem v-if="modalAction === 'edit'" label="是否启用" path="is_active">
-            <NSwitch v-model:value="modalForm.is_active" />
-          </NFormItem>
+
+          <NCollapse v-model:expanded-names="advancedFormSections" class="invite-modal__advanced">
+            <NCollapseItem name="advanced" title="更多设置">
+              <NFormItem label="可用次数" path="max_uses">
+                <NInputNumber v-model:value="modalForm.max_uses" :min="1" class="w-full" />
+              </NFormItem>
+
+              <NFormItem label="过期时间" path="expires_at">
+                <NDatePicker
+                  v-model:formatted-value="modalForm.expires_at"
+                  value-format="yyyy-MM-dd HH:mm:ss"
+                  type="datetime"
+                  clearable
+                  class="w-full"
+                />
+              </NFormItem>
+
+              <NFormItem v-if="modalAction === 'edit'" label="是否启用" path="is_active">
+                <NSwitch v-model:value="modalForm.is_active" />
+              </NFormItem>
+            </NCollapseItem>
+          </NCollapse>
         </NForm>
       </CrudModal>
 
@@ -442,6 +502,10 @@ async function copyInviteCode() {
           <div class="invite-qr__meta">
             <span>邀请人</span>
             <strong>{{ activeInvite?.owner_user?.alias || activeInvite?.owner_user?.username || '未绑定' }}</strong>
+          </div>
+          <div class="invite-qr__meta">
+            <span>当前状态</span>
+            <strong>{{ activeInvite?.status_text || '未知状态' }}</strong>
           </div>
           <div class="invite-qr__image-wrap">
             <img v-if="qrImageUrl" :src="qrImageUrl" alt="邀请码二维码" class="invite-qr__image" />
@@ -577,6 +641,19 @@ async function copyInviteCode() {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.invite-modal__hint {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 251, 248, 0.86);
+  color: var(--app-muted);
+  line-height: 1.6;
+}
+
+.invite-modal__advanced {
+  margin-top: 8px;
 }
 
 .invite-qr__code {

@@ -8,11 +8,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import httpx
+
 from app.core.exceptions import normalize_error_message as normalize_api_error_message
 from app.controllers.points import points_controller
 from app.models.admin import User
 from app.models.video_task import VideoTask, VideoTaskAsset, VoiceTranscriptionLog
 from app.services.business_gateway import business_gateway_service
+from app.services.local_media import local_media_service
 from app.services.object_storage import ObjectStorageError, object_storage_service
 from app.settings import settings
 
@@ -33,6 +36,8 @@ class TaskController:
     final_statuses = {"completed", "failed", "cancelled"}
     processing_statuses = {"queued", "processing"}
     auto_retry_enabled = True
+    list_status_sync_timeout_seconds = 1.5
+    detail_status_sync_timeout_seconds = 3.0
     generation_cooldown = timedelta(minutes=5)
     generation_request_hold = timedelta(seconds=30)
     retryable_failure_markers = (
@@ -62,6 +67,7 @@ class TaskController:
     def __init__(self) -> None:
         self._generation_attempt_lock = asyncio.Lock()
         self._pending_generation_attempts: dict[int, datetime] = {}
+        self._background_sync_task_ids: set[int] = set()
 
     async def create_task(
         self,
@@ -82,6 +88,8 @@ class TaskController:
         now = datetime.now()
         status = self._read_status(provider_payload)
         progress = self._read_progress(provider_payload)
+        remote_video_url = self._read_remote_video_url(provider_payload)
+        cos_video_url = self._read_cos_video_url(provider_payload)
 
         task = await VideoTask.create(
             user_id=user_id,
@@ -93,7 +101,13 @@ class TaskController:
             prompt=self._read_prompt(provider_payload) or prompt,
             duration=duration,
             cover_image_url=self._read_cover_image(provider_payload, images),
-            video_url=self._read_video_url(provider_payload),
+            video_url=self._select_preferred_video_url(
+                remote_video_url=remote_video_url,
+                cos_video_url=cos_video_url,
+                fallback=self._read_video_url(provider_payload),
+            ),
+            remote_video_url=remote_video_url,
+            cos_video_url=cos_video_url,
             provider=provider,
             provider_task_id=self._read_provider_task_id(provider_payload),
             progress=progress,
@@ -152,7 +166,21 @@ class TaskController:
 
         task.status = status
         task.prompt = self._read_prompt(provider_payload) or task.prompt
-        task.video_url = self._read_video_url(provider_payload) or task.video_url
+        task.remote_video_url = (
+            self._read_remote_video_url(provider_payload)
+            or task.remote_video_url
+            or self._normalize_remote_video_url(task.video_url)
+        )
+        task.cos_video_url = (
+            self._read_cos_video_url(provider_payload)
+            or task.cos_video_url
+            or self._normalize_cos_video_url(task.video_url)
+        )
+        task.video_url = self._select_preferred_video_url(
+            remote_video_url=task.remote_video_url,
+            cos_video_url=task.cos_video_url,
+            fallback=self._read_video_url(provider_payload) or task.video_url,
+        )
         task.cover_image_url = self._read_cover_image(provider_payload) or task.cover_image_url
         task.error_code = self._read_error_code(provider_payload) or task.error_code
         task.error_message = self._read_error_message(provider_payload) or task.error_message
@@ -168,6 +196,50 @@ class TaskController:
         await task.save()
         await self._refund_task_points_if_needed(task)
         return task
+
+    async def sync_task_status_with_timeout(
+        self,
+        task: VideoTask,
+        *,
+        force: bool = False,
+        timeout_seconds: float | None = None,
+        schedule_on_timeout: bool = True,
+    ) -> VideoTask:
+        if timeout_seconds is None or timeout_seconds <= 0:
+            return await self.sync_task_status(task, force=force)
+
+        try:
+            return await asyncio.wait_for(
+                self.sync_task_status(task, force=force),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            if schedule_on_timeout:
+                self.schedule_task_status_sync(task, force=force)
+            return task
+
+    def schedule_task_status_sync(self, task: VideoTask, *, force: bool = False) -> None:
+        if not task.provider_task_id:
+            return
+        if not force and task.status in self.final_statuses:
+            return
+
+        task_id = int(task.id)
+        if task_id in self._background_sync_task_ids:
+            return
+
+        self._background_sync_task_ids.add(task_id)
+
+        async def _runner() -> None:
+            try:
+                current_task = await self.get_task(task_id=task_id)
+                await self.sync_task_status(current_task, force=force)
+            except Exception:
+                pass
+            finally:
+                self._background_sync_task_ids.discard(task_id)
+
+        asyncio.create_task(_runner())
 
     async def claim_generation_slot(self, *, user_id: int) -> None:
         async with self._generation_attempt_lock:
@@ -280,7 +352,13 @@ class TaskController:
         task.status = self._read_status(next_payload, fallback="queued")
         task.progress = self._read_progress(next_payload, fallback=0)
         task.prompt = self._read_prompt(next_payload) or task.prompt
-        task.video_url = self._read_video_url(next_payload) or ""
+        task.remote_video_url = self._read_remote_video_url(next_payload)
+        task.cos_video_url = self._read_cos_video_url(next_payload)
+        task.video_url = self._select_preferred_video_url(
+            remote_video_url=task.remote_video_url,
+            cos_video_url=task.cos_video_url,
+            fallback=self._read_video_url(next_payload) or "",
+        )
         task.cover_image_url = self._read_cover_image(next_payload) or task.cover_image_url
         task.error_code = None
         task.error_message = None
@@ -495,19 +573,26 @@ class TaskController:
         )
 
     async def serialize_task(self, task: VideoTask, *, include_assets: bool = True, include_user: bool = False) -> dict[str, Any]:
-        public_video_url = await self._ensure_task_public_video_url(task)
+        video_urls = await self.ensure_task_video_urls(task)
         data = await task.to_dict()
         data["id"] = str(task.id)
         data["prompt"] = task.prompt or ""
         data["display_text"] = self._display_text(task)
-        data["video_url"] = public_video_url
-        if isinstance(data.get("provider_payload"), dict) and public_video_url:
-            data["provider_payload"] = self._write_video_url(data["provider_payload"], public_video_url)
+        data["video_url"] = video_urls["video_url"]
+        data["remote_video_url"] = video_urls["remote_video_url"]
+        data["cos_video_url"] = video_urls["cos_video_url"]
+        if isinstance(data.get("provider_payload"), dict):
+            data["provider_payload"] = self._write_video_urls(
+                data["provider_payload"],
+                video_url=video_urls["video_url"],
+                remote_video_url=video_urls["remote_video_url"],
+                cos_video_url=video_urls["cos_video_url"],
+            )
         data["error_message"] = self._normalize_error_message(task.error_message) or ""
         data["provider_task_id"] = task.provider_task_id or ""
         data["progress"] = float(task.progress or 0)
         data["is_deleted"] = task.is_deleted
-        data["cover_image_url"] = task.cover_image_url or ""
+        data["cover_image_url"] = local_media_service.normalize_media_url(task.cover_image_url)
         data["points_cost"] = int(task.points_cost or 0)
         data["points_refunded"] = bool(task.points_refunded)
         request_context = self._read_request_context(task.provider_payload or {})
@@ -518,7 +603,12 @@ class TaskController:
 
         if include_assets:
             assets = await VideoTaskAsset.filter(task_id=task.id).order_by("sort_order")
-            data["assets"] = [await asset.to_dict() for asset in assets]
+            serialized_assets = []
+            for asset in assets:
+                asset_data = await asset.to_dict()
+                asset_data["file_url"] = local_media_service.normalize_media_url(asset_data.get("file_url"))
+                serialized_assets.append(asset_data)
+            data["assets"] = serialized_assets
         if include_user:
             user = await User.filter(id=task.user_id).first()
             data["user"] = {
@@ -529,70 +619,177 @@ class TaskController:
             } if user else None
         return data
 
+    async def ensure_task_video_urls(self, task: VideoTask) -> dict[str, str]:
+        return await self._ensure_task_video_urls(task)
+
     async def resolve_public_video_url(self, task: VideoTask) -> str:
-        return await self._ensure_task_public_video_url(task)
+        return (await self._ensure_task_video_urls(task))["video_url"]
 
-    async def _ensure_task_public_video_url(self, task: VideoTask) -> str:
-        current_url = str(task.video_url or "").strip()
-        if not current_url or not object_storage_service.generated_video_storage_enabled():
-            return current_url
+    async def _ensure_task_video_urls(self, task: VideoTask) -> dict[str, str]:
+        current_video_url = str(task.video_url or "").strip()
+        remote_video_url = str(task.remote_video_url or "").strip() or self._normalize_remote_video_url(current_video_url)
+        cos_video_url = str(task.cos_video_url or "").strip() or self._normalize_cos_video_url(current_video_url)
+        source_video_url = self._read_source_video_url(task.provider_payload or {})
 
-        local_file = self._resolve_local_generated_video_file(current_url)
-        if local_file is None:
-            return current_url
+        file_name = self._resolve_generated_video_file_name(
+            task.id,
+            remote_video_url,
+            cos_video_url,
+            current_video_url,
+            source_video_url,
+        )
+        local_file = local_media_service.generated_video_local_file(task_id=task.id, file_name=file_name)
+
+        if not local_file.exists():
+            restore_source = cos_video_url or source_video_url or self._extract_external_video_url(current_video_url)
+            if restore_source:
+                restored_locations = await self._restore_task_video_file(
+                    task=task,
+                    source_video_url=restore_source,
+                    file_name=file_name,
+                )
+                remote_video_url = restored_locations["remote_url"] or remote_video_url
+                cos_video_url = restored_locations["cos_url"] or cos_video_url
+            elif self._normalize_remote_video_url(remote_video_url):
+                remote_video_url = ""
+
+        if local_file.exists():
+            remote_video_url = local_media_service.generated_video_remote_url(
+                task_id=task.id,
+                file_name=local_file.name,
+            )
+            cos_video_url = await self._ensure_cos_video_url(
+                task_id=int(task.id),
+                file_name=local_file.name,
+                current_cos_video_url=cos_video_url,
+                local_file=local_file,
+            )
+
+        resolved_video_url = self._select_preferred_video_url(
+            remote_video_url=remote_video_url if local_file.exists() else "",
+            cos_video_url=cos_video_url,
+            fallback=self._extract_external_video_url(current_video_url),
+        )
+
+        payload = task.provider_payload if isinstance(task.provider_payload, dict) else None
+        payload_changed = False
+        if payload is not None:
+            next_payload = self._write_video_urls(
+                payload,
+                video_url=resolved_video_url,
+                remote_video_url=remote_video_url,
+                cos_video_url=cos_video_url,
+            )
+            payload_changed = next_payload != payload
+            if payload_changed:
+                task.provider_payload = next_payload
+
+        changed = any(
+            (
+                (task.remote_video_url or "") != remote_video_url,
+                (task.cos_video_url or "") != cos_video_url,
+                (task.video_url or "") != resolved_video_url,
+                payload_changed,
+            )
+        )
+        if changed:
+            task.remote_video_url = remote_video_url or None
+            task.cos_video_url = cos_video_url or None
+            task.video_url = resolved_video_url or None
+            try:
+                await task.save()
+            except Exception:
+                pass
+
+        return {
+            "video_url": resolved_video_url,
+            "remote_video_url": remote_video_url,
+            "cos_video_url": cos_video_url,
+        }
+
+    async def _restore_task_video_file(
+        self,
+        *,
+        task: VideoTask,
+        source_video_url: str,
+        file_name: str,
+    ) -> dict[str, str]:
+        normalized_source = str(source_video_url or "").strip()
+        if not normalized_source:
+            return {"remote_url": "", "cos_url": ""}
+
+        try:
+            return await local_media_service.ensure_video_storage(
+                task_id=int(task.id),
+                provider_task_id=str(task.provider_task_id or task.id),
+                file_name=file_name,
+                content_fetcher=lambda _: self._download_remote_video(normalized_source),
+            )
+        except Exception:
+            return {"remote_url": "", "cos_url": ""}
+
+    async def _ensure_cos_video_url(
+        self,
+        *,
+        task_id: int,
+        file_name: str,
+        current_cos_video_url: str,
+        local_file: Path,
+    ) -> str:
+        if not object_storage_service.generated_video_storage_enabled():
+            return current_cos_video_url
 
         expected_public_url = object_storage_service.generated_video_public_url(
-            task_id=task.id,
-            file_name=local_file.name,
+            task_id=task_id,
+            file_name=file_name,
         )
         if await object_storage_service.generated_video_exists(
-            task_id=task.id,
-            file_name=local_file.name,
+            task_id=task_id,
+            file_name=file_name,
         ):
-            if current_url != expected_public_url:
-                task.video_url = expected_public_url
-                payload = task.provider_payload
-                if isinstance(payload, dict):
-                    task.provider_payload = self._write_video_url(payload, expected_public_url)
-                try:
-                    await task.save()
-                except Exception:
-                    pass
             return expected_public_url
 
         try:
-            public_url = await object_storage_service.upload_generated_video(
-                task_id=task.id,
-                file_name=local_file.name,
+            return await object_storage_service.upload_generated_video(
+                task_id=task_id,
+                file_name=file_name,
                 content=local_file.read_bytes(),
             )
         except ObjectStorageError:
-            return current_url
+            return current_cos_video_url
 
-        if not public_url or public_url == current_url:
-            return current_url
+    async def _download_remote_video(self, url: str) -> bytes:
+        timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.content
 
-        task.video_url = public_url
-        payload = task.provider_payload
-        if isinstance(payload, dict):
-            task.provider_payload = self._write_video_url(payload, public_url)
-        try:
-            await task.save()
-        except Exception:
-            pass
-        return public_url
+    def _resolve_generated_video_file_name(self, task_id: int, *candidates: str) -> str:
+        for candidate in candidates:
+            file_name = self._extract_generated_video_file_name(candidate)
+            if file_name:
+                return file_name
+        return f"task_{task_id}.mp4"
 
-    def _resolve_local_generated_video_file(self, raw_url: str) -> Path | None:
+    def _extract_generated_video_file_name(self, raw_url: str) -> str | None:
         normalized = str(raw_url or "").strip()
         if not normalized:
             return None
+        path = urlparse(normalized).path if "://" in normalized else normalized
+        file_name = Path(path).name
+        return file_name or None
+
+    def _normalize_remote_video_url(self, raw_url: str | None) -> str:
+        normalized = str(raw_url or "").strip()
+        if not normalized:
+            return ""
 
         parsed_public_base = urlparse((settings.PUBLIC_BASE_URL or "").strip())
         parsed_url = urlparse(normalized)
-
         if parsed_url.scheme and parsed_url.netloc:
             if parsed_public_base.netloc and parsed_url.netloc != parsed_public_base.netloc:
-                return None
+                return ""
             media_path = parsed_url.path
         else:
             media_path = normalized
@@ -600,20 +797,58 @@ class TaskController:
         if not media_path.startswith("/"):
             media_path = f"/{media_path}"
         if not media_path.startswith("/media/generated_videos/"):
-            return None
+            return ""
 
-        file_name = Path(media_path).name
-        if not file_name:
-            return None
+        return local_media_service.media_url(media_path)
 
-        local_file = Path(settings.MEDIA_ROOT) / "generated_videos" / file_name
-        if not local_file.exists() or not local_file.is_file():
-            return None
-        return local_file
+    def _normalize_cos_video_url(self, raw_url: str | None) -> str:
+        normalized = str(raw_url or "").strip()
+        if not normalized or not self._is_cos_url(normalized):
+            return ""
+        return normalized
 
-    def _write_video_url(self, payload: dict[str, Any], video_url: str) -> dict[str, Any]:
+    def _extract_external_video_url(self, raw_url: str | None) -> str:
+        normalized = str(raw_url or "").strip()
+        if not normalized:
+            return ""
+        if self._normalize_remote_video_url(normalized) or self._normalize_cos_video_url(normalized):
+            return ""
+        parsed_url = urlparse(normalized)
+        if parsed_url.scheme in {"http", "https"} and parsed_url.netloc:
+            return normalized
+        return ""
+
+    def _is_cos_url(self, raw_url: str) -> bool:
+        normalized = str(raw_url or "").strip()
+        if not normalized:
+            return False
+
+        parsed_url = urlparse(normalized)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            return False
+
+        public_domain = (settings.COS_PUBLIC_DOMAIN or "").strip()
+        expected_hosts = set()
+        if public_domain:
+            expected_hosts.add(urlparse(public_domain if "://" in public_domain else f"https://{public_domain}").netloc)
+        bucket = (settings.COS_BUCKET or "").strip()
+        region = (settings.COS_REGION or "").strip()
+        if bucket and region:
+            expected_hosts.add(f"{bucket}.cos.{region}.myqcloud.com")
+        return parsed_url.netloc in {host for host in expected_hosts if host}
+
+    def _write_video_urls(
+        self,
+        payload: dict[str, Any],
+        *,
+        video_url: str,
+        remote_video_url: str,
+        cos_video_url: str,
+    ) -> dict[str, Any]:
         next_payload = dict(payload)
         next_payload["video_url"] = video_url
+        next_payload["remote_video_url"] = remote_video_url
+        next_payload["cos_video_url"] = cos_video_url
         if "videoUrl" in next_payload:
             next_payload.pop("videoUrl", None)
 
@@ -621,6 +856,8 @@ class TaskController:
         if isinstance(data, dict):
             next_data = dict(data)
             next_data["video_url"] = video_url
+            next_data["remote_video_url"] = remote_video_url
+            next_data["cos_video_url"] = cos_video_url
             next_data.pop("videoUrl", None)
             next_payload["data"] = next_data
         return next_payload
@@ -687,6 +924,49 @@ class TaskController:
         data = self._read_payload(payload)
         value = data.get("video_url") or data.get("videoUrl")
         return str(value) if value else None
+
+    def _read_remote_video_url(self, payload: dict[str, Any]) -> str | None:
+        data = self._read_payload(payload)
+        value = data.get("remote_video_url") or data.get("remoteVideoUrl")
+        if value:
+            return self._normalize_remote_video_url(str(value))
+
+        fallback = data.get("video_url") or data.get("videoUrl")
+        normalized_fallback = self._normalize_remote_video_url(str(fallback or ""))
+        return normalized_fallback or None
+
+    def _read_cos_video_url(self, payload: dict[str, Any]) -> str | None:
+        data = self._read_payload(payload)
+        value = data.get("cos_video_url") or data.get("cosVideoUrl")
+        if value:
+            return self._normalize_cos_video_url(str(value))
+
+        fallback = data.get("video_url") or data.get("videoUrl")
+        normalized_fallback = self._normalize_cos_video_url(str(fallback or ""))
+        return normalized_fallback or None
+
+    def _read_source_video_url(self, payload: dict[str, Any]) -> str:
+        data = self._read_payload(payload)
+        for key in ("provider_video_url", "source_video_url", "origin_video_url", "original_video_url"):
+            value = str(data.get(key) or "").strip()
+            if value:
+                return value
+
+        fallback = str(data.get("video_url") or data.get("videoUrl") or "").strip()
+        return self._extract_external_video_url(fallback)
+
+    @staticmethod
+    def _select_preferred_video_url(
+        *,
+        remote_video_url: str | None,
+        cos_video_url: str | None,
+        fallback: str | None = None,
+    ) -> str:
+        for candidate in (cos_video_url, remote_video_url, fallback):
+            value = str(candidate or "").strip()
+            if value:
+                return value
+        return ""
 
     def _read_cover_image(self, payload: dict[str, Any], images: list[str] | None = None) -> str | None:
         data = self._read_payload(payload)

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 
 import '../../app/constants.dart';
@@ -56,7 +58,6 @@ class HistoryController extends GetxController {
       isLoading.value = true;
       page.value = 1;
       hasMore.value = true;
-      await _refreshProcessingItems();
     } else {
       if (isLoadingMore.value || !hasMore.value) {
         return;
@@ -73,6 +74,7 @@ class HistoryController extends GetxController {
       );
       if (reset) {
         items.assignAll(result.items);
+        unawaited(_refreshProcessingItems(items: result.items));
       } else {
         items.addAll(result.items);
       }
@@ -212,30 +214,38 @@ class HistoryController extends GetxController {
     }
   }
 
-  Future<void> _refreshProcessingItems() async {
+  Future<void> _refreshProcessingItems({
+    List<HistoryItemModel>? items,
+  }) async {
     isRefreshingProcessing.value = true;
     try {
-      final List<HistoryItemModel> all = await _historyRepository.allItems();
-      for (final HistoryItemModel item
-          in all.where((HistoryItemModel element) => element.isProcessing)) {
+      final Iterable<HistoryItemModel> processingItems =
+          (items ?? this.items.toList())
+              .where((HistoryItemModel element) => element.isProcessing);
+      for (final HistoryItemModel item in processingItems) {
         try {
           final status = await _videoRepository.videoStatus(item.id);
-          await _historyRepository.upsert(
-            item.copyWith(
-              status: status.status,
-              prompt: (status.prompt?.trim().isNotEmpty ?? false)
-                  ? status.prompt
-                  : item.prompt,
-              displayText: (status.displayText?.trim().isNotEmpty ?? false)
-                  ? status.displayText
-                  : item.displayText,
-              videoUrl: status.videoUrl ?? item.videoUrl,
-              errorMessage: status.errorMessage ?? item.errorMessage,
-              duration: status.duration ?? item.duration,
-              pointsCost: status.pointsCost,
-              pointsRefunded: status.pointsRefunded,
-            ),
+          final HistoryItemModel updated = item.copyWith(
+            status: status.status,
+            prompt: (status.prompt?.trim().isNotEmpty ?? false)
+                ? status.prompt
+                : item.prompt,
+            displayText: (status.displayText?.trim().isNotEmpty ?? false)
+                ? status.displayText
+                : item.displayText,
+            videoUrl: status.videoUrl ?? item.videoUrl,
+            errorMessage: status.errorMessage ?? item.errorMessage,
+            duration: status.duration ?? item.duration,
+            pointsCost: status.pointsCost,
+            pointsRefunded: status.pointsRefunded,
           );
+          await _historyRepository.upsert(updated);
+          final int index = this
+              .items
+              .indexWhere((HistoryItemModel element) => element.id == item.id);
+          if (index >= 0) {
+            this.items[index] = updated;
+          }
         } catch (_) {
           // Keep local status when remote refresh fails.
         }

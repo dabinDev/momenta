@@ -20,7 +20,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    VERSION: str = "1.3.1"
+    VERSION: str = "1.3.2"
     APP_TITLE: str = "拾光视频服务端"
     PROJECT_NAME: str = "拾光视频"
     APP_DESCRIPTION: str = "统一为 App、H5 与管理后台提供认证、创作、任务、模型、版本发布与运营能力的后端服务。"

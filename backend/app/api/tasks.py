@@ -384,10 +384,7 @@ async def list_tasks(
     items = []
     for task in tasks:
         if task.status in {"queued", "processing"}:
-            try:
-                task = await task_controller.sync_task_status(task)
-            except (LegacyGatewayError, VideoGatewayError, LocalMediaError):
-                pass
+            task_controller.schedule_task_status_sync(task)
         items.append(await task_controller.serialize_task(task))
     return Success(
         data={
@@ -410,7 +407,10 @@ async def get_task(task_id: int):
     user_id = CTX_USER_ID.get()
     task = await task_controller.get_user_task(task_id=task_id, user_id=user_id)
     try:
-        task = await task_controller.sync_task_status(task)
+        task = await task_controller.sync_task_status_with_timeout(
+            task,
+            timeout_seconds=task_controller.detail_status_sync_timeout_seconds,
+        )
     except (LegacyGatewayError, VideoGatewayError, LocalMediaError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return Success(data=await task_controller.serialize_task(task))

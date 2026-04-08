@@ -252,7 +252,7 @@ function handleTabReselect(event) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadSummary(), loadHistory(true, 1)])
+  await loadHistory(true, 1)
   window.addEventListener(APP_TAB_RESELECT_EVENT, handleTabReselect)
 })
 

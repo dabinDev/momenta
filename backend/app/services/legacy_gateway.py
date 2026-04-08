@@ -44,11 +44,18 @@ class LegacyGatewayService:
         )
 
     async def video_status(self, provider_task_id: str) -> Any:
-        return await self._request("GET", f"/api/video-status/{provider_task_id}")
+        return await self._request(
+            "GET",
+            f"/api/video-status/{provider_task_id}",
+            timeout=httpx.Timeout(connect=5.0, read=12.0, write=12.0, pool=5.0),
+        )
 
     async def _request(self, method: str, path: str, **kwargs) -> Any:
         base_url = self._ensure_base_url()
-        timeout = httpx.Timeout(connect=20.0, read=120.0, write=120.0, pool=20.0)
+        timeout = kwargs.pop(
+            "timeout",
+            httpx.Timeout(connect=20.0, read=120.0, write=120.0, pool=20.0),
+        )
         async with httpx.AsyncClient(base_url=base_url, timeout=timeout, follow_redirects=True) as client:
             try:
                 response = await client.request(method, path, **kwargs)

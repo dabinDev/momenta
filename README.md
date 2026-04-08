@@ -356,7 +356,7 @@ AUTH_SERVER_BASE_URL
 默认值定义在 `lib/app/constants.dart`：
 
 ```text
-https://api.memovideos.cn
+https://api.cylonai.cn
 ```
 
 运行时通过 `--dart-define` 注入即可覆盖。
@@ -528,7 +528,7 @@ flutter devices
 
 ```powershell
 flutter pub get
-flutter run --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter run --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
 ```
 
 如果需要指定设备：
@@ -544,7 +544,7 @@ flutter run -d android
 ### 9.1 Android Debug 构建
 
 ```powershell
-flutter build apk --debug --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter build apk --debug --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
 ```
 
 输出文件：
@@ -556,13 +556,13 @@ build/app/outputs/flutter-apk/app-debug.apk
 ### 9.2 Android Release APK
 
 ```powershell
-flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
 ```
 
 ### 9.3 Android App Bundle
 
 ```powershell
-flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
 ```
 
 ### 9.4 Android 签名配置
@@ -594,7 +594,7 @@ keyPassword=your-password
 iOS 构建需要在 macOS 上执行：
 
 ```powershell
-flutter build ios --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter build ios --release --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
 ```
 
 或在 Xcode 中打开 `ios/Runner.xcworkspace` 做签名和归档。
@@ -753,11 +753,11 @@ flutter pub get
 flutter doctor -v
 adb devices
 flutter devices
-flutter run --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter run --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
 flutter analyze
 flutter test
-flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
-flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.memovideos.cn
+flutter build apk --release --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
+flutter build appbundle --release --dart-define=AUTH_SERVER_BASE_URL=https://api.cylonai.cn
 ```
 
 ---

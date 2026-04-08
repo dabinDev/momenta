@@ -28,7 +28,18 @@
 
         <div class="auth-form-card__links">
           <button type="button" class="text-link" @click="router.push('/forgot-password')">忘记密码</button>
-          <button type="button" class="text-link" @click="router.push('/register')">注册账号</button>
+          <button
+            type="button"
+            class="text-link"
+            @click="
+              router.push({
+                name: 'register',
+                query: inviteCode ? { inviteCode } : undefined,
+              })
+            "
+          >
+            注册账号
+          </button>
         </div>
       </section>
     </div>
@@ -36,7 +47,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AuthHero from '@/components/AuthHero.vue'
@@ -47,6 +58,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+const inviteCode = computed(() => String(route.query.inviteCode || '').trim())
 
 const form = reactive({
   username: String(route.query.username || authStore.user?.username || ''),

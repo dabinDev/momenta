@@ -18,6 +18,14 @@ class HybridVideoService:
     openai_provider = "openai_compatible"
 
     @staticmethod
+    def _request_timeout() -> httpx.Timeout:
+        return httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+
+    @staticmethod
+    def _status_timeout() -> httpx.Timeout:
+        return httpx.Timeout(connect=5.0, read=12.0, write=12.0, pool=5.0)
+
+    @staticmethod
     def is_configured(config: UserAppConfig) -> bool:
         return bool(
             (config.video_base_url or "").strip()
@@ -83,7 +91,7 @@ class HybridVideoService:
         size: str,
     ) -> dict[str, Any]:
         base_url = (config.video_base_url or "").strip().rstrip("/")
-        timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+        timeout = self._request_timeout()
         payload: dict[str, Any] = {
             "model": config.video_model,
             "prompt": prompt,
@@ -129,7 +137,7 @@ class HybridVideoService:
         task_id: int,
     ) -> dict[str, Any]:
         base_url = (config.video_base_url or "").strip().rstrip("/")
-        timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+        timeout = self._status_timeout()
 
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:
@@ -154,11 +162,15 @@ class HybridVideoService:
         remote_video_url = str(data.get("video_url") or data.get("videoUrl") or "").strip()
 
         if status in {"completed", "succeeded", "success"} and remote_video_url:
-            data["video_url"] = await local_media_service.ensure_video_file(
+            data["provider_video_url"] = remote_video_url
+            locations = await local_media_service.ensure_video_storage(
                 task_id=task_id,
                 provider_task_id=provider_task_id,
                 content_fetcher=lambda _: self._download_remote_video(remote_video_url),
             )
+            data["remote_video_url"] = locations["remote_url"]
+            data["cos_video_url"] = locations["cos_url"]
+            data["video_url"] = locations["cos_url"] or locations["remote_url"] or remote_video_url
             data["progress"] = 1
         elif status in {"processing", "running", "in_progress"}:
             data.setdefault("progress", 0.5)
@@ -168,7 +180,7 @@ class HybridVideoService:
         return payload
 
     async def _download_remote_video(self, url: str) -> bytes:
-        timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+        timeout = self._request_timeout()
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:
                 response = await client.get(url)
@@ -189,7 +201,7 @@ class HybridVideoService:
         size: str,
     ) -> dict[str, Any]:
         base_url = (config.video_base_url or "").strip().rstrip("/")
-        timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+        timeout = self._request_timeout()
 
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:
@@ -233,7 +245,7 @@ class HybridVideoService:
         task_id: int,
     ) -> dict[str, Any]:
         base_url = (config.video_base_url or "").strip().rstrip("/")
-        timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+        timeout = self._status_timeout()
 
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:
@@ -255,7 +267,7 @@ class HybridVideoService:
         data = self._payload_data(payload)
         status = str(data.get("status") or "").lower()
         if status in {"completed", "succeeded", "success"}:
-            data["video_url"] = await local_media_service.ensure_video_file(
+            locations = await local_media_service.ensure_video_storage(
                 task_id=task_id,
                 provider_task_id=provider_task_id,
                 content_fetcher=lambda video_id: self._download_openai_compatible_video_content(
@@ -263,6 +275,9 @@ class HybridVideoService:
                     provider_task_id=video_id,
                 ),
             )
+            data["remote_video_url"] = locations["remote_url"]
+            data["cos_video_url"] = locations["cos_url"]
+            data["video_url"] = locations["cos_url"] or locations["remote_url"]
         return payload
 
     async def _download_openai_compatible_video_content(
@@ -272,7 +287,7 @@ class HybridVideoService:
         provider_task_id: str,
     ) -> bytes:
         base_url = (config.video_base_url or "").strip().rstrip("/")
-        timeout = httpx.Timeout(connect=20.0, read=240.0, write=240.0, pool=20.0)
+        timeout = self._request_timeout()
 
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             try:

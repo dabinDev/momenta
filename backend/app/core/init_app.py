@@ -382,6 +382,8 @@ async def _ensure_sqlite_schema(connection):
         "points_charge_token": "VARCHAR(64) NULL",
         "points_refunded": "INTEGER NOT NULL DEFAULT 0",
         "points_refunded_at": "TIMESTAMP NULL",
+        "remote_video_url": "VARCHAR(500) NULL",
+        "cos_video_url": "VARCHAR(500) NULL",
     }
     statements.extend(
         f'ALTER TABLE "video_task" ADD COLUMN "{column}" {definition};'
@@ -570,6 +572,8 @@ async def _ensure_mysql_schema(connection):
         "points_charge_token": "VARCHAR(64) NULL",
         "points_refunded": "TINYINT(1) NOT NULL DEFAULT 0",
         "points_refunded_at": "DATETIME NULL",
+        "remote_video_url": "VARCHAR(500) NULL",
+        "cos_video_url": "VARCHAR(500) NULL",
     }
     for column, definition in video_task_missing_columns.items():
         if column not in existing_video_task_columns:

@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$zip = Join-Path $PSScriptRoot 'memovideos.cn_nginx.zip'
+$zip = Join-Path $PSScriptRoot 'cylonai.cn_nginx.zip'
 $out = Join-Path $PSScriptRoot '.ssl-stage'
 
 if (Test-Path $out) {

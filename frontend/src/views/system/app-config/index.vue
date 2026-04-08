@@ -376,7 +376,7 @@ function handleAlipayToggle(value) {
 
           <NForm label-placement="top" :model="globalForm" class="platform-form">
             <NFormItem label="平台 Base URL">
-              <NInput v-model:value="globalForm.provider_base_url" placeholder="https://api.memovideos.cn 或第三方平台地址" />
+              <NInput v-model:value="globalForm.provider_base_url" placeholder="https://api.cylonai.cn 或第三方平台地址" />
             </NFormItem>
             <NFormItem label="全局平台 SK">
               <NInput v-model:value="globalForm.provider_api_key" type="password" show-password-on="mousedown" placeholder="输入全局共享 SK" />

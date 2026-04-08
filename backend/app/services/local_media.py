@@ -30,6 +30,21 @@ class LocalMediaService:
         normalized = relative_path if relative_path.startswith("/") else f"/{relative_path}"
         return f"{base_url}{normalized}"
 
+    def normalize_media_url(self, raw_url: str | None) -> str:
+        normalized = str(raw_url or "").strip()
+        if not normalized:
+            return ""
+
+        parsed = urlparse(normalized)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            media_path = parsed.path or ""
+        else:
+            media_path = normalized
+
+        if not media_path.startswith("/media/"):
+            return normalized
+        return self.media_url(media_path)
+
     async def save_uploaded_images(
         self,
         *,
@@ -106,26 +121,40 @@ class LocalMediaService:
         provider_task_id: str,
         content_fetcher,
     ) -> str:
-        target_dir = self._media_root / "generated_videos"
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target_file = target_dir / f"task_{task_id}.mp4"
+        locations = await self.ensure_video_storage(
+            task_id=task_id,
+            provider_task_id=provider_task_id,
+            content_fetcher=content_fetcher,
+        )
+        return locations["remote_url"] or locations["cos_url"]
+
+    async def ensure_video_storage(
+        self,
+        *,
+        task_id: int,
+        provider_task_id: str,
+        content_fetcher,
+        file_name: str | None = None,
+    ) -> dict[str, str]:
+        target_file = self.generated_video_local_file(task_id=task_id, file_name=file_name)
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+
         cached_content: bytes | None = None
+        if target_file.exists() and target_file.is_file():
+            cached_content = target_file.read_bytes()
+        else:
+            cached_content = await content_fetcher(provider_task_id)
+            target_file.write_bytes(cached_content)
 
+        remote_url = self.generated_video_remote_url(task_id=task_id, file_name=target_file.name)
+        cos_url = ""
         if object_storage_service.generated_video_storage_enabled():
-            if target_file.exists():
-                cached_content = target_file.read_bytes()
-            else:
-                cached_content = await content_fetcher(provider_task_id)
-
             try:
-                public_url = await object_storage_service.upload_generated_video(
+                cos_url = await object_storage_service.upload_generated_video(
                     task_id=task_id,
                     file_name=target_file.name,
                     content=cached_content,
                 )
-                if settings.GENERATED_VIDEO_KEEP_LOCAL_COPY and not target_file.exists():
-                    target_file.write_bytes(cached_content)
-                return public_url
             except ObjectStorageError as exc:
                 logger.warning(
                     "generated video upload fallback to local storage for task_id={} provider_task_id={}: {}",
@@ -133,13 +162,19 @@ class LocalMediaService:
                     provider_task_id,
                     exc,
                 )
-                if cached_content is not None and not target_file.exists():
-                    target_file.write_bytes(cached_content)
 
-        if not target_file.exists():
-            content = cached_content if cached_content is not None else await content_fetcher(provider_task_id)
-            target_file.write_bytes(content)
+        return {
+            "file_name": target_file.name,
+            "remote_url": remote_url,
+            "cos_url": cos_url,
+        }
 
+    def generated_video_local_file(self, *, task_id: int, file_name: str | None = None) -> Path:
+        normalized_name = (Path(file_name).name if file_name else "").strip() or f"task_{task_id}.mp4"
+        return self._media_root / "generated_videos" / normalized_name
+
+    def generated_video_remote_url(self, *, task_id: int, file_name: str | None = None) -> str:
+        target_file = self.generated_video_local_file(task_id=task_id, file_name=file_name)
         return self.media_url(f"/media/generated_videos/{target_file.name}")
 
     async def read_remote_bytes(self, location: str) -> tuple[str, bytes, str]:
@@ -165,10 +200,17 @@ class LocalMediaService:
         return file_name, response.content, content_type
 
     def _read_local_media_bytes(self, location: str) -> tuple[str, bytes] | None:
-        public_base = settings.PUBLIC_BASE_URL.rstrip("/")
-        normalized = location
-        if normalized.startswith(public_base):
-            normalized = normalized[len(public_base) :]
+        normalized = str(location or "").strip()
+        if not normalized:
+            return None
+
+        parsed = urlparse(normalized)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            normalized = parsed.path or ""
+        else:
+            public_base = settings.PUBLIC_BASE_URL.rstrip("/")
+            if normalized.startswith(public_base):
+                normalized = normalized[len(public_base) :]
 
         if not normalized.startswith("/media/"):
             return None

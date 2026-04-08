@@ -2,8 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
 $targets = @(
-  'memovideos.cn_nginx.zip',
-  'api.memovideos.cn_nginx.zip'
+  'cylonai.cn_nginx.zip',
+  'api.cylonai.cn_nginx.zip',
+  'file.cylonai.cn_nginx.zip'
 )
 
 $stage = Join-Path $root '.ssl-stage-all'

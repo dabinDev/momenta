@@ -107,6 +107,19 @@ const overviewStats = computed(() => [
   },
 ])
 
+function isForbiddenCosPackageUrl(value) {
+  const raw = `${value || ''}`.trim()
+  if (!raw) return false
+  try {
+    const url = new URL(raw)
+    const host = `${url.host || ''}`.toLowerCase()
+    const path = `${url.pathname || ''}`.toLowerCase()
+    return host.endsWith('.myqcloud.com') && host.includes('.cos.') && (path.endsWith('.apk') || path.endsWith('.ipa'))
+  } catch (_error) {
+    return false
+  }
+}
+
 const activeFilters = computed(() => {
   const filters = []
   if (queryItems.value.platform) {

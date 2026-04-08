@@ -100,6 +100,27 @@ class ObjectStorageService:
             "original_content_type": content_type or "application/vnd.android.package-archive",
         }
 
+    async def open_release_package_stream(
+        self,
+        *,
+        file_name: str,
+    ) -> dict[str, Any] | None:
+        if not self.generated_video_storage_enabled():
+            return None
+
+        normalized_name = self._sanitize_object_name(file_name or "app-release.apk")
+        for key in self._release_package_candidate_keys(file_name=normalized_name):
+            try:
+                response = await asyncio.to_thread(self._get_object, object_key=key)
+            except ObjectStorageError:
+                continue
+            return {
+                "name": normalized_name,
+                "object_key": key,
+                "response": response,
+            }
+        return None
+
     def _cos_configured(self) -> bool:
         return all(
             (
@@ -122,6 +143,21 @@ class ObjectStorageService:
         if prefix:
             return f"{prefix}/{storage_name}"
         return storage_name
+
+    def _build_release_package_legacy_key(self, *, file_name: str) -> str:
+        prefix = (settings.COS_RELEASE_KEY_PREFIX or "file").strip().strip("/")
+        normalized_name = self._sanitize_object_name(file_name or "app-release.apk")
+        if prefix:
+            return f"{prefix}/{normalized_name}"
+        return normalized_name
+
+    def _release_package_candidate_keys(self, *, file_name: str) -> list[str]:
+        normalized_name = self._sanitize_object_name(file_name or "app-release.apk")
+        keys = [self._build_release_package_key(file_name=normalized_name)]
+        legacy_key = self._build_release_package_legacy_key(file_name=normalized_name)
+        if legacy_key not in keys:
+            keys.append(legacy_key)
+        return keys
 
     @staticmethod
     def _build_release_package_storage_name(*, file_name: str) -> str:
@@ -180,6 +216,16 @@ class ObjectStorageService:
             return True
         except Exception:
             return False
+
+    def _get_object(self, *, object_key: str):
+        client = self._get_cos_client()
+        try:
+            return client.get_object(
+                Bucket=(settings.COS_BUCKET or "").strip(),
+                Key=object_key,
+            )
+        except Exception as exc:  # pragma: no cover
+            raise ObjectStorageError(f"Failed to fetch object from Tencent COS: {exc}") from exc
 
     def _multipart_upload_to_cos(
         self,
