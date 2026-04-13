@@ -63,9 +63,13 @@ class HistoryRepositoryImpl implements HistoryRepository {
       final List<HistoryItemModel> all = _readLocalItems();
       final List<HistoryItemModel> filtered = filter == 'all'
           ? all
-          : all
-              .where((HistoryItemModel item) => item.status == filter)
-              .toList();
+          : filter == 'processing'
+              ? all
+                  .where((HistoryItemModel item) => item.isProcessing)
+                  .toList()
+              : all
+                  .where((HistoryItemModel item) => item.status == filter)
+                  .toList();
 
       final int start = ((page - 1) * limit).clamp(0, filtered.length);
       final int end = (start + limit).clamp(0, filtered.length);

@@ -39,11 +39,19 @@ class HistoryController extends GetxController {
   final RxInt processingCount = 0.obs;
   final RxInt failedCount = 0.obs;
   final RxString selectedFilter = 'all'.obs;
+  Timer? _processingPollTimer;
+  bool _processingPollInFlight = false;
 
   @override
   void onInit() {
     super.onInit();
     loadHistory(reset: true);
+  }
+
+  @override
+  void onClose() {
+    _stopProcessingPolling();
+    super.onClose();
   }
 
   Future<void> refreshList() async {
@@ -66,7 +74,6 @@ class HistoryController extends GetxController {
     }
 
     try {
-      await _loadSummary();
       final result = await _historyRepository.list(
         page: page.value,
         limit: AppConstants.historyPageSize,
@@ -74,7 +81,6 @@ class HistoryController extends GetxController {
       );
       if (reset) {
         items.assignAll(result.items);
-        unawaited(_refreshProcessingItems(items: result.items));
       } else {
         items.addAll(result.items);
       }
@@ -82,6 +88,12 @@ class HistoryController extends GetxController {
       if (hasMore.value) {
         page.value = page.value + 1;
       }
+      try {
+        await _loadSummary();
+      } catch (_) {
+        // Keep the last summary snapshot when the stats request fails.
+      }
+      _syncProcessingPolling();
     } catch (error) {
       SnackbarHelper.error(_readError(error, fallback: '获取历史记录失败'));
     } finally {
@@ -206,6 +218,7 @@ class HistoryController extends GetxController {
       if (index >= 0) {
         items[index] = updated;
       }
+      _syncProcessingPolling();
       await _refreshPointsBalance();
       await _loadSummary();
       SnackbarHelper.success('已重新提交该任务');
@@ -218,6 +231,8 @@ class HistoryController extends GetxController {
     List<HistoryItemModel>? items,
   }) async {
     isRefreshingProcessing.value = true;
+    bool shouldRefreshListForFilter = false;
+    bool shouldRefreshUser = false;
     try {
       final Iterable<HistoryItemModel> processingItems =
           (items ?? this.items.toList())
@@ -240,11 +255,20 @@ class HistoryController extends GetxController {
             pointsRefunded: status.pointsRefunded,
           );
           await _historyRepository.upsert(updated);
+          if (item.status != updated.status &&
+              (updated.isCompleted || updated.isFailed)) {
+            shouldRefreshUser = true;
+          }
           final int index = this
               .items
               .indexWhere((HistoryItemModel element) => element.id == item.id);
           if (index >= 0) {
-            this.items[index] = updated;
+            if (selectedFilter.value == 'processing' && !updated.isProcessing) {
+              this.items.removeAt(index);
+              shouldRefreshListForFilter = true;
+            } else {
+              this.items[index] = updated;
+            }
           }
         } catch (_) {
           // Keep local status when remote refresh fails.
@@ -252,6 +276,21 @@ class HistoryController extends GetxController {
       }
     } finally {
       isRefreshingProcessing.value = false;
+    }
+    if (shouldRefreshUser) {
+      await _refreshPointsBalance();
+    }
+    _syncProcessingPolling();
+    if (shouldRefreshListForFilter &&
+        selectedFilter.value == 'processing' &&
+        !isLoading.value) {
+      await loadHistory(reset: true);
+      return;
+    }
+    try {
+      await _loadSummary();
+    } catch (_) {
+      // Ignore transient summary failures during polling.
     }
   }
 
@@ -272,5 +311,51 @@ class HistoryController extends GetxController {
       return;
     }
     await Get.find<AuthController>().refreshCurrentUser(silent: true);
+  }
+
+  void _syncProcessingPolling() {
+    if (items.any((HistoryItemModel item) => item.isProcessing)) {
+      _startProcessingPolling();
+      return;
+    }
+    _stopProcessingPolling();
+  }
+
+  void _startProcessingPolling() {
+    if (_processingPollTimer != null) {
+      return;
+    }
+    _processingPollTimer = Timer.periodic(
+      const Duration(seconds: AppConstants.pollingIntervalSeconds),
+      (_) => unawaited(_pollVisibleProcessingItems()),
+    );
+  }
+
+  void _stopProcessingPolling() {
+    _processingPollTimer?.cancel();
+    _processingPollTimer = null;
+  }
+
+  Future<void> _pollVisibleProcessingItems() async {
+    if (_processingPollInFlight ||
+        isLoading.value ||
+        isLoadingMore.value ||
+        isRefreshingProcessing.value) {
+      return;
+    }
+    final List<HistoryItemModel> processingItems = items
+        .where((HistoryItemModel item) => item.isProcessing)
+        .toList(growable: false);
+    if (processingItems.isEmpty) {
+      _stopProcessingPolling();
+      return;
+    }
+
+    _processingPollInFlight = true;
+    try {
+      await _refreshProcessingItems(items: processingItems);
+    } finally {
+      _processingPollInFlight = false;
+    }
   }
 }

@@ -58,10 +58,9 @@ async def list_tasks(
         task_type=task_type,
         include_deleted=include_deleted,
     )
+    task_controller.schedule_tasks_for_list(tasks)
     data = []
     for task in tasks:
-        if task.status in {"queued", "processing"}:
-            task_controller.schedule_task_status_sync(task)
         data.append(await task_controller.serialize_task(task, include_user=True))
     return SuccessExtra(data=data, total=total, page=page, page_size=page_size)
 

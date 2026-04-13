@@ -125,30 +125,33 @@ const preview = reactive({
   url: '',
   task: null,
 })
+const pollTimer = ref(null)
+const polling = ref(false)
 
 const totalPages = computed(() =>
   Math.max(1, Math.ceil((pagination.total || 0) / pagination.pageSize))
 )
-
-async function loadSummary() {
-  summary.value = await api.getTaskSummary()
-}
+const hasProcessingTasks = computed(() =>
+  tasks.value.some((task) => ['queued', 'processing'].includes(task?.status))
+)
 
 async function loadHistory(reset = false, page = 1) {
   loading.value = true
   try {
-    const [list, taskSummary] = await Promise.all([
-      api.listTasks({
-        page,
-        limit: pagination.pageSize,
-        filter: filter.value,
-      }),
-      api.getTaskSummary(),
-    ])
+    const list = await api.listTasks({
+      page,
+      limit: pagination.pageSize,
+      filter: filter.value,
+    })
     tasks.value = Array.isArray(list?.items) ? list.items : []
-    summary.value = taskSummary
     pagination.page = Number(list?.page || page)
     pagination.total = Number(list?.total || 0)
+    try {
+      summary.value = await api.getTaskSummary()
+    } catch (_) {
+      // Keep the last summary snapshot when the stats request fails.
+    }
+    syncPolling()
     if (reset) {
       await authStore.fetchCurrentUser()
     }
@@ -157,6 +160,39 @@ async function loadHistory(reset = false, page = 1) {
   } finally {
     loading.value = false
   }
+}
+
+function startPolling() {
+  if (pollTimer.value || !hasProcessingTasks.value) {
+    return
+  }
+  pollTimer.value = window.setInterval(async () => {
+    if (polling.value || loading.value || document.hidden) {
+      return
+    }
+    polling.value = true
+    try {
+      await loadHistory(false, pagination.page)
+    } finally {
+      polling.value = false
+    }
+  }, 3000)
+}
+
+function stopPolling() {
+  if (!pollTimer.value) {
+    return
+  }
+  window.clearInterval(pollTimer.value)
+  pollTimer.value = null
+}
+
+function syncPolling() {
+  if (hasProcessingTasks.value) {
+    startPolling()
+    return
+  }
+  stopPolling()
 }
 
 function changeFilter(nextFilter) {
@@ -257,6 +293,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopPolling()
   window.removeEventListener(APP_TAB_RESELECT_EVENT, handleTabReselect)
 })
 </script>

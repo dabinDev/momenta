@@ -82,6 +82,49 @@ class HybridVideoService:
             task_id=task_id,
         )
 
+    async def ensure_task_video_storage(
+        self,
+        *,
+        config: UserAppConfig,
+        provider_kind: str,
+        provider_task_id: str,
+        task_id: int,
+        file_name: str | None = None,
+        source_video_url: str = "",
+    ) -> dict[str, str]:
+        if provider_kind == self.relay_provider:
+            remote_video_url = str(source_video_url or "").strip()
+            if not remote_video_url:
+                payload = await self._query_relay_video_status(
+                    config=config,
+                    provider_task_id=provider_task_id,
+                )
+                data = self._payload_data(payload)
+                remote_video_url = str(data.get("video_url") or data.get("videoUrl") or "").strip()
+            if not remote_video_url:
+                raise VideoGatewayError("上游视频结果尚未就绪")
+
+            locations = await local_media_service.ensure_video_storage(
+                task_id=task_id,
+                provider_task_id=provider_task_id,
+                file_name=file_name,
+                content_fetcher=lambda _: self._download_remote_video(remote_video_url),
+            )
+            locations["source_video_url"] = remote_video_url
+            return locations
+
+        locations = await local_media_service.ensure_video_storage(
+            task_id=task_id,
+            provider_task_id=provider_task_id,
+            file_name=file_name,
+            content_fetcher=lambda video_id: self._download_openai_compatible_video_content(
+                config=config,
+                provider_task_id=video_id,
+            ),
+        )
+        locations["source_video_url"] = str(source_video_url or "").strip()
+        return locations
+
     async def _create_relay_video(
         self,
         *,
@@ -136,41 +179,17 @@ class HybridVideoService:
         provider_task_id: str,
         task_id: int,
     ) -> dict[str, Any]:
-        base_url = (config.video_base_url or "").strip().rstrip("/")
-        timeout = self._status_timeout()
-
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            try:
-                response = await client.get(
-                    self._build_url(base_url, "/v1/video/query"),
-                    headers=self._headers(config),
-                    params={"id": provider_task_id},
-                )
-                response.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                raise VideoGatewayError(self._read_error_detail(exc.response)) from exc
-            except httpx.HTTPError as exc:
-                raise VideoGatewayError("Failed to reach configured video service") from exc
-
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise VideoGatewayError("Configured video service returned invalid JSON") from exc
-
+        payload = await self._query_relay_video_status(
+            config=config,
+            provider_task_id=provider_task_id,
+        )
         data = self._payload_data(payload)
         status = str(data.get("status") or "").lower()
         remote_video_url = str(data.get("video_url") or data.get("videoUrl") or "").strip()
 
         if status in {"completed", "succeeded", "success"} and remote_video_url:
             data["provider_video_url"] = remote_video_url
-            locations = await local_media_service.ensure_video_storage(
-                task_id=task_id,
-                provider_task_id=provider_task_id,
-                content_fetcher=lambda _: self._download_remote_video(remote_video_url),
-            )
-            data["remote_video_url"] = locations["remote_url"]
-            data["cos_video_url"] = locations["cos_url"]
-            data["video_url"] = locations["cos_url"] or locations["remote_url"] or remote_video_url
+            data["video_url"] = remote_video_url
             data["progress"] = 1
         elif status in {"processing", "running", "in_progress"}:
             data.setdefault("progress", 0.5)
@@ -267,17 +286,40 @@ class HybridVideoService:
         data = self._payload_data(payload)
         status = str(data.get("status") or "").lower()
         if status in {"completed", "succeeded", "success"}:
-            locations = await local_media_service.ensure_video_storage(
-                task_id=task_id,
-                provider_task_id=provider_task_id,
-                content_fetcher=lambda video_id: self._download_openai_compatible_video_content(
-                    config=config,
-                    provider_task_id=video_id,
-                ),
-            )
-            data["remote_video_url"] = locations["remote_url"]
-            data["cos_video_url"] = locations["cos_url"]
-            data["video_url"] = locations["cos_url"] or locations["remote_url"]
+            data["progress"] = 1
+        elif status in {"processing", "running", "in_progress"}:
+            data.setdefault("progress", 0.5)
+        else:
+            data.setdefault("progress", 0)
+        return payload
+
+    async def _query_relay_video_status(
+        self,
+        *,
+        config: UserAppConfig,
+        provider_task_id: str,
+    ) -> dict[str, Any]:
+        base_url = (config.video_base_url or "").strip().rstrip("/")
+        timeout = self._status_timeout()
+
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            try:
+                response = await client.get(
+                    self._build_url(base_url, "/v1/video/query"),
+                    headers=self._headers(config),
+                    params={"id": provider_task_id},
+                )
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise VideoGatewayError(self._read_error_detail(exc.response)) from exc
+            except httpx.HTTPError as exc:
+                raise VideoGatewayError("Failed to reach configured video service") from exc
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise VideoGatewayError("Configured video service returned invalid JSON") from exc
+
         return payload
 
     async def _download_openai_compatible_video_content(

@@ -381,10 +381,9 @@ async def list_tasks(
         page_size=limit,
         status=filter,
     )
+    task_controller.schedule_tasks_for_list(tasks)
     items = []
     for task in tasks:
-        if task.status in {"queued", "processing"}:
-            task_controller.schedule_task_status_sync(task)
         items.append(await task_controller.serialize_task(task))
     return Success(
         data={

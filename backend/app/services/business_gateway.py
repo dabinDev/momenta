@@ -207,6 +207,41 @@ class BusinessGatewayService:
 
         return await legacy_gateway_service.video_status(task.provider_task_id or "")
 
+    async def ensure_task_video_storage(
+        self,
+        *,
+        task: VideoTask,
+        file_name: str | None = None,
+        source_video_url: str = "",
+    ) -> dict[str, str]:
+        if task.provider in {"openai_compatible", "relay_video"}:
+            config = await resolve_effective_user_app_config(task.user_id)
+            return await video_gateway_service.ensure_task_video_storage(
+                config=config,
+                provider_kind=task.provider,
+                provider_task_id=task.provider_task_id or "",
+                task_id=int(task.id),
+                file_name=file_name,
+                source_video_url=source_video_url,
+            )
+
+        if not source_video_url:
+            return {
+                "file_name": file_name or f"task_{int(task.id)}.mp4",
+                "remote_url": "",
+                "cos_url": "",
+                "source_video_url": "",
+            }
+
+        locations = await local_media_service.ensure_video_storage(
+            task_id=int(task.id),
+            provider_task_id=str(task.provider_task_id or task.id),
+            file_name=file_name,
+            content_fetcher=lambda _: video_gateway_service._download_remote_video(source_video_url),
+        )
+        locations["source_video_url"] = source_video_url
+        return locations
+
     @staticmethod
     def _merge_video_request(payload: Any, request_context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(payload, dict):
