@@ -7,8 +7,8 @@ import { clearSession, readToken, readUser, writeToken, writeUser } from '@/util
 const RELEASE_QUERY = {
   platform: 'android',
   channel: 'lan',
-  current_version: '1.3.3',
-  current_build_number: '7',
+  current_version: '1.3.4',
+  current_build_number: '8',
 }
 
 function normalizeUser(user) {
