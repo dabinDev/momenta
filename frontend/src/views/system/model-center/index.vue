@@ -58,25 +58,25 @@ const prioritizeMap = reactive({
 const serviceMeta = {
   image: {
     label: '图片生成',
-    description: '能力已实现，当前主要用于后台能力预留。',
+    description: '保留当前配置逻辑，目录与推荐会按图片模型能力和成本排序。',
     color: 'primary',
     requireImageInput: false,
   },
   video: {
     label: '视频生成',
-    description: '当前线上默认使用 veo_3_1-fast-components-4K。',
+    description: '默认模型保持 veo_3_1-fast-components-4K，推荐只从当前后端已接通的图生视频模型中选择。',
     color: 'warning',
     requireImageInput: true,
   },
   speech: {
     label: '音频解析',
-    description: '用于语音识别转文字和后台音频解析。',
+    description: '用于转写和音频解析，推荐仅覆盖当前已接通的 transcribe / whisper / audio-preview 兼容模型。',
     color: 'info',
     requireImageInput: false,
   },
   llm: {
     label: '文字解析',
-    description: '用于纠错、校准输入和生成视频提示词。',
+    description: '用于纠错、润色和视频提示词生成，推荐会综合质量、速度与成本。',
     color: 'success',
     requireImageInput: false,
   },
@@ -162,8 +162,7 @@ async function loadCatalog(service, { syncFirst = false } = {}) {
       service_type: service,
     })
     catalogByService[service] = Array.isArray(res.data) ? res.data : []
-    recommendedByService[service] =
-      catalogByService[service].find(item => item.is_recommended) || recommendedByService[service] || null
+    recommendedByService[service] = catalogByService[service].find(item => item.is_recommended) || null
   } finally {
     listLoading[service] = false
   }
@@ -232,6 +231,69 @@ function formatSource(item) {
   }
   return sourceMap[item?.source_kind] || item?.source_kind || '模型目录'
 }
+
+function formatPrice(item) {
+  const effectivePrice = Number(item?.effective_price)
+  if (Number.isFinite(effectivePrice) && effectivePrice > 0) {
+    const digits = effectivePrice >= 1 ? 4 : 6
+    return `实价 $${effectivePrice.toFixed(digits)} / 次`
+  }
+
+  const modelRatio = Number(item?.price_ratio)
+  const completionRatio = Number(item?.completion_price_ratio)
+  const groupRatio = Number(item?.group_ratio)
+  const ratioParts = []
+  if (Number.isFinite(modelRatio) && modelRatio > 0) {
+    ratioParts.push(`倍率 ${modelRatio.toFixed(2)}`)
+  }
+  if (Number.isFinite(completionRatio) && completionRatio > 0) {
+    ratioParts.push(`补全 ${completionRatio.toFixed(2)}`)
+  }
+  if (Number.isFinite(groupRatio) && groupRatio > 0) {
+    ratioParts.push(`分组 ${groupRatio.toFixed(2)}`)
+  }
+  if (ratioParts.length) {
+    return ratioParts.join(' / ')
+  }
+
+  if (isHubObservedPricePending(item)) {
+    return '待实测'
+  }
+
+  return `价格等级 ${item?.price_level ?? '--'}`
+}
+
+function formatPriceHint(item) {
+  if (item?.price_note) {
+    return item.price_note
+  }
+  if (item?.price_source === '99hub_log') {
+    return '价格来自 99hub 最近 30 天账单'
+  }
+  if (isHubObservedPricePending(item)) {
+    return '当前 token 暂无该模型成功账单，暂不能按真实扣费排序'
+  }
+  return ''
+}
+
+function isHubObservedPricePending(item) {
+  const baseUrl = String(item?.source_base_url || '').toLowerCase()
+  if (!baseUrl) return false
+  const isHub = ['api.99hub.top', 'api3.wlai.vip', 'api.apiplus.org', 'zhongzhuan.chat'].some(host => baseUrl.includes(host))
+  if (!isHub) return false
+  if (String(item?.service_type || '') !== 'video') return false
+
+  const effectivePrice = Number(item?.effective_price)
+  const modelRatio = Number(item?.price_ratio)
+  const completionRatio = Number(item?.completion_price_ratio)
+  const groupRatio = Number(item?.group_ratio)
+  return !(
+    (Number.isFinite(effectivePrice) && effectivePrice > 0) ||
+    (Number.isFinite(modelRatio) && modelRatio > 0) ||
+    (Number.isFinite(completionRatio) && completionRatio > 0) ||
+    (Number.isFinite(groupRatio) && groupRatio > 0)
+  )
+}
 </script>
 
 <template>
@@ -294,13 +356,14 @@ function formatSource(item) {
                   <p>{{ recommendedByService[key].notes || formatSource(recommendedByService[key]) }}</p>
                   <small>
                     推荐分 {{ recommendedByService[key].recommendation_score || recommendedByService[key].capability_score || '--' }}
-                    / 价格 {{ recommendedByService[key].price_level }}
+                    / {{ formatPrice(recommendedByService[key]) }}
                     / 速度 {{ recommendedByService[key].speed_level }}
                     / 质量 {{ recommendedByService[key].quality_level }}
                   </small>
+                  <small v-if="formatPriceHint(recommendedByService[key])">{{ formatPriceHint(recommendedByService[key]) }}</small>
                   <NButton type="primary" @click="handleApply(key, recommendedByService[key].model_id)">应用推荐模型</NButton>
                 </template>
-                <NEmpty v-else description="先点击智能推荐，系统会根据当前平台目录挑选最适合的模型" />
+                <NEmpty v-else description="先点击智能推荐，系统会按当前已接通能力、模型能力和成本给出推荐" />
               </section>
             </div>
 
@@ -321,9 +384,8 @@ function formatSource(item) {
                     </div>
                   </div>
                   <span>{{ model.notes || '模型目录项' }}</span>
-                  <small>
-                    价格 {{ model.price_level }} / 速度 {{ model.speed_level }} / 质量 {{ model.quality_level }}
-                  </small>
+                  <small>{{ formatPrice(model) }} / 速度 {{ model.speed_level }} / 质量 {{ model.quality_level }}</small>
+                  <small v-if="formatPriceHint(model)">{{ formatPriceHint(model) }}</small>
                 </div>
                 <div class="model-card__meta">
                   <div class="model-card__chips">

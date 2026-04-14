@@ -196,7 +196,7 @@ class BusinessGatewayService:
         )
 
     async def sync_video_status(self, task: VideoTask) -> Any:
-        if task.provider in {"openai_compatible", "relay_video"}:
+        if task.provider in video_gateway_service.supported_provider_kinds():
             config = await resolve_effective_user_app_config(task.user_id)
             return await video_gateway_service.get_video_status(
                 config=config,
@@ -214,7 +214,7 @@ class BusinessGatewayService:
         file_name: str | None = None,
         source_video_url: str = "",
     ) -> dict[str, str]:
-        if task.provider in {"openai_compatible", "relay_video"}:
+        if task.provider in video_gateway_service.supported_provider_kinds():
             config = await resolve_effective_user_app_config(task.user_id)
             return await video_gateway_service.ensure_task_video_storage(
                 config=config,

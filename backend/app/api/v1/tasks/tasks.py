@@ -58,6 +58,10 @@ async def list_tasks(
         task_type=task_type,
         include_deleted=include_deleted,
     )
+    tasks = await task_controller.sync_tasks_for_list(
+        tasks,
+        timeout_seconds=task_controller.list_status_sync_timeout_seconds,
+    )
     task_controller.schedule_tasks_for_list(tasks)
     data = []
     for task in tasks:

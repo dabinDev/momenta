@@ -1,5 +1,5 @@
 <script setup>
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   NButton,
   NDataTable,
@@ -23,6 +23,7 @@ const syncingId = ref(null)
 const retryingId = ref(null)
 const detailVisible = ref(false)
 const activeTask = ref(null)
+const pollTimer = ref(null)
 const queryForm = ref({
   username: '',
   status: '',
@@ -70,6 +71,7 @@ const summaryItems = computed(() => [
     hint: '需要排查重试',
   },
 ])
+const hasProcessingTasks = computed(() => rows.value.some((item) => ['queued', 'processing'].includes(item.status)))
 
 const activeTaskMeta = computed(() => {
   if (!activeTask.value) return []
@@ -214,6 +216,10 @@ onMounted(() => {
   fetchTasks()
 })
 
+onBeforeUnmount(() => {
+  stopPolling()
+})
+
 async function fetchTasks() {
   loading.value = true
   try {
@@ -226,9 +232,41 @@ async function fetchTasks() {
     })
     rows.value = res.data || []
     pagination.value.itemCount = res.total || 0
+    if (activeTask.value?.id) {
+      activeTask.value = rows.value.find(item => item.id === activeTask.value.id) || activeTask.value
+    }
+    syncPolling()
   } finally {
     loading.value = false
   }
+}
+
+function startPolling() {
+  if (pollTimer.value || !hasProcessingTasks.value) {
+    return
+  }
+  pollTimer.value = window.setInterval(async () => {
+    if (loading.value) {
+      return
+    }
+    await fetchTasks()
+  }, 5000)
+}
+
+function stopPolling() {
+  if (!pollTimer.value) {
+    return
+  }
+  window.clearInterval(pollTimer.value)
+  pollTimer.value = null
+}
+
+function syncPolling() {
+  if (hasProcessingTasks.value) {
+    startPolling()
+    return
+  }
+  stopPolling()
 }
 
 async function handleSync(taskId) {

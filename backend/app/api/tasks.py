@@ -381,6 +381,10 @@ async def list_tasks(
         page_size=limit,
         status=filter,
     )
+    tasks = await task_controller.sync_tasks_for_list(
+        tasks,
+        timeout_seconds=task_controller.list_status_sync_timeout_seconds,
+    )
     task_controller.schedule_tasks_for_list(tasks)
     items = []
     for task in tasks:

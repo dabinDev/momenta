@@ -15,6 +15,7 @@ from app.models.video_task import VideoTask, VideoTaskAsset, VoiceTranscriptionL
 from app.services.business_gateway import business_gateway_service
 from app.services.local_media import local_media_service
 from app.services.object_storage import ObjectStorageError, object_storage_service
+from app.services.video_gateway import video_gateway_service
 from app.settings import settings
 
 
@@ -36,6 +37,7 @@ class TaskController:
     auto_retry_enabled = True
     list_status_sync_timeout_seconds = 1.5
     detail_status_sync_timeout_seconds = 3.0
+    delayed_status_sync_seconds = 180
     generation_cooldown = timedelta(minutes=5)
     generation_request_hold = timedelta(seconds=30)
     retryable_failure_markers = (
@@ -61,11 +63,13 @@ class TaskController:
         "鉴权",
     )
     transient_failure_retry_limit = 2
+    gateway_video_providers = video_gateway_service.supported_provider_kinds()
 
     def __init__(self) -> None:
         self._generation_attempt_lock = asyncio.Lock()
         self._pending_generation_attempts: dict[int, datetime] = {}
         self._background_sync_task_ids: set[int] = set()
+        self._delayed_sync_task_ids: set[int] = set()
         self._background_finalize_task_ids: set[int] = set()
         self._background_sync_semaphore = asyncio.Semaphore(4)
         self._background_finalize_semaphore = asyncio.Semaphore(2)
@@ -123,6 +127,8 @@ class TaskController:
         )
 
         await self.replace_assets(task=task, images=images)
+        if status in self.processing_statuses:
+            self.schedule_task_status_sync_after_delay(task, delay_seconds=self.delayed_status_sync_seconds, force=True)
         if status == "completed":
             self.schedule_task_video_finalize(task)
         await self._refund_task_points_if_needed(task)
@@ -247,6 +253,39 @@ class TaskController:
 
         asyncio.create_task(_runner())
 
+    def schedule_task_status_sync_after_delay(
+        self,
+        task: VideoTask,
+        *,
+        delay_seconds: float,
+        force: bool = False,
+    ) -> None:
+        if not task.provider_task_id:
+            return
+        if not force and task.status in self.final_statuses:
+            return
+
+        task_id = int(task.id)
+        if task_id in self._delayed_sync_task_ids:
+            return
+
+        self._delayed_sync_task_ids.add(task_id)
+
+        async def _runner() -> None:
+            try:
+                await asyncio.sleep(max(float(delay_seconds or 0), 0))
+                current_task = await self.get_task(task_id=task_id)
+                if not force and current_task.status in self.final_statuses:
+                    return
+                async with self._background_sync_semaphore:
+                    await self.sync_task_status(current_task, force=force)
+            except Exception:
+                pass
+            finally:
+                self._delayed_sync_task_ids.discard(task_id)
+
+        asyncio.create_task(_runner())
+
     def schedule_task_video_finalize(self, task: VideoTask, *, force: bool = False) -> None:
         if task.status != "completed":
             return
@@ -341,7 +380,7 @@ class TaskController:
             self._pending_generation_attempts.pop(user_id, None)
 
     async def _should_auto_retry(self, *, task: VideoTask, payload: dict[str, Any]) -> bool:
-        if task.provider not in {"openai_compatible", "relay_video"}:
+        if task.provider not in self.gateway_video_providers:
             return False
 
         retry_count = self._read_retry_count(task.provider_payload or {})
@@ -416,6 +455,8 @@ class TaskController:
         task.started_at = now
         task.finished_at = None
         await task.save()
+        if task.status in self.processing_statuses:
+            self.schedule_task_status_sync_after_delay(task, delay_seconds=self.delayed_status_sync_seconds, force=True)
         await self._refund_task_points_if_needed(task)
         return task
 
@@ -741,11 +782,11 @@ class TaskController:
 
         if schedule_finalize and task.status == "completed":
             needs_background_finalize = (
-                (not resolved_video_url and (source_video_url or task.provider in {"openai_compatible", "relay_video"}))
+                (not resolved_video_url and (source_video_url or task.provider in self.gateway_video_providers))
                 or (
                     object_storage_service.generated_video_storage_enabled()
                     and not cos_video_url
-                    and (local_file.exists() or source_video_url or task.provider in {"openai_compatible", "relay_video"})
+                    and (local_file.exists() or source_video_url or task.provider in self.gateway_video_providers)
                 )
             )
             if needs_background_finalize:
@@ -782,7 +823,7 @@ class TaskController:
                 task_id=task.id,
                 file_name=local_file.name,
             )
-        elif source_video_url or task.provider in {"openai_compatible", "relay_video"}:
+        elif source_video_url or task.provider in self.gateway_video_providers:
             try:
                 locations = await business_gateway_service.ensure_task_video_storage(
                     task=task,
@@ -1096,7 +1137,7 @@ class TaskController:
     def _read_status(self, payload: dict[str, Any], fallback: str = "processing") -> str:
         data = self._read_payload(payload)
         status = (data.get("status") or fallback or "processing").lower()
-        if status in {"pending", "queued"}:
+        if status in {"pending", "queued", "submitted", "preparing", "queueing", "starting"}:
             return "queued"
         if status in {"processing", "running", "in_progress"}:
             return "processing"
