@@ -17,6 +17,12 @@ const routes = [
     },
   },
   {
+    path: '/birthday/chenbin',
+    alias: ['/chenbin-birthday'],
+    name: 'chenbin-birthday',
+    component: () => import('@/pages/BirthdayChenbinPage.vue'),
+  },
+  {
     path: '/login',
     name: 'login',
     component: () => import('@/pages/LoginPage.vue'),

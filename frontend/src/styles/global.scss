@@ -10,103 +10,103 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --brand-primary: #f06b42;
-  --brand-primary-hover: #ff8760;
-  --brand-secondary: #5f8ef7;
-  --brand-soft: rgba(240, 107, 66, 0.12);
-  --brand-soft-strong: rgba(240, 107, 66, 0.2);
-  --brand-gradient: linear-gradient(135deg, #f06b42 0%, #f6b14c 46%, #5f8ef7 100%);
+  --brand-primary: #3D8BFF;
+  --brand-primary-hover: #5B9CFF;
+  --brand-secondary: #5B9CFF;
+  --brand-soft: rgba(61, 139, 255, 0.12);
+  --brand-soft-strong: rgba(61, 139, 255, 0.2);
+  --brand-gradient: linear-gradient(135deg, #3D8BFF 0%, #5B9CFF 46%, #2B76E8 100%);
   --brand-gradient-soft: linear-gradient(
     135deg,
-    rgba(240, 107, 66, 0.16),
-    rgba(246, 177, 76, 0.15),
-    rgba(95, 142, 247, 0.14)
+    rgba(61, 139, 255, 0.16),
+    rgba(91, 156, 255, 0.15),
+    rgba(43, 118, 232, 0.14)
   );
-  --app-text: #2c1d18;
-  --app-muted: #756255;
+  --app-text: #162034;
+  --app-muted: #566A82;
   --app-bg:
-    radial-gradient(circle at 12% 10%, rgba(240, 107, 66, 0.18), transparent 24%),
-    radial-gradient(circle at 86% 12%, rgba(95, 142, 247, 0.14), transparent 28%),
-    radial-gradient(circle at 72% 82%, rgba(88, 168, 126, 0.12), transparent 22%),
-    radial-gradient(circle at 28% 88%, rgba(246, 177, 76, 0.12), transparent 24%),
-    linear-gradient(180deg, #fff9f5 0%, #fff4ee 46%, #f7f7fb 100%);
+    radial-gradient(circle at 12% 10%, rgba(61, 139, 255, 0.18), transparent 24%),
+    radial-gradient(circle at 86% 12%, rgba(91, 156, 255, 0.14), transparent 28%),
+    radial-gradient(circle at 72% 82%, rgba(62, 207, 184, 0.10), transparent 22%),
+    radial-gradient(circle at 28% 88%, rgba(109, 216, 240, 0.10), transparent 24%),
+    linear-gradient(180deg, #F8FAFD 0%, #EDF3FB 46%, #F2F6FC 100%);
   --surface-card: rgba(255, 255, 255, 0.76);
   --surface-card-strong: rgba(255, 255, 255, 0.9);
   --surface-overlay: rgba(255, 255, 255, 0.62);
-  --surface-muted: #fff6f1;
-  --surface-raised: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(251, 247, 244, 0.93));
-  --shell-sidebar-bg: linear-gradient(180deg, rgba(255, 251, 248, 0.97), rgba(247, 244, 251, 0.93));
+  --surface-muted: #EDF3FB;
+  --surface-raised: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(242, 246, 252, 0.93));
+  --shell-sidebar-bg: linear-gradient(180deg, rgba(248, 250, 253, 0.97), rgba(242, 246, 252, 0.93));
   --shell-header-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.36));
-  --shell-workspace-bg: linear-gradient(180deg, rgba(255, 252, 249, 0.88), rgba(248, 247, 251, 0.84));
-  --shell-border: rgba(121, 86, 62, 0.12);
-  --shell-divider: rgba(121, 86, 62, 0.1);
-  --menu-hover-bg: rgba(95, 142, 247, 0.08);
-  --menu-active-bg: linear-gradient(90deg, rgba(240, 107, 66, 0.14), rgba(95, 142, 247, 0.12));
-  --soft-shadow: 0 8px 24px rgba(64, 33, 12, 0.05);
-  --panel-shadow: 0 16px 38px rgba(64, 33, 12, 0.08);
-  --sidebar-mark-bg: linear-gradient(135deg, #f06b42 0%, #f6b14c 52%, #5f8ef7 100%);
+  --shell-workspace-bg: linear-gradient(180deg, rgba(248, 250, 253, 0.88), rgba(242, 246, 252, 0.84));
+  --shell-border: rgba(86, 106, 130, 0.12);
+  --shell-divider: rgba(86, 106, 130, 0.1);
+  --menu-hover-bg: rgba(91, 156, 255, 0.08);
+  --menu-active-bg: linear-gradient(90deg, rgba(61, 139, 255, 0.14), rgba(91, 156, 255, 0.12));
+  --soft-shadow: 0 8px 24px rgba(22, 32, 52, 0.05);
+  --panel-shadow: 0 16px 38px rgba(22, 32, 52, 0.08);
+  --sidebar-mark-bg: linear-gradient(135deg, #3D8BFF 0%, #5B9CFF 52%, #2B76E8 100%);
   --sidebar-mark-ring: rgba(255, 255, 255, 0.42);
   --control-bg: rgba(255, 255, 255, 0.96);
   --control-bg-focus: #ffffff;
-  --control-text: #2c1d18;
-  --control-muted: #947d6c;
-  --scrollbar-color: rgba(95, 142, 247, 0.2);
-  --scrollbar-color-hover: rgba(240, 107, 66, 0.28);
-  --ambient-amber: rgba(240, 107, 66, 0.18);
-  --ambient-jade: rgba(95, 142, 247, 0.18);
-  --selection-bg: rgba(240, 107, 66, 0.9);
+  --control-text: #162034;
+  --control-muted: #566A82;
+  --scrollbar-color: rgba(91, 156, 255, 0.2);
+  --scrollbar-color-hover: rgba(61, 139, 255, 0.28);
+  --ambient-amber: rgba(61, 139, 255, 0.18);
+  --ambient-jade: rgba(91, 156, 255, 0.16);
+  --selection-bg: rgba(43, 118, 232, 0.9);
   --selection-text: #ffffff;
-  --page-line: rgba(121, 86, 62, 0.12);
+  --page-line: rgba(86, 106, 130, 0.12);
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --brand-primary: #ff9462;
-  --brand-primary-hover: #ffab7e;
-  --brand-secondary: #7ea7ff;
-  --brand-soft: rgba(255, 148, 98, 0.16);
-  --brand-soft-strong: rgba(255, 148, 98, 0.26);
-  --brand-gradient: linear-gradient(135deg, #ff9462 0%, #ffc46d 54%, #7ea7ff 100%);
+  --brand-primary: #6BB5FF;
+  --brand-primary-hover: #8DC6FF;
+  --brand-secondary: #7EA7FF;
+  --brand-soft: rgba(107, 181, 255, 0.16);
+  --brand-soft-strong: rgba(107, 181, 255, 0.26);
+  --brand-gradient: linear-gradient(135deg, #6BB5FF 0%, #8DC6FF 54%, #7EA7FF 100%);
   --brand-gradient-soft: linear-gradient(
     135deg,
-    rgba(255, 148, 98, 0.24),
-    rgba(126, 167, 255, 0.16),
-    rgba(100, 187, 143, 0.14)
+    rgba(107, 181, 255, 0.24),
+    rgba(141, 198, 255, 0.16),
+    rgba(126, 167, 255, 0.14)
   );
-  --app-text: #fff4ed;
-  --app-muted: #ccb4a0;
+  --app-text: #E8F0FF;
+  --app-muted: #8AA0C0;
   --app-bg:
-    radial-gradient(circle at 10% 8%, rgba(255, 148, 98, 0.16), transparent 24%),
+    radial-gradient(circle at 10% 8%, rgba(107, 181, 255, 0.16), transparent 24%),
     radial-gradient(circle at 88% 10%, rgba(126, 167, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 72% 84%, rgba(100, 187, 143, 0.12), transparent 24%),
-    linear-gradient(180deg, #16100d 0%, #1b1412 42%, #171c24 100%);
-  --surface-card: rgba(38, 28, 24, 0.74);
-  --surface-card-strong: rgba(42, 31, 26, 0.88);
-  --surface-overlay: rgba(42, 30, 26, 0.62);
-  --surface-muted: rgba(54, 40, 35, 0.92);
-  --surface-raised: linear-gradient(180deg, rgba(47, 35, 31, 0.96), rgba(33, 27, 31, 0.94));
-  --shell-sidebar-bg: linear-gradient(180deg, rgba(30, 22, 19, 0.96), rgba(22, 18, 23, 0.94));
-  --shell-header-bg: linear-gradient(180deg, rgba(47, 35, 31, 0.68), rgba(47, 35, 31, 0.26));
-  --shell-workspace-bg: linear-gradient(180deg, rgba(35, 27, 24, 0.88), rgba(24, 21, 28, 0.9));
-  --shell-border: rgba(255, 182, 122, 0.12);
-  --shell-divider: rgba(164, 189, 255, 0.1);
+    radial-gradient(circle at 72% 84%, rgba(62, 207, 184, 0.10), transparent 24%),
+    linear-gradient(180deg, #0D1520 0%, #101824 42%, #141E2E 100%);
+  --surface-card: rgba(22, 32, 48, 0.74);
+  --surface-card-strong: rgba(26, 38, 56, 0.88);
+  --surface-overlay: rgba(26, 38, 56, 0.62);
+  --surface-muted: rgba(32, 46, 66, 0.92);
+  --surface-raised: linear-gradient(180deg, rgba(30, 42, 60, 0.96), rgba(24, 34, 50, 0.94));
+  --shell-sidebar-bg: linear-gradient(180deg, rgba(18, 28, 42, 0.96), rgba(14, 22, 34, 0.94));
+  --shell-header-bg: linear-gradient(180deg, rgba(30, 42, 60, 0.68), rgba(30, 42, 60, 0.26));
+  --shell-workspace-bg: linear-gradient(180deg, rgba(22, 34, 50, 0.88), rgba(18, 28, 42, 0.9));
+  --shell-border: rgba(107, 181, 255, 0.12);
+  --shell-divider: rgba(126, 167, 255, 0.1);
   --menu-hover-bg: rgba(126, 167, 255, 0.1);
-  --menu-active-bg: linear-gradient(90deg, rgba(255, 148, 98, 0.18), rgba(126, 167, 255, 0.14));
+  --menu-active-bg: linear-gradient(90deg, rgba(107, 181, 255, 0.18), rgba(126, 167, 255, 0.14));
   --soft-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
   --panel-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
-  --sidebar-mark-bg: linear-gradient(135deg, #ff9462 0%, #ffc46d 52%, #7ea7ff 100%);
+  --sidebar-mark-bg: linear-gradient(135deg, #6BB5FF 0%, #8DC6FF 52%, #7EA7FF 100%);
   --sidebar-mark-ring: rgba(255, 255, 255, 0.18);
-  --control-bg: rgba(46, 34, 31, 0.96);
-  --control-bg-focus: rgba(56, 40, 37, 1);
-  --control-text: #fff4ed;
-  --control-muted: #b99783;
+  --control-bg: rgba(26, 38, 56, 0.96);
+  --control-bg-focus: rgba(32, 46, 66, 1);
+  --control-text: #E8F0FF;
+  --control-muted: #8AA0C0;
   --scrollbar-color: rgba(126, 167, 255, 0.22);
-  --scrollbar-color-hover: rgba(255, 148, 98, 0.34);
-  --ambient-amber: rgba(255, 148, 98, 0.18);
+  --scrollbar-color-hover: rgba(107, 181, 255, 0.34);
+  --ambient-amber: rgba(107, 181, 255, 0.18);
   --ambient-jade: rgba(126, 167, 255, 0.16);
-  --selection-bg: rgba(255, 148, 98, 0.88);
-  --selection-text: #180e08;
-  --page-line: rgba(164, 189, 255, 0.12);
+  --selection-bg: rgba(91, 164, 230, 0.88);
+  --selection-text: #0D1520;
+  --page-line: rgba(126, 167, 255, 0.12);
 }
 
 * {

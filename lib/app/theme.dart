@@ -4,35 +4,42 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color primary = Color(0xFFF06E42);
-  static const Color primaryDeep = Color(0xFFD95C35);
-  static const Color primaryDark = Color(0xFFB84A2C);
-  static const Color amber = Color(0xFFF4B651);
-  static const Color jade = Color(0xFF58A87E);
-  static const Color sky = Color(0xFF5D8DF7);
-  static const Color coral = Color(0xFFF09473);
-  static const Color canvas = Color(0xFFFFF9F4);
-  static const Color canvasWarm = Color(0xFFFFF1E6);
-  static const Color surface = Color(0xFFFFFCFA);
-  static const Color surfaceSoft = Color(0xFFFFF5EC);
-  static const Color surfaceMuted = Color(0xFFF8EEE6);
-  static const Color surfaceSky = Color(0xFFF4F8FF);
-  static const Color surfaceJade = Color(0xFFF1FAF5);
-  static const Color surfaceAmber = Color(0xFFFFF6E8);
-  static const Color outline = Color(0xFFEEDFD3);
-  static const Color outlineSoft = Color(0xFFF6EEE8);
-  static const Color fieldSurface = Color(0xFFFFFCF8);
-  static const Color fieldBorder = Color(0xFFE7D9D1);
-  static const Color secondaryButtonSurface = Color(0xFFF6FAFF);
-  static const Color text = Color(0xFF302219);
-  static const Color muted = Color(0xFF7F6A5A);
+  // ── Core palette: Deep Space Blue ──
+  static const Color primary = Color(0xFF3D8BFF);
+  static const Color primaryDeep = Color(0xFF2B76E8);
+  static const Color primaryDark = Color(0xFF1E5FC4);
+  static const Color amber = Color(0xFF3D8BFF);
+  static const Color jade = Color(0xFF3ECFB8);
+  static const Color sky = Color(0xFF5B9CFF);
+  static const Color coral = Color(0xFF6DD8F0);
+
+  // ── Surfaces: crisp blue-white layering ──
+  static const Color canvas = Color(0xFFF2F6FC);
+  static const Color canvasWarm = Color(0xFFE8F0FA);
+  static const Color surface = Color(0xFFF8FAFD);
+  static const Color surfaceSoft = Color(0xFFEDF3FB);
+  static const Color surfaceMuted = Color(0xFFE2EBF6);
+  static const Color surfaceSky = Color(0xFFEFF4FB);
+  static const Color surfaceJade = Color(0xFFE8F8F4);
+  static const Color surfaceAmber = Color(0xFFE8F0FA);
+
+  // ── Structure: blue-gray borders & outlines ──
+  static const Color outline = Color(0xFFC8D6E6);
+  static const Color outlineSoft = Color(0xFFDEE8F4);
+  static const Color fieldSurface = Color(0xFFF5F8FC);
+  static const Color fieldBorder = Color(0xFFC0D0E4);
+  static const Color secondaryButtonSurface = Color(0xFFF0F5FB);
+
+  // ── Text: cool navy spectrum ──
+  static const Color text = Color(0xFF162034);
+  static const Color muted = Color(0xFF566A82);
 
   static const LinearGradient warmBackground = LinearGradient(
     colors: <Color>[
-      Color(0xFFFFFCF8),
-      Color(0xFFFFF3E9),
-      Color(0xFFF4F8FF),
-      Color(0xFFF2FAF6),
+      Color(0xFFF5F8FC),
+      Color(0xFFE8F0FA),
+      Color(0xFFE0EAFA),
+      Color(0xFFEFF6FB),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -90,7 +97,7 @@ class AppTheme {
       ),
       textSelectionTheme: const TextSelectionThemeData(
         cursorColor: primaryDeep,
-        selectionColor: Color(0x33F08B62),
+        selectionColor: Color(0x303D8BFF),
         selectionHandleColor: primaryDeep,
       ),
       appBarTheme: const AppBarTheme(
@@ -114,7 +121,7 @@ class AppTheme {
         hintStyle: const TextStyle(
           fontSize: 17,
           height: 1.45,
-          color: Color(0xFF917F72),
+          color: Color(0xFF7888A0),
           fontWeight: FontWeight.w500,
         ),
         prefixIconColor: primaryDeep,
@@ -165,8 +172,8 @@ class AppTheme {
           backgroundColor: primaryDeep,
           foregroundColor: Colors.white,
           shadowColor: primaryDeep.withValues(alpha: 0.22),
-          disabledBackgroundColor: const Color(0xFFD8C5B6),
-          disabledForegroundColor: const Color(0xFF8F7E71),
+          disabledBackgroundColor: const Color(0xFFC8D6E6),
+          disabledForegroundColor: const Color(0xFF8898AA),
           textStyle: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -185,8 +192,8 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 17),
           backgroundColor: primaryDeep,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFD8C5B6),
-          disabledForegroundColor: const Color(0xFF8F7E71),
+          disabledBackgroundColor: const Color(0xFFC8D6E6),
+          disabledForegroundColor: const Color(0xFF8898AA),
           overlayColor: primaryDark.withValues(alpha: 0.08),
           textStyle: const TextStyle(
             fontSize: 18,
@@ -203,10 +210,10 @@ class AppTheme {
           elevation: 0,
           minimumSize: const Size.fromHeight(56),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          backgroundColor: const Color(0xFFF8FBFF),
+          backgroundColor: const Color(0xFFF5F8FC),
           foregroundColor: primaryDeep,
           side: BorderSide(
-            color: const Color(0xFFD6E1F7),
+            color: const Color(0xFFD0DCEE),
             width: 1,
           ),
           textStyle: const TextStyle(
@@ -230,10 +237,10 @@ class AppTheme {
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: const Color(0xFFFFF8F3),
+        backgroundColor: const Color(0xFFEFF4FB),
         disabledColor: surfaceSoft,
-        selectedColor: primary.withValues(alpha: 0.18),
-        secondarySelectedColor: primary.withValues(alpha: 0.18),
+        selectedColor: primary.withValues(alpha: 0.16),
+        secondarySelectedColor: primary.withValues(alpha: 0.16),
         side: BorderSide(
           color: primaryDeep.withValues(alpha: 0.12),
           width: 0.8,
@@ -253,7 +260,7 @@ class AppTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         height: 64,
-        indicatorColor: primary.withValues(alpha: 0.16),
+        indicatorColor: primary.withValues(alpha: 0.14),
         labelTextStyle: const WidgetStatePropertyAll(
           TextStyle(
             fontSize: 13,
@@ -264,7 +271,7 @@ class AppTheme {
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: primaryDeep,
-        linearTrackColor: Color(0xFFDDE6FF),
+        linearTrackColor: Color(0xFFDAE4F4),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
