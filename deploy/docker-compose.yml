@@ -1,0 +1,40 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-token
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./memo/app:/etc/nginx/static/app:ro
+      - ./memo/admin:/etc/nginx/static/admin:ro
+      - ./files:/etc/nginx/static/files:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - momenta-backend
+    networks:
+      - nginx-net
+
+  momenta-backend:
+    build:
+      context: /opt/momenta/backend
+      dockerfile: Dockerfile.prod
+    container_name: momenta-backend
+    restart: unless-stopped
+    ports:
+      - "10099:10099"
+    volumes:
+      - /opt/momenta/backend/media:/app/media
+      - /opt/momenta/backend/db.sqlite3:/app/db.sqlite3
+    env_file:
+      - /opt/momenta/backend/.env.production
+    networks:
+      - nginx-net
+
+networks:
+  nginx-net:
+    driver: bridge
